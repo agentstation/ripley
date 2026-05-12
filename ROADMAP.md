@@ -43,8 +43,25 @@ sandboxing.
 
 ### M1: Core Data Pipeline
 
-Build the data backbone: fetch advisories, parse lockfiles, match them.
-Everything lives in `ripley-core`.
+Build the data backbone: platform directories, configuration, feed client,
+lockfile parser, matcher, and the `ripley scan` CLI. Everything lives in
+`ripley-core` except the CLI wiring.
+
+**0. Platform directories and configuration**
+Create modules `crates/ripley-core/src/dirs.rs` and `crates/ripley-core/src/config.rs`.
+
+- Use `directories::ProjectDirs::from("com", "agentstation", "ripley")` to
+  get platform-appropriate paths. Expose: `config_dir()`, `data_dir()`,
+  `cache_dir()`. Create directories on first use.
+- Define a `Config` struct with `#[serde(default)]` on all fields:
+  `poll_interval_secs: u64` (default 300), `harness: Option<String>`,
+  `project_roots: Vec<PathBuf>`, `guard_mode: GuardMode` (strict/audit/off),
+  `trust: Vec<String>`.
+- Load config with layering: read `{config_dir}/config.toml` (user defaults),
+  then `.ripley.toml` in the working directory (project overrides), then
+  `RIPLEY_*` environment variables, then CLI flags. Each layer overrides
+  previous values.
+- Write a default `config.toml` to `{config_dir}/` on first run if none exists.
 
 **1. OSV.dev API client**
 Create module `crates/ripley-core/src/feed/osv.rs` (and `mod.rs`).
@@ -69,20 +86,27 @@ Create module `crates/ripley-core/src/feed/osv.rs` (and `mod.rs`).
   `id, ecosystem, package, affected_ranges: Vec<(introduced, fixed)>,
   severity, summary, references, iocs`.
 - Use `reqwest` for HTTP, `serde` for deserialization.
+- **ETag caching:** Store the `ETag` response header in `{cache_dir}/feeds/`.
+  On subsequent requests, send `If-None-Match`. If the API returns 304, skip
+  parsing. This avoids re-downloading unchanged data on every poll cycle.
+- **Exponential backoff:** On API errors (5xx, timeout, network), retry with
+  exponential backoff and jitter: 1s → 2s → 4s → ... capped at 5 minutes.
+  Do not hammer a failing API every 5 minutes.
 - The client should accept a list of `(ecosystem, package_name)` pairs
   and return `Vec<Advisory>`.
 
 **2. Advisory storage**
 Create module `crates/ripley-core/src/db.rs`.
 
-- Use `redb` with database path `~/.ripley/advisories.redb`.
+- Use `redb` with database at `{data_dir}/advisories.redb` (use the `dirs`
+  module from task 0, not a hardcoded path).
 - Table `advisories`: key = `"{ecosystem}:{package_name}"` (String),
   value = serialized `Vec<Advisory>` (JSON bytes via `serde_json`).
 - Table `meta`: key = `"last_poll"`, value = timestamp (u64, unix seconds).
 - Operations: `store_advisories`, `get_advisories(ecosystem, package)`,
   `get_all_advisories`, `get_last_poll`, `set_last_poll`.
-- Accept a `&Path` for the database location (testable without touching
-  `~/.ripley/`).
+- Accept a `&Path` for the database location (testable with a temp dir
+  instead of the real data directory).
 
 **3. Lockfile parser**
 Create module `crates/ripley-core/src/lockfile/npm.rs` (and `mod.rs`).
@@ -114,20 +138,28 @@ Create module `crates/ripley-core/src/matcher.rs`.
 **5. Wire up `ripley scan`**
 In `crates/ripley-guard/src/main.rs`, implement the `Scan` command:
 
+- Add `--format` flag: `json` or `table` (default: `table`).
 - Walk the given path for lockfiles (look for `package-lock.json`).
 - Parse each lockfile → `Vec<InstalledPackage>`.
 - Load advisories from local DB. If DB is empty or stale (> 1 hour),
-  fetch from OSV.dev first.
+  fetch from OSV.dev first (using ETag cache).
 - Run matcher → `Vec<Match>`.
-- Print results: for each match, show the advisory ID, package name,
-  installed version, severity, and summary.
-- Exit code 0 if no matches, 1 if matches found.
+- **Table output** (default): for each match, show advisory ID, package
+  name, installed version, severity, and summary. Use `colored` for
+  severity highlighting.
+- **JSON output** (`--format json`): serialize `Vec<Match>` to JSON.
+  One JSON object per line or a JSON array — must be machine-parseable.
+- Exit codes: 0 = no matches (clean), 1 = matches found, 2 = error
+  (network failure, parse error, etc.). These follow cargo-audit, trivy,
+  and grype conventions.
 
 **Verification:**
 ```
+cargo deny check                              # own supply chain audit passes
 cargo test --workspace                        # all unit tests pass
 cargo run -p ripley-guard -- scan tests/fixtures/  # parses the fixture lockfile,
                                                # queries OSV, prints results
+cargo run -p ripley-guard -- scan --format json tests/fixtures/  # JSON output
 ```
 
 ---
@@ -145,9 +177,16 @@ Create module `crates/ripley-core/src/rules.rs` (or `rules/mod.rs`).
 - Define `Rule` struct: `id, name, description, ecosystem, signal, weight
   (medium|high|critical), patterns: Vec<String>`.
 - Define `RuleSet` struct holding `Vec<Rule>`.
-- Load rules from TOML using `include_str!("../../../rules/npm_postinstall.toml")`
-  at compile time (adjust path as needed).
-- Parse with `serde` (add `toml` to workspace dependencies if needed).
+- **Two-tier loading:**
+  1. Compiled-in defaults: `include_str!("../../../rules/npm_postinstall.toml")`
+     (and any other rule files in `rules/`). These are the base rules.
+  2. Runtime user rules: load `*.toml` from `{config_dir}/rules/` at startup.
+     User rules are appended to the compiled-in set. If a user rule has the
+     same `id` as a compiled-in rule, the user rule overrides it (allows
+     tuning weights or disabling specific rules).
+- This follows the pattern of ClamAV (signature updates), YARA (rule files),
+  and Sigma (detection rules): ship defaults, let users extend.
+- Parse with `serde` + `toml` crate.
 - Expose `RuleSet::for_ecosystem(Ecosystem) -> &[Rule]`.
 - The rule file at `rules/npm_postinstall.toml` already exists as a reference.
 
@@ -155,12 +194,16 @@ Create module `crates/ripley-core/src/rules.rs` (or `rules/mod.rs`).
 Create module `crates/ripley-core/src/analyzer.rs`.
 
 - Input: script content (string) + applicable `RuleSet`.
-- For each rule, compile patterns to regex and check if any match the
-  script content.
+- For each rule, compile patterns to `regex::Regex` and check if any match
+  the script content. Cache compiled regexes (compile once, match many).
 - Output: `AnalysisResult` with `risk_level: RiskLevel (Low|Medium|High|
   Critical)`, `matched_rules: Vec<MatchedRule>` (rule id + matched line).
 - Risk level = highest weight among matched rules. No matches = Low.
 - Highlight which line(s) matched for user display.
+- **Snapshot tests with `insta`:** Use `insta::assert_json_snapshot!` to
+  test analyzer output against `tests/fixtures/malicious-postinstall.sh`
+  and `tests/fixtures/benign-postinstall.sh`. Snapshot files make output
+  regressions immediately visible in diffs.
 
 **3. Script extractor**
 Create module `crates/ripley-guard/src/extractor.rs`.
@@ -200,25 +243,32 @@ Create binary `crates/ripley-guard/src/bin/ripley-script-shell.rs`.
 **6. `ripley guard install` / `uninstall`**
 Implement in `crates/ripley-guard/src/main.rs` GuardCommands::Install:
 
-- Create `~/.ripley/bin/` directory.
-- Copy (or symlink) the `ripley-npm-shim` binary to `~/.ripley/bin/npm`.
-- Copy the `ripley-script-shell` binary to `~/.ripley/bin/ripley-script-shell`.
+- Create `{data_dir}/bin/` directory (using platform dirs, not hardcoded).
+- Copy (or symlink) the `ripley-npm-shim` binary to `{data_dir}/bin/npm`.
+- Copy the `ripley-script-shell` binary to `{data_dir}/bin/ripley-script-shell`.
 - Detect the user's shell RC file (`.zshrc`, `.bashrc`, `.profile`).
-- Append `export PATH="$HOME/.ripley/bin:$PATH"` if not already present.
-- Set `script-shell=/Users/<user>/.ripley/bin/ripley-script-shell` in
-  `~/.npmrc` (create if needed).
+- Append `export PATH="{data_dir}/bin:$PATH"` if not already present.
+- Set `script-shell={data_dir}/bin/ripley-script-shell` in `~/.npmrc`
+  (create if needed).
+- All file writes must be atomic: write to temp file, then rename.
+- `ripley guard install` must be idempotent (safe to run multiple times).
 - Print summary of what was installed.
 
 `GuardCommands::Uninstall`: reverse all of the above.
 
 **7. `ripley guard trust` / `untrust` / `log` / `status`**
 
-- Trust list: store in redb table `trust` in the same database.
-  Key = package name/scope, value = timestamp when trusted.
-- `trust <pkg>`: add to trust list.
+- **Trust list:** stored in `config.toml` under `[guard] trust = [...]`.
+  Human-editable, version-controllable. Use `ripley-core`'s config module
+  to read/write.
+- `trust <pkg>`: add to trust list in config, write file atomically
+  (write to temp file, then rename — prevents corruption on crash).
 - `untrust <pkg>`: remove from trust list.
-- `log`: store recent guard decisions (allow/block/trust) in a redb table
-  `guard_log`. Show last 20 entries.
+- **Guard log:** append-only JSONL file at `{data_dir}/guard.jsonl`.
+  Each line is a JSON object: `{timestamp, package, version, action,
+  risk_level, matched_rules}`. JSONL is inspectable with `jq`, greppable,
+  and rotatable with standard log tools.
+- `log`: read last 20 lines of the JSONL file, render as table.
 - `status`: show which shims are installed, whether script-shell is active,
   count of trusted packages.
 
@@ -246,7 +296,10 @@ cargo run -p ripley-guard -- guard uninstall      # removes shims
 ### M3: Tray App MVP (macOS)
 
 Build the Tauri v2 system tray application. This is the first time the
-project needs npm/frontend tooling.
+project needs npm/frontend tooling. The tray app uses an **event-driven
+architecture**: each component runs as a separate tokio task, communicating
+via typed `mpsc` channels, coordinated by a `CancellationToken` for
+graceful shutdown.
 
 **1. Tauri scaffolding**
 
@@ -260,29 +313,54 @@ project needs npm/frontend tooling.
   - Configure the system tray with a menu.
 - Verify: `cargo tauri dev` launches a tray icon with a menu.
 - `src-tauri/Cargo.toml` should depend on `ripley-core = { workspace = true }`.
+- Log to file using `tracing-appender` with daily rotation in
+  `{data_dir}/logs/`.
 
-**2. System tray menu**
+**2. Event channel architecture**
+Create `src-tauri/src/events.rs`.
+
+- Define a typed event enum:
+  ```rust
+  enum AppEvent {
+      AdvisoriesUpdated(Vec<Advisory>),
+      LockfileChanged { path: PathBuf, packages: Vec<InstalledPackage> },
+      MatchFound(Match),
+      UserAction(Action),  // View, Fix, Dismiss, Contain
+  }
+  ```
+- Create an `mpsc::channel<AppEvent>` shared by all components.
+- The main loop receives events and dispatches: `MatchFound` → notification,
+  `UserAction::Fix` → prompt generator → harness launcher, etc.
+- All components take a `CancellationToken` from `tokio_util`. On "Quit"
+  menu action or `SIGTERM`: cancel the token, which causes all tasks to
+  exit cleanly (close redb, flush logs, remove PID file).
+- No shared mutable state between components. All communication via channels.
+
+**3. System tray menu**
 
 - Menu items: Status (shows last poll time + alert count), Alerts
   (submenu of recent alerts), Configure, Quit.
 - "Configure" opens a webview window for settings.
-- "Quit" exits the app.
+- "Quit" cancels the `CancellationToken`, triggering graceful shutdown.
 
-**3. Background feed poller**
+**4. Background feed poller**
 
-- On launch, start a tokio task that polls OSV.dev on an interval
-  (default 5 minutes, configurable).
-- On each poll: fetch advisories via `ripley-core` feed client, store
-  in redb, run matcher against lockfile index, generate alerts for
-  new matches.
-- Update the tray icon badge / tooltip with alert count.
+- Spawn as a tokio task with a clone of the event sender and the
+  cancellation token.
+- Poll OSV.dev on the configured interval (from `config.toml`).
+  Use ETag caching and exponential backoff (from M1 feed client).
+- On new advisories: send `AdvisoriesUpdated` event. The main loop
+  re-runs the matcher against the current lockfile index.
+- On cancellation: exit the loop cleanly.
 
-**4. Lockfile watcher**
+**5. Lockfile watcher**
 
-- On launch, walk configured project roots and index all lockfiles.
-- Use `notify` crate to watch for changes. On change, re-parse and
-  re-index the affected lockfile.
-- Re-run matcher against cached advisories when lockfiles change.
+- Spawn as a tokio task.
+- On launch, walk configured project roots and index all lockfiles
+  (in-memory index, not persisted).
+- Use `notify` v8 to watch for changes. On change, re-parse and
+  send `LockfileChanged` event.
+- The main loop re-runs the matcher against cached advisories.
 
 **5. Notifications**
 

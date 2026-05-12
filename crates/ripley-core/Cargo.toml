@@ -4,15 +4,23 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+directories = { workspace = true }
 notify = { workspace = true }
 redb = { workspace = true }
+regex = { workspace = true }
 reqwest = { workspace = true }
 semver = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
+tokio-util = { workspace = true }
+toml = { workspace = true }
 tracing = { workspace = true }
+tracing-appender = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
 
 [lints]
 workspace = true

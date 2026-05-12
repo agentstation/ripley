@@ -16,6 +16,8 @@ cargo build --workspace
 cargo test --workspace
 cargo clippy --workspace
 cargo fmt --all -- --check
+cargo deny check                    # audit own supply chain
+cargo run -p ripley-guard -- scan --format json tests/fixtures/
 ```
 
 ## Run
@@ -24,6 +26,7 @@ cargo fmt --all -- --check
 cargo run -p ripley-guard -- --help
 cargo run -p ripley-guard -- scan .
 cargo run -p ripley-guard -- scan --deep .
+cargo run -p ripley-guard -- scan --format json .
 cargo run -p ripley-guard -- guard status
 ```
 
@@ -44,18 +47,26 @@ After completing a milestone:
 
 - **Error handling:** `thiserror` in `ripley-core` (library), `anyhow` in `ripley-guard` (binary)
 - **Async runtime:** `tokio` (multi-threaded, `features = ["full"]`)
-- **HTTP client:** `reqwest` with `rustls-tls` (no OpenSSL/C dependency)
-- **Serialization:** `serde` + `serde_json` with derive macros
+- **HTTP client:** `reqwest` with `rustls` (no OpenSSL/C dependency)
+- **Serialization:** `serde` + `serde_json` with derive macros; `toml` for config files
 - **CLI parsing:** `clap` v4 with derive macros
-- **Logging:** `tracing` + `tracing-subscriber` with `env-filter`
-- **Local storage:** `redb` (pure Rust embedded KV store)
+- **CLI output:** support `--format json|table`, exit codes: 0=clean, 1=findings, 2=error
+- **Logging:** `tracing` + `tracing-subscriber` with `env-filter`; `tracing-appender` for file logging in daemon mode
+- **Advisory cache:** `redb` v4 (pure Rust embedded KV store) — advisory data only
+- **Configuration:** `config.toml` in platform config dir — human-editable, layered (user → project → env → CLI)
+- **Guard log:** append-only JSONL at `{data_dir}/guard.jsonl`
+- **Lockfile index:** in-memory only, rebuilt on startup and filesystem events — never persist derived data
+- **Platform directories:** `directories` crate — never hardcode `~/.ripley/`
 - **Version matching:** `semver` crate
-- **Filesystem watching:** `notify` crate v6
+- **Filesystem watching:** `notify` crate v8
+- **Pattern matching:** `regex` crate (cache compiled regexes)
+- **Snapshot testing:** `insta` crate for analyzer output, CLI output, prompt format
 - **Tests:** unit tests in `#[cfg(test)] mod tests` blocks, integration tests in `tests/`
 - No `unwrap()` or `expect()` in `ripley-core` — always return `Result`
 - No `unsafe` unless there is a documented, measured reason
-- Detection rules are TOML files in `rules/`, compiled in via `include_str!`
+- Detection rules: TOML files compiled in via `include_str!` (base) + loaded at runtime from `{config_dir}/rules/` (user)
 - Test fixtures live in `tests/fixtures/` at the workspace root
+- File writes to config/RC files must be atomic (write temp, then rename)
 
 ## Scope guardrails
 
@@ -65,6 +76,9 @@ After completing a milestone:
 - **No Tauri until M3.** Milestones M1 and M2 are pure CLI. The tray app comes in M3.
   Do not install tauri-cli or scaffold src-tauri until M3.
 - **Test as you go.** Every public function in `ripley-core` should have at least one
-  unit test. Write the test before or alongside the implementation, not after.
+  unit test. Use `insta` snapshot tests for any output that has a defined format
+  (analyzer results, CLI output, prompts).
 - **Keep dependencies minimal.** The workspace Cargo.toml already declares all needed
   dependencies. Do not add new crates without a clear reason.
+- **Own supply chain.** Run `cargo deny check` as part of verification. A supply chain
+  security tool that doesn't audit its own dependencies has no credibility.

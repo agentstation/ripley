@@ -299,7 +299,8 @@ ripley-guard: @example/pkg@1.2.3 postinstall script flagged (risk: high)
 ```
 
 **Trust management.** Developers can trust specific packages, publishers, or scopes. Trusted
-packages bypass analysis. The trust list is local and explicit --- Ripley never auto-trusts.
+packages bypass analysis. The trust list lives in `config.toml` (human-editable,
+version-controllable) and is local and explicit --- Ripley never auto-trusts.
 
 **CI mode.** In CI environments (`CI=true`), the guard runs non-interactively. High-risk
 scripts fail the build. Configuration via `.ripley.toml` in the project root:
@@ -317,15 +318,22 @@ trust = ["@tanstack/*", "typescript", "esbuild"]
 |----------|--------|-----------|
 | Language | Rust | Both the tray app and guard need to be fast, dependency-free, and cross-platform. The guard runs on every `npm install` --- it must add < 200ms latency. |
 | Tray framework | Tauri v2 | Native webview, ~5MB binary, 30-40MB idle RAM, ships on macOS/Windows/Linux. Avoids bundling Chromium. Uses `tray-icon` crate internally --- if Tauri proves too heavy, we can drop to pure Rust (`tray-icon` + `notify-rust` + `reqwest`) at 5-15MB idle with the same tray primitives. |
-| Local storage | `redb` | Pure Rust embedded key-value store with ACID transactions. No C dependencies (unlike SQLite/rusqlite), no FFI. Stores the local advisory cache, lockfile index, trust list, and guard decision log. |
+| Platform directories | `directories` crate | Follow platform conventions instead of hardcoding `~/.ripley/`. Config in `~/.config/ripley/` (Linux) / `~/Library/Application Support/ripley/` (macOS) / `%APPDATA%\ripley\` (Windows). Data, cache, and logs in their platform-appropriate locations. Every mature tool (trivy, grype, snyk) does this. |
+| Storage | Separated by kind | **Advisory cache** → `redb` in the data directory (structured, ACID, concurrent access from tray + CLI). **Configuration** (trust list, poll interval, guard mode, harness preference) → `config.toml` in the config directory (human-editable, version-controllable). **Guard decision log** → append-only JSONL file in the data directory (inspectable with `jq`, rotatable). **Lockfile index** → in-memory only, rebuilt from lockfiles on startup and on filesystem change events (never persist derived data). |
+| Configuration | Layered | User config (`{config_dir}/config.toml`) → project config (`.ripley.toml`) → environment variables (`RIPLEY_*`) → CLI flags. Each layer overrides the previous. Parsed with `toml` + `serde`, merged manually. Standard pattern from cargo-deny, trivy, eslint. |
 | Data source | OSV.dev primary | Free, open, structured, aggregates all ecosystems. No API key required. |
-| Detection rules | Static rules, compiled in | TOML rule files under `rules/` are embedded at build time via `include_str!`. Fast, deterministic, no ML false positives. Rules are derived from real attacks (TanStack worm patterns, Shai-Hulud IOCs, elementary-data `.pth` trick). New rules ship with new releases. |
+| Feed polling | ETag + exponential backoff | Use `If-None-Match` / `ETag` headers to skip re-downloading unchanged data. On API errors, exponential backoff with jitter (1s → 2s → 4s → ... → 5min cap). Query by modification time for incremental updates. Standard for any production polling loop (ClamAV freshclam, trivy DB update). |
+| Detection rules | Compiled-in defaults + runtime loading | Base rules ship compiled in via `include_str!` from `rules/`. Users can add custom rules in `{config_dir}/rules/*.toml`, loaded at startup. This follows the pattern of ClamAV (signature updates), YARA (rule files), and Sigma (detection rules). New official rules ship with releases; user rules don't require rebuilding. |
 | Lockfile format | Parse directly | Don't depend on package managers to report their own state. Read `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, etc. directly. |
-| Filesystem watching | `notify` crate | Cross-platform abstraction over FSEvents/inotify/ReadDirectoryChanges. Used for lockfile re-indexing (before) and unauthorized write detection (during). |
-| npm interception | Hybrid: PATH shim + `script-shell` | PATH shim intercepts `npm install` for pre-install advisory checks. Additionally, setting `script-shell=~/.ripley/bin/ripley-script-shell` in `.npmrc` routes *all* lifecycle script execution through Ripley's analyzer --- every `preinstall`, `postinstall`, and `prepare` script runs through our static analyzer as its shell. This is a unique capability: other tools either block all scripts or allow all scripts. Ripley analyzes each one individually at execution time. |
-| Other PM interception | PATH shims | pip, cargo, gem, go: compiled Rust shim binaries in `~/.ripley/bin/` (modeled after Volta's approach). Each shim resolves the real binary, performs analysis, then delegates. Go has no install scripts, so its shim only checks advisories. |
+| Filesystem watching | `notify` crate v8 | Cross-platform abstraction over FSEvents/inotify/ReadDirectoryChanges. Used for lockfile re-indexing (before) and unauthorized write detection (during). |
+| CLI output | `--format json\|table` | Security tools are CI pipeline components. Machine-readable output is required. JSON for piping, table for humans (default). Exit codes: 0 = clean, 1 = findings, 2 = error. Follows cargo-audit, trivy, grype, osv-scanner conventions. |
+| npm interception | Hybrid: PATH shim + `script-shell` | PATH shim intercepts `npm install` for pre-install advisory checks. Additionally, setting `script-shell` in `.npmrc` routes *all* lifecycle script execution through Ripley's analyzer --- every `preinstall`, `postinstall`, and `prepare` script runs through our static analyzer as its shell. This is a unique capability: other tools either block all scripts or allow all scripts. Ripley analyzes each one individually at execution time. |
+| Other PM interception | PATH shims | pip, cargo, gem, go: compiled Rust shim binaries (modeled after Volta's approach). Each shim resolves the real binary, performs analysis, then delegates. Go has no install scripts, so its shim only checks advisories. |
 | Harness integration | CLI spawning | No deep integration with any specific harness. Spawn `claude -p`, `codex -q`, or equivalent. Works with whatever the developer has installed. Harness-agnostic. |
-| Trust model | Explicit, local | No remote trust authority. Developer opts in to trusting packages. Default is verify everything. |
+| Trust model | Explicit, local | No remote trust authority. Developer opts in to trusting packages via `config.toml`. Default is verify everything. |
+| Own supply chain | `cargo-deny` + pinned toolchain | A supply chain security tool must audit its own dependencies. `deny.toml` enforces advisory checks, license allowlist, and source restrictions on all 244+ transitive deps. `rust-toolchain.toml` pins the Rust channel for reproducible builds. |
+| Tray internals | Event channels + `CancellationToken` | Tray app components (poller, watcher, matcher, notifier) run as separate tokio tasks communicating via typed `mpsc` channels. Coordinated shutdown via `tokio_util::sync::CancellationToken`. No shared mutable state. Standard tokio service pattern. |
+| Testing | Snapshots + fuzzing | `insta` for snapshot testing of prompt generator output, CLI output, and analyzer results (prevents output regressions). `cargo-fuzz` for lockfile parsers and static analyzer (handles untrusted input — a security tool that panics on crafted input is a liability). Fixtures organized by real attack type (GuardDog pattern). |
 
 
 ## Project Structure
@@ -334,14 +342,18 @@ trust = ["@tanstack/*", "typescript", "esbuild"]
 ripley/
 ├── Cargo.toml                  # virtual workspace root
 ├── Cargo.lock
+├── rust-toolchain.toml         # pinned Rust channel
+├── deny.toml                   # cargo-deny: advisory, license, source checks
 ├── crates/
 │   ├── ripley-core/            # shared library: feed polling, lockfile parsing,
-│   │   └── src/                #   matching, advisory DB (redb), detection rules,
-│   │       ├── lib.rs          #   prompt generation
+│   │   └── src/                #   matching, advisory cache (redb), detection rules,
+│   │       ├── lib.rs          #   prompt generation, config, platform dirs
+│   │       ├── config.rs       # layered config: user → project → env → CLI
+│   │       ├── dirs.rs         # platform directories (directories crate)
 │   │       ├── feed/
 │   │       ├── lockfile/
 │   │       ├── matcher.rs
-│   │       ├── db.rs
+│   │       ├── db.rs           # redb advisory cache only
 │   │       ├── rules/
 │   │       └── prompt.rs
 │   ├── ripley-guard/           # package manager interceptor (standalone binary)
@@ -360,6 +372,7 @@ ripley/
 │   ├── src/
 │   │   ├── main.rs
 │   │   ├── tray.rs             # system tray setup + menu
+│   │   ├── events.rs           # typed event channel (mpsc)
 │   │   ├── poller.rs           # background feed polling loop
 │   │   ├── watcher.rs          # filesystem monitoring (notify crate)
 │   │   └── harness.rs          # AI coding CLI launcher
@@ -369,12 +382,13 @@ ripley/
 │   ├── src/
 │   └── package.json
 ├── rules/                      # detection rules (TOML, compiled in at build time)
-│   ├── npm_postinstall.toml
+│   ├── npm_postinstall.toml    #   users add custom rules in {config_dir}/rules/
 │   ├── pypi_setup.toml
 │   ├── credential_exfil.toml
 │   └── persistence_write.toml
 ├── tests/
 │   ├── fixtures/               # sample lockfiles, malicious scripts, tarballs
+│   │   └── attacks/            # fixtures organized by real attack type
 │   └── integration/
 └── .ripley.toml                # default project config (guard mode, trust list)
 ```
@@ -383,6 +397,29 @@ The root `Cargo.toml` is a virtual workspace --- it has no `[package]` of its ow
 dependencies are declared once in `[workspace.dependencies]` and inherited by each crate
 via `{ workspace = true }`. This keeps versions synchronized across `ripley-core`,
 `ripley-guard`, and `src-tauri`.
+
+### Runtime directory layout
+
+At runtime, Ripley stores files in platform-appropriate locations using the `directories`
+crate (`ProjectDirs::from("com", "agentstation", "ripley")`):
+
+```
+{config_dir}/                   # ~/.config/ripley/ (Linux)
+├── config.toml                 # user preferences (poll interval, harness, trust list)
+└── rules/                      # user-supplied detection rules (loaded at startup)
+
+{data_dir}/                     # ~/.local/share/ripley/ (Linux)
+├── advisories.redb             # advisory cache (redb)
+├── guard.jsonl                 # guard decision log (append-only, machine-readable)
+└── bin/                        # PATH shims installed by `ripley guard install`
+
+{cache_dir}/                    # ~/.cache/ripley/ (Linux)
+└── feeds/                      # ETag cache for feed polling
+```
+
+macOS equivalents: `~/Library/Application Support/ripley/` (config + data),
+`~/Library/Caches/ripley/` (cache). Windows: `%APPDATA%\ripley\` (config + data),
+`%LOCALAPPDATA%\ripley\` (cache).
 
 
 ## Competitive Landscape

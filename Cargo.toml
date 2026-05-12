@@ -14,33 +14,44 @@ repository = "https://github.com/agentstation/ripley"
 # Shared across crates
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+toml = "0.8"
 tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["rt"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+directories = "6"
 
 # Core library
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-redb = "2"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+redb = "4"
 semver = "1"
-notify = "6"
+notify = "8"
 thiserror = "2"
+regex = "1"
 
 # CLI / Guard binary
 clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 flate2 = "1"
 tar = "0.4"
-colored = "2"
-dialoguer = "0.11"
+colored = "3"
+dialoguer = "0.12"
 
 # Internal
 ripley-core = { path = "crates/ripley-core" }
+
+# Testing
+[workspace.dependencies.insta]
+version = "1"
+features = ["json", "toml"]
 
 [workspace.lints.rust]
 unsafe_code = "deny"
 
 [workspace.lints.clippy]
 all = "warn"
+unwrap_used = "warn"
 
 [profile.release]
 lto = true
