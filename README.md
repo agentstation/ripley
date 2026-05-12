@@ -1,13 +1,14 @@
 # Ripley
 
-**Supply chain defense that operates before the breach, not after it.**
+**Supply chain defense before, during, and after the breach.**
 
 Ripley is a cross-platform system tray application and package manager guardian that
-detects software supply chain attacks in real time, alerts developers before they are
-affected, and intercepts malicious install scripts before they execute.
+defends developers across the full lifecycle of a supply chain attack: intercepting
+malicious packages before they execute, detecting active compromise in real time, and
+driving automated remediation after a breach is discovered.
 
-Named after Ellen Ripley --- the one who detected the threat hiding inside something
-everyone trusted, when every system around her failed to.
+Named after Ellen Ripley --- who enforced quarantine before the threat got aboard, fought
+it when it did, and came back to finish the job.
 
 ---
 
@@ -75,44 +76,81 @@ There is a gap between "a malicious package is published" and "a developer insta
 where almost no tooling operates.
 
 
-## Forward Defense
+## Full-Spectrum Defense
 
-Most security discussion focuses on **post-compromise response**: detecting that you were
-hit, rotating credentials, rebuilding from clean state. This is necessary work, but it
-concedes the initiative to the attacker. You are always behind.
+Most security tools pick one phase. Scanners detect vulnerabilities after you install.
+Incident response kicks in after you're compromised. Advisory databases publish after the
+attack is understood. Each tool handles one moment in the timeline and leaves the rest to
+someone else.
 
-Ripley is built around a different posture: **forward defense**. Operating ahead of the
-threat, not behind it.
-
-The term draws from two traditions:
+Ripley covers the full timeline. The framing comes from two traditions:
 
 - **Forward secrecy** in cryptography, where compromise of current keys does not compromise
   past or future sessions. The system is designed so that security holds *going forward*
   regardless of what is breached today.
 
 - **Left of boom** in military doctrine, where effort concentrates on the period *before*
-  the detonation event. "Boom" in our context is the moment a malicious install script
-  executes on your machine, or a trojaned package gets imported into your runtime.
+  the detonation event --- but the doctrine doesn't stop there. It also covers actions
+  *during* the event (containment) and *after* (recovery, attribution, hardening).
 
-Forward defense means three things for Ripley:
+"Boom" in our context is the moment a malicious install script executes on your machine, or
+a trojaned package gets imported into your runtime. Ripley operates across all three phases:
 
-### 1. Threat awareness before exposure
+### Before the breach: forward defense
 
-Polling structured vulnerability feeds (OSV.dev, GitHub Advisory Database, Socket.dev) on a
-continuous loop and cross-referencing against every lockfile on your machine. You learn that
-a package you depend on was compromised *before* your next `npm install`, not after it.
+**Threat awareness before exposure.** Polling structured vulnerability feeds (OSV.dev,
+GitHub Advisory Database, Socket.dev) on a continuous loop and cross-referencing against
+every lockfile on your machine. You learn that a package you depend on was compromised
+*before* your next `npm install`, not after it.
 
-### 2. Interception before execution
+**Interception before execution.** Package manager install scripts (`preinstall`,
+`postinstall`, `prepare` in npm; `setup.py` in pip; build scripts in cargo) are the primary
+entry point for supply chain malware. Ripley intercepts these scripts and analyzes them
+before they run. If a `postinstall` script downloads a binary, decodes base64, shells out
+to curl, or exhibits obfuscation patterns, it is flagged and blocked --- not logged after
+the fact.
 
-Package manager install scripts (`preinstall`, `postinstall`, `prepare` in npm; `setup.py`
-in pip; build scripts in cargo) are the primary entry point for supply chain malware. Ripley
-intercepts these scripts and analyzes them before they run. If a `postinstall` script
-downloads a binary, decodes base64, shells out to curl, or exhibits obfuscation patterns, it
-is flagged and blocked --- not logged after the fact.
+This is where the biggest gap exists today. Almost no tooling operates between "a malicious
+package is published" and "a developer installs it." Forward defense closes that gap.
 
-### 3. Remediation at machine speed
+### During the breach: active detection
 
-When a threat is confirmed, Ripley generates a scoped remediation prompt and hands it to
+Not every attack can be prevented. A compromised package might have been installed before
+any advisory existed. A developer might have approved a script that looked benign. The
+threat is already inside the perimeter.
+
+**Process and network monitoring.** Watching for IOC patterns in real time: unexpected
+outbound connections from Node/Python processes, writes to known persistence paths
+(`.claude/settings.json`, `.vscode/tasks.json`, shell RC files, LaunchAgents), privilege
+escalation attempts, or processes masquerading as system services.
+
+**Filesystem anomaly detection.** Watching project directories for changes that match
+known attack signatures: new files appearing in `.claude/` or `.vscode/` that weren't
+committed, modifications to lockfiles outside of an explicit install, unexpected binaries in
+`node_modules/.cache/` or Python site-packages.
+
+**Real-time alerting.** When active compromise indicators are detected, Ripley fires an
+immediate high-priority notification with a "Contain" action that can kill the suspicious
+process, revoke the network access, and snapshot the current state for analysis.
+
+### After the breach: automated response
+
+The breach happened. Maybe it was caught in minutes, maybe it was discovered days later from
+a security blog. Either way, the machine needs to be assessed, cleaned, and hardened.
+
+**Forensic scan.** `ripley scan --deep` performs the kind of audit a security engineer would
+do manually: checking installed package versions against known-compromised lists, searching
+for IOC files (persistence markers, exfiltration staging, dropped binaries), auditing shell
+RC files for injected commands, reviewing Launch Agents / cron / systemd for unauthorized
+persistence, checking for unauthorized SSH keys, and scanning active network connections
+against known C2 infrastructure.
+
+**Credential exposure assessment.** Based on the specific attack's known behavior, Ripley
+identifies which credential stores were likely accessed: AWS keys, GitHub tokens, npm
+tokens, SSH keys, `.env` files, Kubernetes configs. It generates a specific rotation
+checklist rather than a generic "rotate everything."
+
+**AI-driven remediation.** Ripley generates a scoped remediation prompt and hands it to
 whichever AI coding harness the developer uses (Claude Code, Codex, OpenCode). The prompt
 includes the specific CVE, the affected package and version, the project path, known IOC
 file paths to check, and the clean version to upgrade to. The harness executes the fix. The
@@ -122,79 +160,82 @@ This shifts the response timeline from "read a blog post, understand the threat,
 audit your projects, figure out what to do" (hours to days) to "notification, one click,
 review diff" (minutes).
 
+**Post-incident hardening.** After remediation, Ripley suggests forward-defense measures
+specific to the attack that just hit: adding the compromised package's scope to the guard's
+watch list, tightening script analysis thresholds, enabling filesystem monitoring on the
+paths that were targeted, blocking the C2 domains at the network level.
+
 ### The goal
 
 A developer should never learn about a supply chain attack from Twitter. They should learn
-about it from Ripley, before it affects them, with a fix ready to apply.
+about it from Ripley --- ideally before it affects them, but if not, the moment it does,
+with containment already in progress and a fix ready to apply. And after it's over, the
+system should be harder to hit the next time.
 
 
 ## Architecture
 
 ```
-                     ┌──────────────────────────────┐
-                     │        ripley (tray app)      │
-                     │                              │
-                     │  ┌────────┐   ┌───────────┐  │
-     OSV.dev ───────►│  │  Feed  │   │  Lockfile  │  │
-     GHSA ──────────►│  │ Poller │──►│  Matcher   │  │
-     Socket.dev ────►│  │        │   │            │  │
-                     │  └────────┘   └─────┬──────┘  │
-                     │                     │         │
-                     │               match?│         │
-                     │                     ▼         │
-                     │  ┌──────────────────────────┐ │
-                     │  │  Native OS Notification  │ │
-                     │  │  [View] [Fix] [Dismiss]  │ │
-                     │  └───────────┬──────────────┘ │
-                     │              │ "Fix"          │
-                     │              ▼                │
-                     │  ┌──────────────────────────┐ │
-                     │  │   Prompt Generator       │ │
-                     │  │   ┌──────────────────┐   │ │
-                     │  │   │ CVE + versions   │   │ │
-                     │  │   │ project path     │   │ │
-                     │  │   │ IOC file paths   │   │ │
-                     │  │   │ clean version    │   │ │
-                     │  │   │ test command     │   │ │
-                     │  │   └──────────────────┘   │ │
-                     │  └───────────┬──────────────┘ │
-                     │              │                │
-                     │              ▼                │
-                     │  ┌──────────────────────────┐ │
-                     │  │   Harness Launcher       │ │
-                     │  │   claude | codex | open  │ │
-                     │  └──────────────────────────┘ │
-                     └──────────────────────────────┘
+  BEFORE                     DURING                      AFTER
+  ──────                     ──────                      ─────
 
-                     ┌──────────────────────────────┐
-                     │    ripley-guard (CLI shim)    │
-                     │                              │
-  npm install ──────►│  ┌──────────────────────────┐ │
-  pip install ──────►│  │   Script Extractor       │ │
-  cargo build ──────►│  │   (fetch tarball, parse  │ │
-  gem install ──────►│  │    lifecycle hooks)       │ │
-  go install ───────►│  └───────────┬──────────────┘ │
-                     │              │                │
-                     │              ▼                │
-                     │  ┌──────────────────────────┐ │
-                     │  │   Static Analyzer        │ │
-                     │  │                          │ │
-                     │  │   network calls?    ──► ■ │ │
-                     │  │   eval / exec?     ──► ■ │ │
-                     │  │   base64 decode?   ──► ■ │ │
-                     │  │   binary download? ──► ■ │ │
-                     │  │   obfuscation?     ──► ■ │ │
-                     │  │   known patterns?  ──► ■ │ │
-                     │  │                          │ │
-                     │  │   risk: low | med | high │ │
-                     │  └───────────┬──────────────┘ │
-                     │              │                │
-                     │         low  │  med/high      │
-                     │         ┌────┴────┐           │
-                     │         ▼         ▼           │
-                     │    auto-allow   prompt user   │
-                     │                 with details  │
-                     └──────────────────────────────┘
+  ┌────────────────┐    ┌─────────────────┐    ┌──────────────────┐
+  │  Feed Poller   │    │ Process Monitor │    │  Forensic Scan   │
+  │                │    │                 │    │                  │
+  │  OSV.dev       │    │  outbound conn  │    │  IOC file check  │
+  │  GHSA          │    │  persistence    │    │  lockfile audit   │
+  │  Socket.dev    │    │  writes         │    │  shell RC review │
+  │                │    │  privilege esc  │    │  cred exposure   │
+  └───────┬────────┘    └────────┬────────┘    └────────┬─────────┘
+          │                      │                      │
+          ▼                      ▼                      ▼
+  ┌────────────────┐    ┌─────────────────┐    ┌──────────────────┐
+  │ Lockfile Index │    │ Anomaly Engine  │    │ Prompt Generator │
+  │                │    │                 │    │                  │
+  │ every project  │    │ known C2 IPs    │    │  CVE + versions  │
+  │ on this machine│    │ IOC patterns    │    │  project path    │
+  │ watched live   │    │ signature DB    │    │  IOC file paths  │
+  └───────┬────────┘    └────────┬────────┘    │  cred checklist  │
+          │                      │             │  clean version   │
+          ▼                      ▼             └────────┬─────────┘
+  ┌────────────────┐    ┌─────────────────┐             │
+  │    Matcher     │    │   Containment   │             ▼
+  │                │    │                 │    ┌──────────────────┐
+  │  new advisory  │    │  kill process   │    │ Harness Launcher │
+  │  × installed   │    │  revoke network │    │                  │
+  │  = alert       │    │  snapshot state │    │ claude | codex   │
+  └───────┬────────┘    └────────┬────────┘    │ | opencode       │
+          │                      │             └────────┬─────────┘
+          ▼                      ▼                      ▼
+  ┌──────────────────────────────────────────────────────────────┐
+  │                  Native OS Notification                      │
+  │                                                              │
+  │  BEFORE: [View] [Fix] [Dismiss]                              │
+  │  DURING: [View] [Contain] [Investigate]                      │
+  │  AFTER:  [View] [Remediate] [Rotation Checklist]             │
+  └──────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────────────────────────────────────────────┐
+  │              ripley-guard (package manager shim)             │
+  │                                                              │
+  │  npm install ──►┌──────────────┐    ┌───────────────────┐    │
+  │  pip install ──►│   Script     │───►│  Static Analyzer  │    │
+  │  cargo build ──►│   Extractor  │    │                   │    │
+  │  gem install ──►│              │    │  network calls?   │    │
+  │  go install  ──►└──────────────┘    │  eval / exec?     │    │
+  │                                     │  base64 decode?   │    │
+  │                                     │  binary download? │    │
+  │                                     │  obfuscation?     │    │
+  │                                     │  known patterns?  │    │
+  │                                     │                   │    │
+  │                                     │  risk: lo|med|hi  │    │
+  │                                     └────────┬──────────┘    │
+  │                                         low  │  med/high     │
+  │                                         ┌────┴────┐          │
+  │                                         ▼         ▼          │
+  │                                    auto-allow   prompt user  │
+  │                                                 with details │
+  └──────────────────────────────────────────────────────────────┘
 ```
 
 ### Component 1: `ripley` --- the tray app
@@ -331,6 +372,7 @@ trust = ["@tanstack/*", "typescript", "esbuild"]
 
 Ripley defends against:
 
+**Before (forward defense):**
 - **Malicious lifecycle scripts** --- postinstall scripts that download and execute
   payloads, exfiltrate credentials, or establish persistence. (Mini Shai-Hulud, Axios, SAP
   packages)
@@ -340,9 +382,23 @@ Ripley defends against:
   fake `tanstack` brand-squat)
 - **Delayed activation** --- "sleeper" packages that ship clean initially and add malicious
   code in a later update. (BufferZoneCorp Ruby gems)
-- **AI tool persistence** --- attacks that inject `.claude/settings.json` SessionStart
-  hooks or `.vscode/tasks.json` runOn triggers to re-execute on IDE/tool open. (Mini
-  Shai-Hulud)
+
+**During (active detection):**
+- **Active credential exfiltration** --- processes making unexpected outbound connections to
+  unknown infrastructure while accessing credential stores.
+- **Persistence installation** --- unauthorized writes to shell RC files, LaunchAgents, cron,
+  systemd units, or AI tool configs (`.claude/settings.json` SessionStart hooks,
+  `.vscode/tasks.json` runOn triggers). (Mini Shai-Hulud)
+- **C2 communication** --- active connections to known command-and-control infrastructure.
+
+**After (response and recovery):**
+- **IOC detection** --- finding persistence markers, dropped binaries, staging files, and
+  other artifacts left by known attacks.
+- **Credential exposure** --- mapping which secrets and tokens were likely accessed based on
+  the specific attack's known behavior.
+- **Incomplete remediation** --- ensuring all traces of an attack are removed, not just the
+  obvious ones. (e.g., the TanStack worm wrote to `.claude/`, `.vscode/`, *and*
+  OS-level services)
 
 Ripley does **not** defend against:
 
@@ -358,44 +414,68 @@ Ripley does **not** defend against:
 ## CLI
 
 ```
+# tray app
 ripley                              # launch the tray app
-ripley scan [path]                  # one-shot scan: check lockfiles against advisories
 ripley watch                        # headless daemon mode (servers, CI)
 ripley config                       # open configuration
 ripley status                       # show monitored projects, last poll time, alert count
 
+# before: forward defense
+ripley scan [path]                  # one-shot scan: check lockfiles against advisories
 ripley guard install                # set up package manager shims in PATH
 ripley guard uninstall              # remove shims, restore original behavior
 ripley guard status                 # show which package managers are intercepted
 ripley guard trust <pkg>            # add a package to the trust list
 ripley guard untrust <pkg>          # remove from trust list
 ripley guard log                    # show recent interceptions and decisions
+
+# during: active detection
+ripley monitor                      # watch processes and filesystem for IOC patterns
+ripley contain <pid|pkg>            # kill process, snapshot state for investigation
+
+# after: response and recovery
+ripley scan --deep [path]           # full forensic audit (IOC files, persistence,
+                                    # shell RC, network, creds)
+ripley exposure <cve>               # assess credential exposure for a specific attack
+ripley fix <cve> [path]             # generate and launch remediation prompt
+ripley harden                       # suggest forward-defense measures based on
+                                    # recent incidents
 ```
 
 
 ## Roadmap
 
-### Phase 1: Foundation
+### Phase 1: Foundation (before)
 - Rust workspace with `ripley` (tray) and `ripley-guard` (CLI) crates
 - OSV.dev feed poller + lockfile parser for `package-lock.json`
 - npm shim with static script analysis
 - macOS tray app with native notifications
 - `ripley scan` one-shot command
 
-### Phase 2: Ecosystem breadth
+### Phase 2: Ecosystem breadth (before)
 - Lockfile parsers: `yarn.lock`, `pnpm-lock.yaml`, `Pipfile.lock`, `poetry.lock`,
   `Cargo.lock`, `go.sum`, `Gemfile.lock`
 - Guard shims: pip, cargo, gem, go
 - GHSA and Socket.dev feed integration
 - Windows and Linux tray builds
 
-### Phase 3: AI harness integration
-- Prompt generation from advisory data
+### Phase 3: Response and recovery (after)
+- `ripley scan --deep` forensic audit: IOC file search, persistence mechanism review,
+  shell RC integrity, network connection audit, credential exposure mapping
+- Prompt generation from advisory data with IOC-specific remediation steps
 - Harness detection and launcher (Claude Code, Codex, OpenCode)
-- "Fix" action in notifications
-- Remediation templates for common attack patterns
+- `ripley fix` and `ripley exposure` commands
+- `ripley harden` post-incident recommendations
 
-### Phase 4: Advanced analysis
+### Phase 4: Active detection (during)
+- Process monitoring: unexpected outbound connections from dev tool processes
+- Filesystem watching: unauthorized writes to `.claude/`, `.vscode/`, shell RCs,
+  LaunchAgents, cron, systemd
+- Known C2 infrastructure matching against active network connections
+- `ripley contain` for immediate process termination and state snapshot
+- Real-time high-priority notifications with containment actions
+
+### Phase 5: Advanced analysis (all phases)
 - Sandboxed script execution (macOS sandbox-exec, Linux bubblewrap)
 - Behavioral analysis: run script with network disabled, observe filesystem/process activity
 - Community rule sharing: publish and subscribe to detection rules
@@ -404,17 +484,32 @@ ripley guard log                    # show recent interceptions and decisions
 
 ## Why "Ripley"
 
-Ellen Ripley detected the threat hiding inside something everyone else trusted. The company
-(Weyland-Yutani) prioritized other goals. The systems around her failed. She survived
-because she verified things herself, acted before the threat could spread, and protected
-others when institutions wouldn't.
+Ellen Ripley is the full-spectrum defender.
+
+**Before.** On the Nostromo, she enforced quarantine protocol. She refused to let Kane back
+aboard with the facehugger attached. She saw the threat hiding inside something everyone
+else wanted to trust, and she tried to stop it at the door. She was overridden --- by Ash,
+by the company, by people who prioritized other goals over safety. The threat got in anyway.
+
+**During.** When the xenomorph was loose on the ship, she didn't freeze. She made tactical
+decisions under pressure, adapted to a threat no one had seen before, and kept fighting when
+every system around her had failed. She activated the self-destruct when containment was no
+longer possible.
+
+**After.** She survived. She went into cryo with the knowledge of what happened. And in
+*Aliens*, she went back. Not because she had to --- because she knew the threat was still
+out there and no one else understood it. She came back to finish the job, to protect others,
+and to make sure it couldn't happen again.
 
 Software supply chains have the same structure. Package registries prioritize growth and
-convenience. The threat hides inside things that look safe --- a routine dependency update, a
-trusted package name, a familiar postinstall script. The systems we rely on (npm audit, CVE
-databases, security advisories) operate after the threat has already executed.
+convenience (Weyland-Yutani prioritized the specimen). The threat hides inside things that
+look safe --- a routine dependency update, a trusted package name, a familiar postinstall
+script (a crew member returning from a routine survey). The systems we rely on (npm audit,
+CVE databases, security advisories) are like the Nostromo's crew: well-intentioned, but
+operating on assumptions that no longer hold.
 
-Ripley operates before.
+Most security tools pick one phase. Ripley doesn't. She shows up before the threat boards,
+fights it when it does, and comes back to make sure it's finished.
 
 
 ## License
