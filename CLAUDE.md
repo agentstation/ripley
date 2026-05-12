@@ -6,7 +6,8 @@ See README.md for project background and motivation.
 ## Quick reference
 
 - **README.md** — what Ripley is and why it exists
-- **ARCHITECTURE.md** — system design, component specs, technical decisions
+- **ARCHITECTURE.md** — system design, component specs, tech stack, threat model
+- **DECISIONS.md** — rationale behind each technical choice, competitive landscape
 - **ROADMAP.md** — phased execution plan with milestones and verification criteria
 
 ## Build
