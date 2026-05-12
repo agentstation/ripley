@@ -56,24 +56,31 @@ ability to respond.
 
 ## The Gap
 
-The current security toolchain is almost entirely **reactive**. It operates after the
-breach:
+The current security toolchain has gaps at every phase. Most tools cover one moment in the
+timeline and leave the rest to someone else:
 
-| Tool | When it helps | The problem |
-|------|---------------|-------------|
-| `npm audit` | After install | Advisory must exist first. Tells you *after* you already ran the malicious postinstall script. |
-| CVE databases | After disclosure | Median time from compromise to CVE: days to weeks. Attackers have already moved. |
-| GitHub Dependabot | After advisory | Opens a PR. Doesn't stop you from installing the bad version right now. |
-| Security blogs | After analysis | You learn about it from Twitter or Hacker News hours or days later. |
-| Incident response | After compromise | Credential rotation, forensics, OS reinstall. The damage is done. |
+| Tool | Phase | The gap it leaves |
+|------|-------|-------------------|
+| `npm audit` | Before (partial) | Advisory must exist first. Only checks *after* install. Doesn't stop you from running the malicious postinstall script right now. |
+| CVE databases | Before (partial) | Median time from compromise to CVE: days to weeks. Attackers have already moved. |
+| GitHub Dependabot | Before (partial) | Opens a PR. Doesn't block installation of the bad version in the meantime. |
+| EDR / antivirus | During (partial) | Optimized for known malware signatures, not developer-specific attack patterns like npm postinstall exfiltration or `.claude/settings.json` injection. |
+| Security blogs | After (partial) | You learn about it from Twitter or Hacker News hours or days later. No structured IOCs, no automated remediation. |
+| Incident response | After (manual) | Credential rotation, forensics, OS reinstall. Effective but entirely manual, slow, and requires expertise most developers don't have. |
 
-The pattern across every attack listed above: the malicious code **executed on developer
-machines** before any defensive tool flagged it. The npm postinstall script ran. The Python
-`.pth` file loaded. The Docker entrypoint fired. By the time an advisory existed, the
-credentials were already exfiltrated.
+Three specific gaps stand out:
 
-There is a gap between "a malicious package is published" and "a developer installs it"
-where almost no tooling operates.
+**Before:** There is almost no tooling between "a malicious package is published" and "a
+developer installs it." The npm postinstall script ran. The Python `.pth` file loaded. The
+Docker entrypoint fired. By the time an advisory existed, the code had already executed.
+
+**During:** Developer machines have no runtime monitoring tuned for supply chain attack
+patterns. EDR tools look for known malware, not a Node process writing to
+`.claude/settings.json` or a Python import exfiltrating `~/.aws/credentials`.
+
+**After:** Incident response exists, but it's a manual process that requires security
+expertise. Most developers don't know which credential stores a specific attack targeted,
+which IOC files to search for, or how to verify that remediation was complete.
 
 
 ## Full-Spectrum Defense
@@ -316,14 +323,17 @@ version falls within the affected range, the item is promoted to an alert.
 
 **Notifier.** Fires a native OS notification. On macOS: UNUserNotificationCenter. On
 Windows: toast via the Windows notification API. On Linux: D-Bus
-`org.freedesktop.Notifications`. Tauri abstracts this. The notification carries three
-actions:
-- **View** --- opens a detail panel in the tray app with the full advisory, affected
-  projects, IOC checklist.
-- **Fix** --- generates a remediation prompt and offers to run it on an AI coding harness.
-- **Dismiss** --- acknowledges the alert.
+`org.freedesktop.Notifications`. Tauri abstracts this. Actions vary by phase:
+- **Before** (advisory match): **View** (detail panel with advisory, affected projects, IOC
+  checklist), **Fix** (generate remediation prompt and launch harness), **Dismiss**.
+- **During** (active compromise detected): **View**, **Contain** (kill suspicious process,
+  snapshot state), **Investigate** (open forensic detail).
+- **After** (post-incident scan results): **View**, **Remediate** (generate and launch fix
+  prompt), **Rotation Checklist** (show which credentials to rotate).
 
-**Prompt generator.** Builds a self-contained remediation prompt from the advisory data:
+**Prompt generator.** Builds a self-contained remediation prompt from advisory or scan data.
+Used in both the "before" flow (advisory match → Fix) and the "after" flow (`ripley fix` /
+`ripley scan --deep` → Remediate). The prompt is scoped to the specific attack:
 
 ```
 In the project at /Users/jack/src/myapp, the package @tanstack/react-router
@@ -448,7 +458,7 @@ trust = ["@tanstack/*", "typescript", "esbuild"]
 | Data source | OSV.dev primary | Free, open, structured, aggregates all ecosystems. No API key required. |
 | Script analysis | Static rules | Fast, deterministic, no ML false positives. Rule engine is extensible. Known patterns (from real attacks) are more reliable than heuristics. |
 | Lockfile format | Parse directly | Don't depend on package managers to report their own state. Read `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, etc. directly. |
-| Filesystem watching | `notify` crate | Cross-platform abstraction over FSEvents/inotify/ReadDirectoryChanges. Re-indexes lockfiles on change. |
+| Filesystem watching | `notify` crate | Cross-platform abstraction over FSEvents/inotify/ReadDirectoryChanges. Used for lockfile re-indexing (before) and unauthorized write detection (during). |
 | Harness integration | CLI spawning | No deep integration with any specific harness. Spawn `claude -p`, `codex -q`, or equivalent. Works with whatever the developer has installed. Harness-agnostic. |
 | Trust model | Explicit, local | No remote trust authority. Developer opts in to trusting packages. Default is verify everything. |
 
@@ -530,12 +540,15 @@ ripley harden                       # suggest forward-defense measures based on
 
 ## Roadmap
 
-### Phase 1: Foundation (before)
+### Phase 1: Foundation (before + after)
 - Rust workspace with `ripley` (tray) and `ripley-guard` (CLI) crates
 - OSV.dev feed poller + lockfile parser for `package-lock.json`
 - npm shim with static script analysis
 - macOS tray app with native notifications
-- `ripley scan` one-shot command
+- Prompt generator and harness launcher (Claude Code, Codex, OpenCode)
+- `ripley scan` one-shot lockfile audit
+- `ripley scan --deep` forensic audit: IOC file search, persistence mechanism
+  review, shell RC integrity, credential exposure mapping
 
 ### Phase 2: Ecosystem breadth (before)
 - Lockfile parsers: `yarn.lock`, `pnpm-lock.yaml`, `Pipfile.lock`, `poetry.lock`,
@@ -544,13 +557,12 @@ ripley harden                       # suggest forward-defense measures based on
 - GHSA and Socket.dev feed integration
 - Windows and Linux tray builds
 
-### Phase 3: Response and recovery (after)
-- `ripley scan --deep` forensic audit: IOC file search, persistence mechanism review,
-  shell RC integrity, network connection audit, credential exposure mapping
-- Prompt generation from advisory data with IOC-specific remediation steps
-- Harness detection and launcher (Claude Code, Codex, OpenCode)
+### Phase 3: Response depth (after)
 - `ripley fix` and `ripley exposure` commands
+- Remediation templates for common attack patterns (IOC-specific steps, credential
+  rotation checklists per attack)
 - `ripley harden` post-incident recommendations
+- Network connection audit against known C2 infrastructure
 
 ### Phase 4: Active detection (during)
 - Process monitoring: unexpected outbound connections from dev tool processes
