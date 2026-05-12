@@ -247,8 +247,10 @@ system should be harder to hit the next time.
 
 ### Component 1: `ripley` --- the tray app
 
-Built with [Tauri](https://tauri.app) (Rust backend, native webview). Produces a ~5MB
-binary on each platform versus ~200MB for Electron. Ships as a single install.
+Built with [Tauri v2](https://v2.tauri.app) (Rust backend, native webview). Produces a
+~5MB binary, 30-40MB idle RAM on each platform versus ~200MB+ for Electron. Tray-only
+mode: Tauri v2 supports `"windows": []` in config, running as a pure system tray app with
+no visible window at launch. The webview only loads when the user opens a detail panel.
 
 ```
 ┌──────────────────────────────────────────────────┐
@@ -397,10 +399,33 @@ A standalone Rust binary, separate from the tray app. Runs without a GUI. Can be
 ripley guard install
 ```
 
-This prepends `~/.ripley/bin/` to PATH (via shell RC file) and places shims for each
-supported package manager. The shims delegate to the real binary after analysis. For npm
-specifically, it can alternatively set `ignore-scripts=true` in `.npmrc` and manage script
-execution itself.
+This does two things:
+
+1. **PATH shims.** Prepends `~/.ripley/bin/` to PATH (via shell RC file) and places
+   compiled Rust shim binaries for each supported package manager (modeled after
+   [Volta](https://volta.sh)'s approach). Each shim resolves the real binary via
+   `which -a`, performs advisory + script analysis, then delegates. The shims are native
+   binaries, not shell scripts --- startup overhead is < 10ms.
+
+2. **npm `script-shell`.** Sets `script-shell=~/.ripley/bin/ripley-script-shell` in the
+   user's `.npmrc`. This tells npm to execute *every* lifecycle script (`preinstall`,
+   `postinstall`, `prepare`, etc.) through Ripley's analyzer instead of `/bin/sh`. The
+   analyzer receives the script content, runs static analysis, and either executes it
+   (low risk) or prompts the user (medium/high risk). This is the deepest interception
+   point available: it catches scripts from transitive dependencies that the PATH shim
+   alone would miss.
+
+Per-package-manager strategy:
+
+| PM | Shim | Extra hook | Notes |
+|----|------|-----------|-------|
+| npm | `~/.ripley/bin/npm` | `script-shell` in `.npmrc` | Shim checks advisories pre-install; script-shell analyzes each lifecycle script at execution time |
+| yarn | `~/.ripley/bin/yarn` | --- | Shim only; Yarn PnP has different lifecycle semantics |
+| pnpm | `~/.ripley/bin/pnpm` | `script-shell` in `.npmrc` | Same `.npmrc` trick works for pnpm |
+| pip | `~/.ripley/bin/pip` | --- | Shim intercepts; analyzes `setup.py` / build backend scripts |
+| cargo | `~/.ripley/bin/cargo` | --- | Shim intercepts `cargo build`/`install`; analyzes `build.rs` and proc macros |
+| gem | `~/.ripley/bin/gem` | `pre_install` hook | Shim + Rubygems hook API for lifecycle interception |
+| go | `~/.ripley/bin/go` | --- | Advisory check only; Go has no install scripts |
 
 **Script extraction.** Before running any install, the guard:
 1. Resolves the package and version from the registry.
@@ -454,13 +479,112 @@ trust = ["@tanstack/*", "typescript", "esbuild"]
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Language | Rust | Both the tray app and guard need to be fast, dependency-free, and cross-platform. The guard runs on every `npm install` --- it must add < 200ms latency. |
-| Tray framework | Tauri v2 | Native webview, ~5MB binary, ships on macOS/Windows/Linux. Avoids bundling Chromium. |
+| Tray framework | Tauri v2 | Native webview, ~5MB binary, 30-40MB idle RAM, ships on macOS/Windows/Linux. Avoids bundling Chromium. Uses `tray-icon` crate internally --- if Tauri proves too heavy, we can drop to pure Rust (`tray-icon` + `notify-rust` + `reqwest`) at 5-15MB idle with the same tray primitives. |
+| Local storage | `redb` | Pure Rust embedded key-value store with ACID transactions. No C dependencies (unlike SQLite/rusqlite), no FFI. Stores the local advisory cache, lockfile index, trust list, and guard decision log. |
 | Data source | OSV.dev primary | Free, open, structured, aggregates all ecosystems. No API key required. |
-| Script analysis | Static rules | Fast, deterministic, no ML false positives. Rule engine is extensible. Known patterns (from real attacks) are more reliable than heuristics. |
+| Detection rules | Static rules, compiled in | TOML rule files under `rules/` are embedded at build time via `include_str!`. Fast, deterministic, no ML false positives. Rules are derived from real attacks (TanStack worm patterns, Shai-Hulud IOCs, elementary-data `.pth` trick). New rules ship with new releases. |
 | Lockfile format | Parse directly | Don't depend on package managers to report their own state. Read `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, etc. directly. |
 | Filesystem watching | `notify` crate | Cross-platform abstraction over FSEvents/inotify/ReadDirectoryChanges. Used for lockfile re-indexing (before) and unauthorized write detection (during). |
+| npm interception | Hybrid: PATH shim + `script-shell` | PATH shim intercepts `npm install` for pre-install advisory checks. Additionally, setting `script-shell=~/.ripley/bin/ripley-script-shell` in `.npmrc` routes *all* lifecycle script execution through Ripley's analyzer --- every `preinstall`, `postinstall`, and `prepare` script runs through our static analyzer as its shell. This is a unique capability: other tools either block all scripts or allow all scripts. Ripley analyzes each one individually at execution time. |
+| Other PM interception | PATH shims | pip, cargo, gem, go: compiled Rust shim binaries in `~/.ripley/bin/` (modeled after Volta's approach). Each shim resolves the real binary, performs analysis, then delegates. Go has no install scripts, so its shim only checks advisories. |
 | Harness integration | CLI spawning | No deep integration with any specific harness. Spawn `claude -p`, `codex -q`, or equivalent. Works with whatever the developer has installed. Harness-agnostic. |
 | Trust model | Explicit, local | No remote trust authority. Developer opts in to trusting packages. Default is verify everything. |
+
+
+## Project Structure
+
+```
+ripley/
+├── Cargo.toml                  # virtual workspace root
+├── Cargo.lock
+├── crates/
+│   ├── ripley-core/            # shared library: feed polling, lockfile parsing,
+│   │   └── src/                #   matching, advisory DB (redb), detection rules,
+│   │       ├── lib.rs          #   prompt generation
+│   │       ├── feed/
+│   │       ├── lockfile/
+│   │       ├── matcher.rs
+│   │       ├── db.rs
+│   │       ├── rules/
+│   │       └── prompt.rs
+│   ├── ripley-guard/           # package manager interceptor (standalone binary)
+│   │   └── src/
+│   │       ├── main.rs
+│   │       ├── shim.rs         # PATH shim logic, PM dispatch
+│   │       ├── script_shell.rs # npm script-shell analyzer
+│   │       ├── extractor.rs    # script extraction from tarballs
+│   │       └── analyzer.rs     # static analysis rule engine
+│   └── xtask/                  # build automation: rule compilation,
+│       └── src/                #   shim generation, release packaging
+│           └── main.rs
+├── src-tauri/                  # Tauri v2 tray app
+│   ├── Cargo.toml
+│   ├── tauri.conf.json
+│   ├── src/
+│   │   ├── main.rs
+│   │   ├── tray.rs             # system tray setup + menu
+│   │   ├── poller.rs           # background feed polling loop
+│   │   ├── watcher.rs          # filesystem monitoring (notify crate)
+│   │   └── harness.rs          # AI coding CLI launcher
+│   └── icons/
+├── frontend/                   # tray app UI (detail panels, config)
+│   ├── index.html
+│   ├── src/
+│   └── package.json
+├── rules/                      # detection rules (TOML, compiled in at build time)
+│   ├── npm_postinstall.toml
+│   ├── pypi_setup.toml
+│   ├── credential_exfil.toml
+│   └── persistence_write.toml
+├── tests/
+│   ├── fixtures/               # sample lockfiles, malicious scripts, tarballs
+│   └── integration/
+└── .ripley.toml                # default project config (guard mode, trust list)
+```
+
+The root `Cargo.toml` is a virtual workspace --- it has no `[package]` of its own. Shared
+dependencies are declared once in `[workspace.dependencies]` and inherited by each crate
+via `{ workspace = true }`. This keeps versions synchronized across `ripley-core`,
+`ripley-guard`, and `src-tauri`.
+
+
+## Competitive Landscape
+
+The supply chain security space has active players. Ripley does not try to replace all of
+them --- it fills gaps that none of them cover.
+
+| Tool | What it does | What it doesn't do |
+|------|-------------|-------------------|
+| **Socket.dev** / Socket Firewall | Registry-level deep package inspection. Detected TanStack in 6 min. SaaS + GitHub app. | No persistent local daemon. No tray alerts against your lockfiles. No remediation prompts. Requires org subscription ($$$). |
+| **Phylum** / Birdcage | Rust-based sandbox for install scripts (Landlock, seccomp, macOS sandbox-exec). Policy engine. | SaaS-dependent. Sandbox is Linux-best (macOS/Windows partial). No post-breach forensics or remediation. |
+| **Snyk** | Broad vuln scanning, IDE plugins, CI gates. | Advisory-dependent (same lag as `npm audit`). No install-time script interception. Enterprise pricing. |
+| **Endor Labs** (AURI) | AI-powered reachability analysis, SCA. | Cloud platform for enterprises. Not a local developer tool. |
+| **SafeDep PMG** | Open-source package manager guard, malware analysis API. | No desktop presence, no continuous monitoring, no remediation. |
+| **Aikido Endpoint** (April 2026) | Agent-based endpoint security for dev machines. | Early stage. Enterprise SaaS. No open interception layer. |
+| **Semgrep Supply Chain** | Reachability-aware SCA in CI. | CI-only. Not a local developer tool. No real-time alerting. |
+| **GuardDog** (DataDog) | CLI scanner for malicious packages (PyPI, npm). | One-shot scanner, not a persistent monitor. No interception. |
+| `npm audit` / `pip audit` | Check installed packages against advisories. | Advisory must exist first. Runs *after* install. Doesn't block malicious scripts. |
+
+**Where Ripley is genuinely novel:**
+
+1. **Persistent local daemon that polls feeds against your lockfiles.** No existing tool
+   runs as a desktop tray app continuously matching advisories to what's actually installed
+   on your machine. Socket and Snyk operate at the registry or CI level, not on your
+   local filesystem.
+
+2. **AI remediation prompt generation from local context.** No tool generates scoped
+   remediation prompts and hands them to an AI coding harness. The entire
+   "notification → Fix → prompt → harness → review diff" pipeline is new.
+
+3. **Combined tray monitor + package manager interceptor.** Socket does deep package
+   analysis but at the registry. Phylum sandboxes scripts but has no tray presence. Ripley
+   does both: continuous background monitoring *and* install-time interception in one
+   product.
+
+4. **npm `script-shell` interception.** Routing lifecycle script execution through Ripley's
+   analyzer as the script's shell is a technique not used by any competitor. Other tools
+   either disable all scripts (`ignore-scripts=true`) or allow all of them. Ripley
+   analyzes each script individually at execution time.
 
 
 ## Threat Model
@@ -541,10 +665,12 @@ ripley harden                       # suggest forward-defense measures based on
 ## Roadmap
 
 ### Phase 1: Foundation (before + after)
-- Rust workspace with `ripley` (tray) and `ripley-guard` (CLI) crates
-- OSV.dev feed poller + lockfile parser for `package-lock.json`
-- npm shim with static script analysis
-- macOS tray app with native notifications
+- Rust virtual workspace: `ripley-core`, `ripley-guard`, `src-tauri`
+- `redb` local advisory database with OSV.dev feed poller
+- Lockfile parser for `package-lock.json`
+- npm PATH shim + `script-shell` interception with static analysis rules
+- Detection rules compiled from `rules/*.toml` via `include_str!`
+- macOS tray app (Tauri v2, tray-only mode) with native notifications
 - Prompt generator and harness launcher (Claude Code, Codex, OpenCode)
 - `ripley scan` one-shot lockfile audit
 - `ripley scan --deep` forensic audit: IOC file search, persistence mechanism
