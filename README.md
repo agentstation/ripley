@@ -188,7 +188,7 @@ with containment already in progress and a fix ready to apply.
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for component details, technical decisions, project
-structure, threat model, and roadmap.
+structure, and threat model. See [ROADMAP.md](ROADMAP.md) for the phased execution plan.
 
 
 ## CLI
