@@ -243,6 +243,57 @@ system should be harder to hit the next time.
 Built with [Tauri](https://tauri.app) (Rust backend, native webview). Produces a ~5MB
 binary on each platform versus ~200MB for Electron. Ships as a single install.
 
+```
+┌──────────────────────────────────────────────────┐
+│                 ripley (tray app)                 │
+│                                                  │
+│  ┌────────────┐     ┌─────────────┐              │
+│  │ Feed Poller│     │  Lockfile   │              │
+│  │            │     │  Indexer    │              │
+│  │ OSV.dev    │     │            │              │
+│  │ GHSA       │     │ walks project              │
+│  │ Socket.dev │     │ roots, watches│             │
+│  │            │     │ for changes │              │
+│  └─────┬──────┘     └──────┬──────┘              │
+│        │                   │                     │
+│        └───────┬───────────┘                     │
+│                ▼                                 │
+│        ┌───────────────┐                         │
+│        │    Matcher    │                         │
+│        │              │                         │
+│        │ new advisory │                         │
+│        │ × installed  │                         │
+│        │ = alert?     │                         │
+│        └───────┬──────┘                         │
+│                │ yes                             │
+│                ▼                                 │
+│        ┌──────────────────────────────┐          │
+│        │  Native OS Notification     │          │
+│        │  [View] [Fix] [Dismiss]     │          │
+│        └───────────┬─────────────────┘          │
+│                    │ "Fix"                      │
+│                    ▼                             │
+│        ┌──────────────────────────────┐          │
+│        │     Prompt Generator        │          │
+│        │                             │          │
+│        │  ┌────────────────────────┐ │          │
+│        │  │ CVE + versions        │ │          │
+│        │  │ project path          │ │          │
+│        │  │ IOC file paths        │ │          │
+│        │  │ cred rotation list    │ │          │
+│        │  │ clean version         │ │          │
+│        │  │ test command          │ │          │
+│        │  └────────────────────────┘ │          │
+│        └───────────┬─────────────────┘          │
+│                    │                             │
+│                    ▼                             │
+│        ┌──────────────────────────────┐          │
+│        │     Harness Launcher        │          │
+│        │  claude | codex | opencode  │          │
+│        └──────────────────────────────┘          │
+└──────────────────────────────────────────────────┘
+```
+
 **Feed poller.** Hits three structured APIs on a configurable interval (default: 5 minutes):
 - [OSV.dev](https://osv.dev) --- Google's aggregated vulnerability database. Covers npm,
   PyPI, crates.io, Go, RubyGems, Packagist, NuGet, Maven. Structured JSON with affected
@@ -295,6 +346,40 @@ generated prompt. The developer stays in control --- they review the diff before
 ### Component 2: `ripley-guard` --- the package manager interceptor
 
 A standalone Rust binary, separate from the tray app. Runs without a GUI. Can be used in CI.
+
+```
+┌──────────────────────────────────────────────────┐
+│           ripley-guard (CLI shim)                │
+│                                                  │
+│  npm install ──►┌──────────────────┐             │
+│  pip install ──►│ Script Extractor │             │
+│  cargo build ──►│                  │             │
+│  gem install ──►│ fetch tarball,   │             │
+│  go install  ──►│ parse lifecycle  │             │
+│                 │ hooks            │             │
+│                 └────────┬─────────┘             │
+│                          │                       │
+│                          ▼                       │
+│                 ┌──────────────────┐              │
+│                 │ Static Analyzer │              │
+│                 │                 │              │
+│                 │ network calls?    ──► ■        │
+│                 │ eval / exec?      ──► ■        │
+│                 │ base64 decode?    ──► ■        │
+│                 │ binary download?  ──► ■        │
+│                 │ obfuscation?      ──► ■        │
+│                 │ known patterns?   ──► ■        │
+│                 │                 │              │
+│                 │ risk: low | med | high         │
+│                 └────────┬─────────┘             │
+│                          │                       │
+│                     low  │  med/high             │
+│                     ┌────┴────┐                  │
+│                     ▼         ▼                  │
+│                auto-allow   prompt user          │
+│                             with details         │
+└──────────────────────────────────────────────────┘
+```
 
 **Installation.**
 
