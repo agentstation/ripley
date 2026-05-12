@@ -1,0 +1,115 @@
+# Detection rules for npm lifecycle scripts (postinstall, preinstall, prepare).
+# Compiled into the binary at build time via include_str!.
+# Each rule has an id, signal type, weight, and list of regex patterns.
+
+[[rules]]
+id = "NPM001"
+name = "network-call"
+description = "Network calls in lifecycle scripts"
+ecosystem = "npm"
+signal = "network_call"
+weight = "high"
+patterns = [
+    'curl\s',
+    'wget\s',
+    'fetch\(',
+    'http\.get\(',
+    'https\.get\(',
+    'net\.connect',
+    'axios\.',
+    'node-fetch',
+    'got\(',
+    'request\(',
+]
+
+[[rules]]
+id = "NPM002"
+name = "code-generation"
+description = "Dynamic code generation (eval, Function constructor)"
+ecosystem = "npm"
+signal = "code_generation"
+weight = "high"
+patterns = [
+    '\beval\(',
+    '\bFunction\(',
+    'new Function',
+    'vm\.runIn',
+    'vm\.createContext',
+]
+
+[[rules]]
+id = "NPM003"
+name = "encoding-obfuscation"
+description = "Encoding or obfuscation patterns"
+ecosystem = "npm"
+signal = "encoding"
+weight = "high"
+patterns = [
+    'Buffer\.from\(.+,\s*["\x27]base64',
+    '\batob\(',
+    '\bbtoa\(',
+    'String\.fromCharCode',
+    'charCodeAt',
+]
+
+[[rules]]
+id = "NPM004"
+name = "binary-download-execute"
+description = "Downloading and executing binaries"
+ecosystem = "npm"
+signal = "binary_execution"
+weight = "critical"
+patterns = [
+    'curl.*\|.*sh',
+    'wget.*\|.*sh',
+    'chmod\s+[+]?[0-7]*x',
+    '\.exe\b',
+    '/tmp/.*&&.*\./',
+    'child_process.*exec',
+]
+
+[[rules]]
+id = "NPM005"
+name = "env-harvesting"
+description = "Bulk environment variable access"
+ecosystem = "npm"
+signal = "env_harvesting"
+weight = "medium"
+patterns = [
+    'JSON\.stringify\(process\.env\)',
+    'Object\.keys\(process\.env\)',
+    'Object\.entries\(process\.env\)',
+    '\.env\b.*readFile',
+]
+
+[[rules]]
+id = "NPM006"
+name = "scope-escape"
+description = "Writing outside the package directory"
+ecosystem = "npm"
+signal = "scope_escape"
+weight = "medium"
+patterns = [
+    'os\.homedir\(\)',
+    'process\.env\.HOME',
+    'process\.env\.USERPROFILE',
+    '~/\.',
+    '\.\./\.\.',
+]
+
+[[rules]]
+id = "NPM007"
+name = "known-attack-patterns"
+description = "Patterns from known supply chain attacks (TanStack, Shai-Hulud, etc.)"
+ecosystem = "npm"
+signal = "known_malicious"
+weight = "critical"
+patterns = [
+    '\.claude/settings\.json',
+    '\.claude/execution',
+    '\.vscode/tasks\.json.*runOn',
+    'bun\s+run.*--smol',
+    'router_init\.js',
+    'Pyarmor',
+    'javascript-obfuscator',
+]

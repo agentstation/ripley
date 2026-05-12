@@ -1,0 +1,25 @@
+[package]
+name = "ripley-guard"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "ripley"
+path = "src/main.rs"
+
+[dependencies]
+ripley-core = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+colored = { workspace = true }
+dialoguer = { workspace = true }
+flate2 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tar = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[lints]
+workspace = true
