@@ -7,8 +7,12 @@ See README.md for project background and motivation.
 
 - **README.md** — what Ripley is and why it exists
 - **ARCHITECTURE.md** — system design, component specs, tech stack, threat model
+- **DESIGN.md** — design system: colors, typography, spacing, component styling, do's/don'ts
+- **UI.md** — view wireframes, interaction specs, tray icon, dashboard, dialogs
 - **DECISIONS.md** — rationale behind each technical choice, competitive landscape
 - **ROADMAP.md** — phased execution plan with milestones and verification criteria
+- **WORKFLOW.md** — user workflow streams: setup, scan, monitoring, interception, fix, forensics, CI, audit, harden, exposure, uninstall
+- **SETTINGS.md** — complete reference for all settings, config layers, env vars, defaults
 
 ## Build
 
@@ -61,6 +65,7 @@ After completing a milestone:
 - **Version matching:** `semver` crate
 - **Filesystem watching:** `notify` crate v8
 - **Pattern matching:** `regex` crate (cache compiled regexes)
+- **UI framework:** `iced` for dashboard window and guard dialog; `tray-icon` + `muda` for system tray
 - **Snapshot testing:** `insta` crate for analyzer output, CLI output, prompt format
 - **Tests:** unit tests in `#[cfg(test)] mod tests` blocks, integration tests in `tests/`
 - No `unwrap()` or `expect()` in `ripley-core` — always return `Result`
@@ -74,8 +79,9 @@ After completing a milestone:
 - **Phase 1 only.** Do not implement Phase 2+ features (other lockfile formats, other
   PM shims, Windows/Linux builds, sandboxing). When the design needs an extension
   point for later, use a trait or enum variant — don't build the implementation.
-- **No Tauri until M3.** Milestones M1 and M2 are pure CLI. The tray app comes in M3.
-  Do not install tauri-cli or scaffold src-tauri until M3.
+- **No tray app until M3.** Milestones M1 and M2 are pure CLI. The tray app (`tray-icon`
+  + `muda`, no webview) and IPC layer come in M3. Do not add `ripley-app` or `ripley-ipc`
+  crates until M3.
 - **Test as you go.** Every public function in `ripley-core` should have at least one
   unit test. Use `insta` snapshot tests for any output that has a defined format
   (analyzer results, CLI output, prompts).

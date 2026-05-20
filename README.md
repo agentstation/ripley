@@ -14,18 +14,21 @@ it when it did, and came back to finish the job.
 
 ## Background
 
-In a single two-week window (late April through May 11, 2026), the software industry
-experienced an unprecedented concentration of supply chain attacks:
+In a single month (late April through May 19, 2026), the software industry experienced
+an unprecedented concentration of supply chain attacks:
 
-- **TanStack Router** (May 11) --- 42 npm packages compromised via GitHub Actions cache
-  poisoning. A self-propagating worm harvested credentials from 100+ file paths, injected
-  persistence into Claude Code and VS Code configs, and exfiltrated data through encrypted
-  P2P channels. Detected by external researchers within 6 minutes, but the blast radius was
-  84 malicious package versions with millions of collective downloads.
+- **TanStack Router** (May 11) --- TanStack router/start packages compromised via GitHub
+  Actions cache poisoning. The attacker poisoned the pnpm store via `pull_request_target`,
+  deleted the PR, and captured an OIDC publishing token from the release workflow's
+  cleanup code. A self-propagating worm harvested credentials from 100+ file paths,
+  injected persistence into Claude Code and VS Code configs, exfiltrated data through
+  encrypted P2P channels, and installed a dead man switch that would `rm -rf ~` if the
+  victim revoked their GitHub token. Detected by Socket.dev within 6 minutes, but the
+  blast radius was 84 malicious package versions with millions of collective downloads.
 
 - **Mini Shai-Hulud / TeamPCP** --- A coordinated campaign that hit SAP's npm packages
   (~572K weekly downloads), PyTorch Lightning on PyPI, Bitwarden CLI, Mistral AI SDKs,
-  Checkmarx Docker images, Checkmarx Jenkins plugin, Telnyx SDK, and 200+ other package
+  Checkmarx Docker images, Checkmarx Jenkins plugin, Telnyx SDK, and 300+ other package
   artifacts across five ecosystems. The worm self-propagated by stealing npm tokens and
   republishing poisoned versions of every package a victim could access.
 
@@ -49,9 +52,33 @@ experienced an unprecedented concentration of supply chain attacks:
 - **QLNX** --- A fileless Linux RAT with rootkit, PAM backdoor, eBPF process hiding, and
   seven persistence methods, specifically targeting developer credential stores.
 
-This is not an anomaly. It is the new baseline. The supply chain is now the primary attack
-surface for software development, and the pace of attacks has outstripped the industry's
-ability to respond.
+- **@antv ecosystem** (May 19) --- 639 malicious versions across 323 packages published
+  in a 22-minute automated burst via a compromised maintainer account. Preinstall hook
+  executes a 498KB obfuscated Bun script that harvests credentials via AES-256-GCM
+  encrypted HTTPS with GitHub API fallback exfiltration. 16 million combined weekly
+  downloads.
+
+- **node-ipc** (May 14) --- Attacker re-registered the maintainer's expired domain, used
+  npm password recovery to take over the account, and published three versions with an
+  80KB credential stealer harvesting 90+ credential categories via DNS TXT query
+  tunneling. 10 million weekly downloads. A novel attack vector: expired domain
+  re-registration as account takeover.
+
+- **TrustFall** (May 7) --- Malicious `.mcp.json` and `.claude/settings.json` files in
+  public GitHub repos achieve one-click RCE in Claude Code, Gemini CLI, Cursor, and
+  Copilot CLI when the developer accepts the trust prompt. On CI runners the trust prompt
+  is skipped entirely --- zero-interaction compromise of build pipelines.
+
+- **TeamPCP bounty contest** (May 14) --- The threat group behind Mini Shai-Hulud
+  open-sourced their attack toolkit on BreachForums and launched a $1,000 bounty for
+  whoever compromises npm packages with the most aggregate weekly downloads. Copycat
+  campaigns followed within days, including MCP server injection targeting AI coding
+  assistants and a DDoS botnet delivered via typosquatting packages.
+
+This is not an anomaly. It is the new baseline. In May 2026 alone, over 1,700 malicious
+package versions were published across 800+ unique packages, representing tens of millions
+of weekly downloads. The attack tooling is now open-sourced, gamified, and producing
+copycats. The supply chain is now the primary attack surface for software development.
 
 
 ## The Gap
@@ -64,12 +91,18 @@ timeline and leave the rest to someone else:
 | `npm audit` | Before (partial) | Advisory must exist first. Only checks *after* install. Doesn't stop you from running the malicious postinstall script right now. |
 | CVE databases | Before (partial) | Median time from compromise to CVE: days to weeks. Attackers have already moved. |
 | GitHub Dependabot | Before (partial) | Opens a PR. Doesn't block installation of the bad version in the meantime. |
+| SLSA / Sigstore provenance | Before (partial) | Verifies the build pipeline, not the code. TanStack's malicious packages carried valid SLSA provenance because the attacker hijacked the pipeline itself. |
 | EDR / antivirus | During (partial) | Optimized for known malware signatures, not developer-specific attack patterns like npm postinstall exfiltration or `.claude/settings.json` injection. |
+| AI coding tools | During (blind spot) | Claude Code, Cursor, Gemini CLI, and Copilot accept repo-level config files that can inject malicious MCP servers, hooks, and environment variables. The tools themselves become attack vectors. |
+| Developer environment | Before (blind spot) | Disk encryption off, firewall disabled, npm tokens broadly scoped, SSH keys with weak algorithms, AI tool configs unaudited. The machine itself is the soft target --- but no tool audits whether it's hardened against the supply chain attacks it's supposed to resist. |
 | Security blogs | After (partial) | You learn about it from Twitter or Hacker News hours or days later. No structured IOCs, no automated remediation. |
 | Incident response | After (manual) | Credential rotation, forensics, OS reinstall. Effective but entirely manual, slow, and requires expertise most developers don't have. |
 
 **Before:** Almost no tooling operates between "a malicious package is published" and "a
 developer installs it." The postinstall script already ran. The `.pth` file already loaded.
+Even SLSA provenance and Sigstore signing are insufficient — the TanStack attack proved
+that a hijacked build pipeline produces packages with valid provenance that pass every
+cryptographic check.
 
 **During:** Developer machines have no runtime monitoring tuned for supply chain attack
 patterns --- not a Node process writing to `.claude/settings.json`, not a Python import
@@ -101,7 +134,9 @@ GitHub Advisory Database, Socket.dev) on a continuous loop and cross-referencing
 every lockfile on your machine. When you install a package, Ripley intercepts the install
 scripts and analyzes them before they run. If a `postinstall` script downloads a binary,
 decodes base64, or exhibits obfuscation patterns, it is flagged and blocked --- not logged
-after the fact.
+after the fact. `ripley audit` checks the developer's machine itself --- disk encryption,
+firewall, SSH key strength, npm token scoping, AI tool config integrity --- and uses AI to
+generate contextual, environment-specific fix commands.
 
 **During the breach: active detection.** Not every attack can be prevented. Ripley watches
 for IOC patterns in real time: unexpected outbound connections from Node/Python processes,
@@ -161,7 +196,7 @@ with containment already in progress and a fix ready to apply.
   │                                                              │
   │  BEFORE: [View] [Fix] [Dismiss]                              │
   │  DURING: [View] [Contain] [Investigate]                      │
-  │  AFTER:  [View] [Remediate] [Rotation Checklist]             │
+  │  AFTER:  [Remediate] [View Report]                            │
   └──────────────────────────────────────────────────────────────┘
 
   ┌──────────────────────────────────────────────────────────────┐
@@ -188,18 +223,25 @@ with containment already in progress and a fix ready to apply.
 ```
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for component details, project structure, and threat
-model. See [DECISIONS.md](DECISIONS.md) for technical decisions and competitive landscape.
-See [ROADMAP.md](ROADMAP.md) for the phased execution plan.
+model. See [DESIGN.md](DESIGN.md) for the design system (tokens, colors, typography). See
+[UI.md](UI.md) for view wireframes and interaction specs. See
+[DECISIONS.md](DECISIONS.md) for technical decisions and competitive landscape.
+See [ROADMAP.md](ROADMAP.md) for the phased execution plan. See
+[WORKFLOW.md](WORKFLOW.md) for user workflow streams. See
+[SETTINGS.md](SETTINGS.md) for configuration reference.
 
 
 ## CLI
 
 ```
 # tray app
-ripley                              # launch the tray app
+ripley                              # launch the tray app (or print help if not installed)
 ripley watch                        # headless daemon mode (servers, CI)
-ripley config                       # open configuration
-ripley status                       # show monitored projects, last poll time, alert count
+ripley watch --daemon               # fork to background, log to file
+ripley config                       # open config.toml in $EDITOR
+ripley config --show                # print resolved configuration (all layers merged)
+ripley config --path                # print config file location
+ripley status                       # show monitoring state, cache age, guard status
 
 # before: forward defense
 ripley scan [path]                  # one-shot scan: check lockfiles against advisories
@@ -219,6 +261,9 @@ ripley scan --deep [path]           # full forensic audit (IOC files, persistenc
                                     # shell RC, network, creds)
 ripley exposure <cve>               # assess credential exposure for a specific attack
 ripley fix <cve> [path]             # generate and launch remediation prompt
+ripley audit                        # developer environment security audit
+                                    # (toolchain, machine, AI tools, credentials)
+ripley audit --fix                  # audit + generate AI-powered fix commands
 ripley harden                       # suggest forward-defense measures based on
                                     # recent incidents
 ```
@@ -256,4 +301,4 @@ fights it when it does, and comes back to make sure it's finished.
 
 ## License
 
-TBD
+[AGPL-3.0-or-later](LICENSE)
