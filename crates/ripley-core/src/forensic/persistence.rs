@@ -17,6 +17,7 @@ pub enum PersistenceCategory {
     ShellRc,
     McpConfig,
     AiToolConfig,
+    DeadManSwitch,
 }
 
 impl std::fmt::Display for PersistenceCategory {
@@ -27,6 +28,7 @@ impl std::fmt::Display for PersistenceCategory {
             Self::ShellRc => write!(f, "Shell RC"),
             Self::McpConfig => write!(f, "MCP Config"),
             Self::AiToolConfig => write!(f, "AI Tool Config"),
+            Self::DeadManSwitch => write!(f, "Dead Man Switch"),
         }
     }
 }
@@ -66,6 +68,26 @@ const MCP_SUSPICIOUS_KEYWORDS: &[&str] = &[
     "ignore previous",
     "ignore all previous",
     "system prompt",
+];
+
+const DEAD_MAN_SWITCH_DOMAINS: &[&str] = &[
+    "api.github.com",
+    "github.com/api",
+    "registry.npmjs.org",
+    "sts.amazonaws.com",
+    "oauth2.googleapis.com",
+    "login.microsoftonline.com",
+];
+
+const DESTRUCTIVE_PATTERNS: &[&str] = &[
+    "rm -rf",
+    "rm -fr",
+    "shred ",
+    "wipe ",
+    "srm ",
+    "dd if=/dev/zero",
+    "dd if=/dev/urandom",
+    "mkfs.",
 ];
 
 pub fn audit_persistence(home: &Path) -> Vec<PersistenceFinding> {
@@ -109,6 +131,16 @@ fn audit_launch_agents(home: &Path, findings: &mut Vec<PersistenceFinding>) {
                 ),
                 severity: Severity::High,
                 category: PersistenceCategory::LaunchAgent,
+            });
+        }
+
+        if has_api_polling(&content) && has_destructive_command(&content) {
+            findings.push(PersistenceFinding {
+                path,
+                description: "LaunchAgent polls credential API and contains destructive command"
+                    .into(),
+                severity: Severity::Critical,
+                category: PersistenceCategory::DeadManSwitch,
             });
         }
     }
@@ -169,6 +201,18 @@ fn audit_crontab(findings: &mut Vec<PersistenceFinding>) {
                 break;
             }
         }
+
+        if has_api_polling(trimmed) && has_destructive_command(trimmed) {
+            findings.push(PersistenceFinding {
+                path: PathBuf::from(format!("crontab:line {}", line_num + 1)),
+                description: format!(
+                    "Crontab entry polls credential API and contains destructive command: {}",
+                    truncate_line(trimmed, 80)
+                ),
+                severity: Severity::Critical,
+                category: PersistenceCategory::DeadManSwitch,
+            });
+        }
     }
 }
 
@@ -210,6 +254,17 @@ fn audit_shell_rc(home: &Path, findings: &mut Vec<PersistenceFinding>) {
                     break;
                 }
             }
+        }
+
+        if has_api_polling(&content) && has_destructive_command(&content) {
+            findings.push(PersistenceFinding {
+                path: rc_path,
+                description: format!(
+                    "{rc_name} contains both API credential polling and destructive commands"
+                ),
+                severity: Severity::Critical,
+                category: PersistenceCategory::DeadManSwitch,
+            });
         }
     }
 }
@@ -270,11 +325,27 @@ fn audit_ai_tool_configs(home: &Path, findings: &mut Vec<PersistenceFinding>) {
     }
 }
 
+fn has_api_polling(content: &str) -> bool {
+    DEAD_MAN_SWITCH_DOMAINS
+        .iter()
+        .any(|domain| content.contains(domain))
+}
+
+fn has_destructive_command(content: &str) -> bool {
+    DESTRUCTIVE_PATTERNS
+        .iter()
+        .any(|pattern| content.contains(pattern))
+}
+
 fn truncate_line(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()
     } else {
-        format!("{}...", &s[..max_len])
+        let mut end = max_len;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}...", &s[..end])
     }
 }
 
@@ -422,6 +493,10 @@ mod tests {
             PersistenceCategory::AiToolConfig.to_string(),
             "AI Tool Config"
         );
+        assert_eq!(
+            PersistenceCategory::DeadManSwitch.to_string(),
+            "Dead Man Switch"
+        );
     }
 
     #[test]
@@ -431,5 +506,95 @@ mod tests {
         let truncated = truncate_line(&long, 80);
         assert_eq!(truncated.len(), 83); // 80 + "..."
         assert!(truncated.ends_with("..."));
+    }
+
+    #[test]
+    fn test_truncate_line_multibyte_utf8() {
+        let s = "a".repeat(79) + "\u{1F600}"; // 79 ASCII + 4-byte emoji = 83 bytes
+        let truncated = truncate_line(&s, 80);
+        assert!(truncated.ends_with("..."));
+        assert!(truncated.is_char_boundary(truncated.len()));
+    }
+
+    #[test]
+    fn test_dead_man_switch_launch_agent() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let la_dir = dir.path().join("Library/LaunchAgents");
+        std::fs::create_dir_all(&la_dir).expect("mkdir");
+        std::fs::write(
+            la_dir.join("com.dms.plist"),
+            r#"<?xml version="1.0"?>
+<plist version="1.0">
+<dict>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-c</string>
+    <string>curl https://api.github.com/user -H "Authorization: token $TOKEN" || rm -rf ~</string>
+  </array>
+</dict>
+</plist>"#,
+        )
+        .expect("write");
+
+        let findings: Vec<_> = audit_persistence(dir.path())
+            .into_iter()
+            .filter(|f| f.category == PersistenceCategory::DeadManSwitch)
+            .collect();
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].severity, Severity::Critical);
+    }
+
+    #[test]
+    fn test_dead_man_switch_shell_rc() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(
+            dir.path().join(".bashrc"),
+            "curl https://api.github.com/user -f || rm -rf ~/important\n",
+        )
+        .expect("write");
+
+        let findings: Vec<_> = audit_persistence(dir.path())
+            .into_iter()
+            .filter(|f| f.category == PersistenceCategory::DeadManSwitch)
+            .collect();
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].severity, Severity::Critical);
+    }
+
+    #[test]
+    fn test_dead_man_switch_api_only_not_flagged() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(
+            dir.path().join(".bashrc"),
+            "curl https://api.github.com/user\n",
+        )
+        .expect("write");
+
+        let dms_findings: Vec<_> = audit_persistence(dir.path())
+            .into_iter()
+            .filter(|f| f.category == PersistenceCategory::DeadManSwitch)
+            .collect();
+        assert!(dms_findings.is_empty());
+    }
+
+    #[test]
+    fn test_has_api_polling() {
+        assert!(has_api_polling("curl https://api.github.com/user"));
+        assert!(has_api_polling("wget https://registry.npmjs.org/-/whoami"));
+        assert!(has_api_polling(
+            "curl https://sts.amazonaws.com/?Action=GetCallerIdentity"
+        ));
+        assert!(!has_api_polling("curl https://example.com"));
+        assert!(!has_api_polling("echo hello"));
+    }
+
+    #[test]
+    fn test_has_destructive_command() {
+        assert!(has_destructive_command("rm -rf ~/"));
+        assert!(has_destructive_command("rm -fr /tmp/data"));
+        assert!(has_destructive_command("shred ~/.npmrc"));
+        assert!(!has_destructive_command("rm file.txt"));
+        assert!(!has_destructive_command("echo hello"));
     }
 }

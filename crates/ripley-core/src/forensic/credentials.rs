@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use crate::types::Severity;
-
+use super::glob_to_regex;
 use super::ioc::IocProfile;
+use crate::types::Severity;
 
 #[derive(Debug, Clone)]
 pub struct CredentialFinding {
@@ -111,23 +111,6 @@ fn resolve_cred_glob(pattern: &str) -> Vec<PathBuf> {
         })
         .map(|entry| entry.path())
         .collect()
-}
-
-fn glob_to_regex(pattern: &str) -> String {
-    let mut regex = String::from("^");
-    for ch in pattern.chars() {
-        match ch {
-            '*' => regex.push_str(".*"),
-            '?' => regex.push('.'),
-            '.' | '(' | ')' | '+' | '|' | '^' | '$' | '@' | '{' | '}' | '[' | ']' => {
-                regex.push('\\');
-                regex.push(ch);
-            }
-            _ => regex.push(ch),
-        }
-    }
-    regex.push('$');
-    regex
 }
 
 fn rotation_command_for(path: &Path) -> Option<String> {

@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use iced::widget::{Rule, button, column, container, row, scrollable, text};
@@ -27,10 +28,11 @@ pub struct GuardLogEntry {
 
 #[derive(Debug, Clone)]
 pub struct DeepScanEntry {
-    pub ioc_count: usize,
-    pub persistence_count: usize,
-    pub credential_count: usize,
-    pub findings: Vec<DeepScanFinding>,
+    pub vuln_count: usize,
+    pub ioc_findings: Vec<DeepScanFinding>,
+    pub persistence_findings: Vec<DeepScanFinding>,
+    pub credential_findings: Vec<CredentialEntry>,
+    pub mcp_findings: Vec<DeepScanFinding>,
     pub dead_man_switch_warning: Option<String>,
 }
 
@@ -40,6 +42,14 @@ pub struct DeepScanFinding {
     pub description: String,
     pub severity: ripley_core::types::Severity,
     pub category: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct CredentialEntry {
+    pub path: PathBuf,
+    pub description: String,
+    pub severity: ripley_core::types::Severity,
+    pub rotation_command: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -54,6 +64,10 @@ pub enum View {
 pub enum Message {
     NavigateTo(View),
     ScanNow,
+    ToggleSection(String),
+    RunDeepScan,
+    ExportReport,
+    CopyRotationChecklist,
     Noop,
 }
 
@@ -62,6 +76,7 @@ pub struct RipleyApp {
     alerts: Vec<AlertEntry>,
     guard_log: Vec<GuardLogEntry>,
     deep_scan: Option<DeepScanEntry>,
+    expanded_sections: BTreeSet<String>,
     config: ripley_core::config::Config,
 }
 
@@ -74,6 +89,7 @@ impl RipleyApp {
                 alerts: Vec::new(),
                 guard_log: Vec::new(),
                 deep_scan: None,
+                expanded_sections: BTreeSet::new(),
                 config,
             },
             IcedTask::none(),
@@ -89,7 +105,16 @@ impl RipleyApp {
             Message::NavigateTo(view) => {
                 self.current_view = view;
             }
-            Message::ScanNow | Message::Noop => {}
+            Message::ToggleSection(section) => {
+                if !self.expanded_sections.remove(&section) {
+                    self.expanded_sections.insert(section);
+                }
+            }
+            Message::ScanNow
+            | Message::RunDeepScan
+            | Message::ExportReport
+            | Message::CopyRotationChecklist
+            | Message::Noop => {}
         }
         IcedTask::none()
     }
@@ -99,7 +124,7 @@ impl RipleyApp {
         let content = match self.current_view {
             View::Alerts => views::alerts::view(&self.alerts),
             View::Guard => views::guard_log::view(&self.guard_log),
-            View::DeepScan => views::deep_scan::view(&self.deep_scan),
+            View::DeepScan => views::deep_scan::view(&self.deep_scan, &self.expanded_sections),
             View::Settings => views::settings::view(&self.config),
         };
 

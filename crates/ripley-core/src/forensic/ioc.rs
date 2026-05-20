@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
+use super::glob_to_regex;
 use crate::types::Severity;
 
 #[derive(Debug, thiserror::Error)]
@@ -315,23 +316,6 @@ fn expand_glob_segment(parents: &[PathBuf], segment: &str) -> Vec<PathBuf> {
     }
 
     results
-}
-
-fn glob_to_regex(pattern: &str) -> String {
-    let mut regex = String::from("^");
-    for ch in pattern.chars() {
-        match ch {
-            '*' => regex.push_str(".*"),
-            '?' => regex.push('.'),
-            '.' | '(' | ')' | '+' | '|' | '^' | '$' | '@' | '{' | '}' | '[' | ']' => {
-                regex.push('\\');
-                regex.push(ch);
-            }
-            _ => regex.push(ch),
-        }
-    }
-    regex.push('$');
-    regex
 }
 
 #[cfg(test)]
