@@ -184,8 +184,8 @@ discard partial work.
 ```
 Phase:     1 --- Foundation
 Milestone: M5 --- Forensic Scan
-Task:      M5.1.1 --- IOC scanner
-Status:    not started
+Task:      M5 Gate --- Forensic Scan gate
+Status:    in progress
 Last gate: M4
 ```
 
@@ -1068,8 +1068,8 @@ Wire the "Fix" button: prompt generation and AI harness launching.
 - [x] `cargo clippy --workspace`
 - [x] Prompt generator snapshot tests pass
 - [x] `ripley scan --fix tests/fixtures/` generates prompt (prints to stdout)
-- [ ] Commit: `M4: Remediation pipeline`
-- [ ] Update CLAUDE.md "Current work" to M5
+- [x] Commit: `M4: Remediation pipeline`
+- [x] Update CLAUDE.md "Current work" to M5
 
 
 ---
@@ -1087,7 +1087,7 @@ Build `ripley scan --deep` --- the post-breach audit.
 
 #### M5.1: IOC scanner
 
-- [ ] **M5.1.1** Create `crates/ripley-core/src/forensic/mod.rs` and `ioc.rs`
+- [x] **M5.1.1** Create `crates/ripley-core/src/forensic/mod.rs` and `ioc.rs`
   - IOC file patterns: .claude/execution.js, .claude/setup.mjs,
     .claude/settings.json (unexpected hooks), .vscode/tasks.json (runOn),
     .mcp.json (rogue servers), .cursor/mcp.json, node_modules/.cache/ binaries,
@@ -1098,7 +1098,7 @@ Build `ripley scan --deep` --- the post-breach audit.
   - Test with temp dir containing planted IOC files
   - Verify: `cargo test -p ripley-core -- forensic`
 
-- [ ] **M5.1.2** IOC profile loader
+- [x] **M5.1.2** IOC profile loader
   - Parse TOML profiles from `{config_dir}/iocs/` (runtime) + compiled-in
   - `IocProfile` struct matching SETTINGS.md "IOC Profile Format"
   - Ship `iocs/tanstack-2026-05.toml` and `iocs/mini-shai-hulud.toml`
@@ -1106,7 +1106,7 @@ Build `ripley scan --deep` --- the post-breach audit.
 
 #### M5.2: Persistence auditor
 
-- [ ] **M5.2.1** Create `crates/ripley-core/src/forensic/persistence.rs`
+- [x] **M5.2.1** Create `crates/ripley-core/src/forensic/persistence.rs`
   - Check macOS: ~/Library/LaunchAgents/*.plist, crontab, shell RC files
   - MCP/AI config audit: .mcp.json, .cursor/mcp.json, .claude/settings.json
   - Dead man switch detection: processes polling external APIs
@@ -1116,7 +1116,7 @@ Build `ripley scan --deep` --- the post-breach audit.
 
 #### M5.3: Credential exposure mapper
 
-- [ ] **M5.3.1** Create `crates/ripley-core/src/forensic/credentials.rs`
+- [x] **M5.3.1** Create `crates/ripley-core/src/forensic/credentials.rs`
   - Map attack -> targeted credential stores (from IOC profiles)
   - Check which files exist on this machine
   - Generate rotation commands per credential
@@ -1127,7 +1127,7 @@ Build `ripley scan --deep` --- the post-breach audit.
 
 #### M5.4: Deep scan CLI
 
-- [ ] **M5.4.1** Wire `--deep` flag in scan subcommand
+- [x] **M5.4.1** Wire `--deep` flag in scan subcommand
   - Run lockfile scan + IOC scanner + persistence auditor + credential mapper
   - Table output: summary, findings by category, recommended actions
   - JSON output: structured report
@@ -1135,7 +1135,7 @@ Build `ripley scan --deep` --- the post-breach audit.
   - Spec: UI.md "Deep Scan Report" for output structure
   - Verify: `cargo run -p ripley-guard -- scan --deep tests/fixtures/`
 
-- [ ] **M5.4.2** Deep scan report in dashboard
+- [x] **M5.4.2** Deep scan report in dashboard
   - Summary cards: Vulns, IOCs, Persistence, Creds Risk, MCP
   - Collapsible sections per category
   - Dead man switch warning panel
@@ -1145,13 +1145,13 @@ Build `ripley scan --deep` --- the post-breach audit.
 
 #### M5 Gate
 
-- [ ] `cargo test --workspace`
-- [ ] `cargo clippy --workspace`
-- [ ] `cargo fmt --all -- --check`
-- [ ] `cargo deny check`
-- [ ] `cargo run -p ripley-guard -- scan --deep ~` on clean machine: "no findings"
-- [ ] Deep scan with planted IOC fixtures: findings reported
-- [ ] IOC profile loading works (compiled-in + runtime)
+- [x] `cargo test --workspace`
+- [x] `cargo clippy --workspace`
+- [x] `cargo fmt --all -- --check`
+- [x] `cargo deny check`
+- [x] `cargo run -p ripley-guard -- scan --deep ~` on clean machine: "no findings"
+- [x] Deep scan with planted IOC fixtures: findings reported
+- [x] IOC profile loading works (compiled-in + runtime)
 - [ ] Commit: `M5: Forensic scan`
 - [ ] Update CLAUDE.md "Current work" to Phase 2
 

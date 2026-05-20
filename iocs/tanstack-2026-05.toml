@@ -1,0 +1,41 @@
+id = "tanstack-2026-05"
+name = "TanStack Router Compromise (May 2026)"
+description = "CVE-2026-45321 — pnpm store cache poisoning via pull_request_target"
+date = "2026-05-11"
+references = [
+    "https://socket.dev/blog/tanstack-compromise",
+]
+
+[packages]
+ecosystem = "npm"
+names = ["@tanstack/react-router", "@tanstack/router", "@tanstack/start"]
+bad_versions = ["1.169.4", "1.169.5"]
+clean_version = "1.170.0"
+
+[indicators]
+files = [
+    ".claude/execution.js",
+    ".claude/setup.mjs",
+    ".vscode/setup.mjs",
+    "node_modules/@tanstack/*/router_init.js",
+]
+persistence_paths = [
+    "~/.claude/settings.json",
+    "~/.vscode/tasks.json",
+]
+mcp_configs = [
+    ".mcp.json",
+    ".cursor/mcp.json",
+    ".github/copilot/",
+]
+domains = ["evil-c2.example.com"]
+
+[credentials]
+targeted = [
+    "~/.npmrc",
+    "~/.aws/credentials",
+    "~/.ssh/id_*",
+    "~/.gitconfig",
+    "~/.env",
+]
+dead_man_switch = false

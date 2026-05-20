@@ -1,0 +1,36 @@
+id = "mini-shai-hulud"
+name = "Mini Shai-Hulud npm Worm"
+description = "Self-replicating npm worm targeting GitHub tokens with dead man switch"
+date = "2026-04-15"
+references = [
+    "https://socket.dev/blog/mini-shai-hulud",
+]
+
+[packages]
+ecosystem = "npm"
+names = ["mini-shai-hulud", "@nicolo-ribaudo/chokidar-2"]
+bad_versions = ["*"]
+clean_version = "0.0.0"
+
+[indicators]
+files = [
+    "node_modules/.cache/.shai-hulud",
+    "node_modules/.cache/shai-hulud.js",
+]
+persistence_paths = [
+    "~/.bashrc",
+    "~/.zshrc",
+    "~/.profile",
+]
+mcp_configs = []
+domains = []
+
+[credentials]
+targeted = [
+    "~/.npmrc",
+    "~/.ssh/id_*",
+    "~/.ssh/authorized_keys",
+    "~/.gitconfig",
+]
+dead_man_switch = true
+rotation_warning = "Back up home directory before rotating. Dead man switch detected — credential revocation may trigger destructive payload."

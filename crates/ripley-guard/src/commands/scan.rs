@@ -4,6 +4,9 @@ use std::process::ExitCode;
 use ripley_core::config::{self, Config};
 use ripley_core::db::AdvisoryDb;
 use ripley_core::feed::osv::OsvClient;
+use ripley_core::forensic::credentials;
+use ripley_core::forensic::ioc::{self, IocProfileSet};
+use ripley_core::forensic::persistence;
 use ripley_core::lockfile::{self, InstalledPackage, LockfileWarning, RiskySpec};
 use ripley_core::matcher;
 
@@ -12,7 +15,7 @@ use crate::output;
 pub async fn cmd_scan(
     path: PathBuf,
     format: &str,
-    _deep: bool,
+    deep: bool,
     fix: bool,
     no_cache: bool,
 ) -> anyhow::Result<ExitCode> {
@@ -75,6 +78,7 @@ pub async fn cmd_scan(
                     &all_risky,
                     &path,
                     format,
+                    deep,
                     fix,
                     &cfg,
                 );
@@ -128,6 +132,7 @@ pub async fn cmd_scan(
         &all_risky,
         &path,
         format,
+        deep,
         fix,
         &cfg,
     )
@@ -141,15 +146,33 @@ fn run_matcher_and_output(
     risky_specs: &[RiskySpec],
     path: &std::path::Path,
     format: &str,
+    deep: bool,
     fix: bool,
     cfg: &Config,
 ) -> anyhow::Result<ExitCode> {
     let all_advisories = db.get_all_advisories()?;
     let matches = matcher::find_matches(&all_advisories, packages, path);
 
+    let deep_report = if deep {
+        Some(run_deep_scan(path)?)
+    } else {
+        None
+    };
+
     match format {
-        "json" => output::print_json(&matches, warnings, risky_specs)?,
-        _ => output::print_table(&matches, warnings, risky_specs),
+        "json" => {
+            if let Some(ref report) = deep_report {
+                output::print_deep_json(&matches, warnings, risky_specs, report)?;
+            } else {
+                output::print_json(&matches, warnings, risky_specs)?;
+            }
+        }
+        _ => {
+            output::print_table(&matches, warnings, risky_specs);
+            if let Some(ref report) = deep_report {
+                output::print_deep_table(report);
+            }
+        }
     }
 
     if fix && !matches.is_empty() {
@@ -178,10 +201,54 @@ fn run_matcher_and_output(
     let has_matches = !matches.is_empty();
     let strict_posture_fail =
         cfg.posture.strict && (!warnings.is_empty() || !risky_specs.is_empty());
+    let has_deep_findings = deep_report.as_ref().is_some_and(|r| {
+        !r.ioc_findings.is_empty()
+            || !r.persistence_findings.is_empty()
+            || !r.exposure.findings.is_empty()
+    });
 
-    if has_matches || strict_posture_fail {
+    if has_matches || strict_posture_fail || has_deep_findings {
         Ok(ExitCode::from(1))
     } else {
         Ok(ExitCode::SUCCESS)
+    }
+}
+
+pub struct DeepScanReport {
+    pub ioc_findings: Vec<ripley_core::forensic::IocFinding>,
+    pub persistence_findings: Vec<ripley_core::forensic::PersistenceFinding>,
+    pub exposure: ripley_core::forensic::ExposureReport,
+}
+
+fn run_deep_scan(path: &std::path::Path) -> anyhow::Result<DeepScanReport> {
+    let config_dir = ripley_core::dirs::config_dir()?;
+    let iocs_dir = config_dir.join("iocs");
+
+    let compiled = IocProfileSet::load_compiled()?;
+    let user = IocProfileSet::load_user_profiles(&iocs_dir)?;
+    let all_profiles = IocProfileSet::merge(compiled, user);
+    let profiles = all_profiles.profiles();
+
+    let ioc_findings = ioc::scan_iocs(path, profiles);
+
+    let home = dirs::home_dir(path);
+    let persistence_findings = persistence::audit_persistence(&home);
+
+    let exposure = credentials::assess_exposure(profiles, &home);
+
+    Ok(DeepScanReport {
+        ioc_findings,
+        persistence_findings,
+        exposure,
+    })
+}
+
+mod dirs {
+    use std::path::{Path, PathBuf};
+
+    pub fn home_dir(fallback: &Path) -> PathBuf {
+        std::env::var("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| fallback.to_path_buf())
     }
 }

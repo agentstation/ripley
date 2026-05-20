@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use iced::widget::{Rule, button, column, container, row, scrollable, text};
 use iced::{Element, Length, Task as IcedTask, Theme};
 
@@ -24,9 +26,27 @@ pub struct GuardLogEntry {
 }
 
 #[derive(Debug, Clone)]
+pub struct DeepScanEntry {
+    pub ioc_count: usize,
+    pub persistence_count: usize,
+    pub credential_count: usize,
+    pub findings: Vec<DeepScanFinding>,
+    pub dead_man_switch_warning: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct DeepScanFinding {
+    pub path: PathBuf,
+    pub description: String,
+    pub severity: ripley_core::types::Severity,
+    pub category: String,
+}
+
+#[derive(Debug, Clone)]
 pub enum View {
     Alerts,
     Guard,
+    DeepScan,
     Settings,
 }
 
@@ -41,6 +61,7 @@ pub struct RipleyApp {
     current_view: View,
     alerts: Vec<AlertEntry>,
     guard_log: Vec<GuardLogEntry>,
+    deep_scan: Option<DeepScanEntry>,
     config: ripley_core::config::Config,
 }
 
@@ -52,6 +73,7 @@ impl RipleyApp {
                 current_view: View::Alerts,
                 alerts: Vec::new(),
                 guard_log: Vec::new(),
+                deep_scan: None,
                 config,
             },
             IcedTask::none(),
@@ -77,6 +99,7 @@ impl RipleyApp {
         let content = match self.current_view {
             View::Alerts => views::alerts::view(&self.alerts),
             View::Guard => views::guard_log::view(&self.guard_log),
+            View::DeepScan => views::deep_scan::view(&self.deep_scan),
             View::Settings => views::settings::view(&self.config),
         };
 
@@ -95,6 +118,7 @@ impl RipleyApp {
     fn sidebar(&self) -> Element<'_, Message> {
         let is_alerts = matches!(self.current_view, View::Alerts);
         let is_guard = matches!(self.current_view, View::Guard);
+        let is_deep_scan = matches!(self.current_view, View::DeepScan);
         let is_settings = matches!(self.current_view, View::Settings);
 
         container(
@@ -103,6 +127,11 @@ impl RipleyApp {
                 Rule::horizontal(1),
                 nav_button("Alerts", Message::NavigateTo(View::Alerts), is_alerts),
                 nav_button("Guard", Message::NavigateTo(View::Guard), is_guard),
+                nav_button(
+                    "Deep Scan",
+                    Message::NavigateTo(View::DeepScan),
+                    is_deep_scan
+                ),
                 nav_button("Settings", Message::NavigateTo(View::Settings), is_settings),
             ]
             .spacing(4)

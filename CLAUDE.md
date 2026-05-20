@@ -37,16 +37,9 @@ cargo run -p ripley-guard -- guard status
 
 ## Current work
 
-**Phase 1, Milestone 5: Forensic Scan**
+**Phase 1 complete.** All M1-M5 milestones delivered. Phase 2 (Ecosystem Breadth) not yet started.
 
 See ROADMAP.md for the full task list with verification criteria.
-Work through milestones in order (M1 → M2 → M3 → M4 → M5).
-Do not start a milestone until the previous one's verification criteria all pass.
-
-After completing a milestone:
-1. Run all verification criteria listed in ROADMAP.md for that milestone.
-2. Commit with message: `M{n}: {milestone name}`
-3. Update this "Current work" section to the next milestone.
 
 ## Conventions
 

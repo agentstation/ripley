@@ -4,6 +4,8 @@ use ripley_core::lockfile::{LockfileWarning, RiskySpec};
 use ripley_core::matcher::Match;
 use ripley_core::types::Severity;
 
+use crate::commands::scan::DeepScanReport;
+
 pub fn severity_colored(severity: &Option<Severity>) -> colored::ColoredString {
     match severity {
         Some(Severity::Critical) => "CRITICAL".red().bold(),
@@ -119,4 +121,139 @@ fn print_posture_summary(warnings: &[LockfileWarning], risky_specs: &[RiskySpec]
     if !parts.is_empty() {
         println!("  {} {}", "Posture:".yellow().bold(), parts.join(", "));
     }
+}
+
+pub fn print_deep_table(report: &DeepScanReport) {
+    println!();
+    println!(
+        "{}",
+        "── Deep Scan Results ──────────────────────────────────".bold()
+    );
+
+    if report.ioc_findings.is_empty()
+        && report.persistence_findings.is_empty()
+        && report.exposure.findings.is_empty()
+    {
+        println!("  {}", "No forensic findings.".green().bold());
+        return;
+    }
+
+    if !report.ioc_findings.is_empty() {
+        println!();
+        println!(
+            "  {} ({} found)",
+            "IOC Files".red().bold(),
+            report.ioc_findings.len()
+        );
+        for f in &report.ioc_findings {
+            println!(
+                "    {} {} — {}",
+                severity_colored(&Some(f.severity)),
+                f.path.display(),
+                f.description,
+            );
+        }
+    }
+
+    if !report.persistence_findings.is_empty() {
+        println!();
+        println!(
+            "  {} ({} found)",
+            "Persistence Mechanisms".red().bold(),
+            report.persistence_findings.len()
+        );
+        for f in &report.persistence_findings {
+            println!(
+                "    {} [{}] {} — {}",
+                severity_colored(&Some(f.severity)),
+                f.category,
+                f.path.display(),
+                f.description,
+            );
+        }
+    }
+
+    if !report.exposure.findings.is_empty() {
+        println!();
+        println!(
+            "  {} ({} at risk)",
+            "Credential Exposure".red().bold(),
+            report.exposure.findings.len()
+        );
+        for f in &report.exposure.findings {
+            println!(
+                "    {} {} — {}",
+                severity_colored(&Some(f.severity)),
+                f.path.display(),
+                f.description,
+            );
+            if let Some(ref cmd) = f.rotation_command {
+                println!("      {} {}", "Rotate:".yellow(), cmd);
+            }
+        }
+    }
+
+    if let Some(ref warning) = report.exposure.dead_man_switch_warning {
+        println!();
+        println!(
+            "  {} {}",
+            "⚠ DEAD MAN SWITCH:".red().bold(),
+            warning.yellow()
+        );
+    }
+}
+
+pub fn print_deep_json(
+    matches: &[Match],
+    warnings: &[LockfileWarning],
+    risky_specs: &[RiskySpec],
+    report: &DeepScanReport,
+) -> anyhow::Result<()> {
+    let output = serde_json::json!({
+        "matches": matches.iter().map(|m| serde_json::json!({
+            "advisory_id": m.advisory.id,
+            "package": m.package.name,
+            "version": m.package.version.to_string(),
+            "severity": m.advisory.severity,
+            "summary": m.advisory.summary,
+            "project_path": m.project_path,
+        })).collect::<Vec<_>>(),
+        "posture_warnings": warnings.iter().map(|w| serde_json::json!({
+            "package": w.package,
+            "field": w.field,
+            "message": w.message,
+            "severity": w.severity,
+        })).collect::<Vec<_>>(),
+        "risky_specs": risky_specs.iter().map(|r| serde_json::json!({
+            "package": r.package,
+            "specifier": r.specifier,
+            "reason": r.reason,
+        })).collect::<Vec<_>>(),
+        "deep_scan": {
+            "ioc_findings": report.ioc_findings.iter().map(|f| serde_json::json!({
+                "path": f.path,
+                "description": f.description,
+                "severity": format!("{}", f.severity),
+                "profile_id": f.profile_id,
+            })).collect::<Vec<_>>(),
+            "persistence_findings": report.persistence_findings.iter().map(|f| serde_json::json!({
+                "path": f.path,
+                "description": f.description,
+                "severity": format!("{}", f.severity),
+                "category": format!("{}", f.category),
+            })).collect::<Vec<_>>(),
+            "credential_exposure": {
+                "findings": report.exposure.findings.iter().map(|f| serde_json::json!({
+                    "path": f.path,
+                    "description": f.description,
+                    "severity": format!("{}", f.severity),
+                    "rotation_command": f.rotation_command,
+                    "profile_id": f.profile_id,
+                })).collect::<Vec<_>>(),
+                "dead_man_switch_warning": report.exposure.dead_man_switch_warning,
+            },
+        },
+    });
+    println!("{}", serde_json::to_string_pretty(&output)?);
+    Ok(())
 }

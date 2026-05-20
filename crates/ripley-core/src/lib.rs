@@ -3,6 +3,7 @@ pub mod config;
 pub mod db;
 pub mod dirs;
 pub mod feed;
+pub mod forensic;
 pub mod harness;
 pub mod lockfile;
 pub mod matcher;
