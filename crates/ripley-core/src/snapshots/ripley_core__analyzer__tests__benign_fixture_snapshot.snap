@@ -1,0 +1,9 @@
+---
+source: crates/ripley-core/src/analyzer.rs
+expression: result
+---
+{
+  "risk_level": "low",
+  "matched_rules": [],
+  "highlighted_lines": []
+}

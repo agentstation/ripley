@@ -12,6 +12,8 @@ pub enum FeedError {
     Parse(String),
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("internal error: {0}")]
+    Internal(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

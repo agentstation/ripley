@@ -58,7 +58,7 @@ After completing a milestone:
 - **CLI output:** support `--format json|table`, exit codes: 0=clean, 1=findings, 2=error
 - **Logging:** `tracing` + `tracing-subscriber` with `env-filter`; `tracing-appender` for file logging in daemon mode
 - **Advisory cache:** `redb` v4 (pure Rust embedded KV store) — advisory data only
-- **Configuration:** `config.toml` in platform config dir — human-editable, layered (user → project → env → CLI)
+- **Configuration:** `config.toml` in platform config dir — human-editable, layered (user → project → env → CLI). Overlay pattern with `Option<T>` fields for merge.
 - **Guard log:** append-only JSONL at `{data_dir}/guard.jsonl`
 - **Lockfile index:** in-memory only, rebuilt on startup and filesystem events — never persist derived data
 - **Platform directories:** `directories` crate — never hardcode `~/.ripley/`

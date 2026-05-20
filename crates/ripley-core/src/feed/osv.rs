@@ -63,6 +63,8 @@ struct OsvVuln {
     severity: Vec<OsvSeverity>,
     #[serde(default)]
     references: Vec<OsvReference>,
+    #[serde(default)]
+    database_specific: Option<OsvDatabaseSpecific>,
 }
 
 #[derive(Deserialize)]
@@ -87,6 +89,8 @@ struct OsvEvent {
 
 #[derive(Deserialize)]
 struct OsvSeverity {
+    #[serde(default, rename = "type")]
+    severity_type: Option<String>,
     #[serde(default)]
     score: Option<String>,
 }
@@ -95,6 +99,12 @@ struct OsvSeverity {
 struct OsvReference {
     #[serde(default)]
     url: String,
+}
+
+#[derive(Deserialize)]
+struct OsvDatabaseSpecific {
+    #[serde(default)]
+    severity: Option<String>,
 }
 
 impl OsvClient {
@@ -198,7 +208,7 @@ impl OsvClient {
         for attempt in 0..=MAX_RETRIES {
             let req = request
                 .try_clone()
-                .ok_or_else(|| FeedError::Parse("could not clone request".to_string()))?;
+                .ok_or_else(|| FeedError::Internal("could not clone request".to_string()))?;
 
             match req.send().await {
                 Ok(resp) if resp.status().is_server_error() && attempt < MAX_RETRIES => {
@@ -235,15 +245,8 @@ fn sanitize_name(name: &str) -> String {
 }
 
 fn map_vuln(vuln: OsvVuln, ecosystem: Ecosystem, package: &str) -> Advisory {
-    let severity = vuln.severity.first().and_then(|s| {
-        s.score.as_ref().and_then(|score| {
-            if let Ok(val) = score.parse::<f64>() {
-                Some(cvss_to_severity(val))
-            } else {
-                None
-            }
-        })
-    });
+    let severity = extract_severity(&vuln.severity)
+        .or_else(|| extract_database_severity(vuln.database_specific.as_ref()));
 
     let mut affected_ranges = Vec::new();
     for affected in &vuln.affected {
@@ -282,6 +285,60 @@ fn map_vuln(vuln: OsvVuln, ecosystem: Ecosystem, package: &str) -> Advisory {
         summary: vuln.summary,
         references,
     }
+}
+
+fn extract_severity(severity_list: &[OsvSeverity]) -> Option<Severity> {
+    // Prefer CVSS_V3/V4 over V2
+    let preferred = severity_list
+        .iter()
+        .find(|s| {
+            s.severity_type
+                .as_deref()
+                .is_some_and(|t| t == "CVSS_V3" || t == "CVSS_V4")
+        })
+        .or_else(|| severity_list.first());
+
+    preferred.and_then(|s| {
+        s.score.as_ref().and_then(|score| {
+            // Try parsing as bare numeric score first
+            if let Ok(val) = score.parse::<f64>() {
+                return Some(cvss_to_severity(val));
+            }
+            // Try extracting base score from CVSS vector string
+            // Vectors look like: "CVSS:3.1/AV:N/AC:L/.../baseScore:7.5" or
+            // have the score as the last numeric after a slash
+            extract_score_from_vector(score).map(cvss_to_severity)
+        })
+    })
+}
+
+fn extract_score_from_vector(vector: &str) -> Option<f64> {
+    // CVSS vectors don't embed the score — the score is computed from the vector.
+    // But some OSV entries put just the score in the score field, while others
+    // put the full vector. We can't fully compute CVSS from a vector without a
+    // library, but we can handle the common case where entries report it as a
+    // bare "7.5" or as part of a non-standard format.
+    //
+    // For proper CVSS vectors (CVSS:3.1/AV:N/...), return None and fall through
+    // to database_specific.
+    if vector.starts_with("CVSS:") {
+        return None;
+    }
+    vector.parse::<f64>().ok()
+}
+
+fn extract_database_severity(db_specific: Option<&OsvDatabaseSpecific>) -> Option<Severity> {
+    db_specific.and_then(|d| {
+        d.severity
+            .as_deref()
+            .and_then(|s| match s.to_uppercase().as_str() {
+                "CRITICAL" => Some(Severity::Critical),
+                "HIGH" => Some(Severity::High),
+                "MODERATE" | "MEDIUM" => Some(Severity::Medium),
+                "LOW" => Some(Severity::Low),
+                _ => None,
+            })
+    })
 }
 
 fn cvss_to_severity(score: f64) -> Severity {
@@ -333,11 +390,13 @@ mod tests {
                 }],
             }],
             severity: vec![OsvSeverity {
+                severity_type: Some("CVSS_V3".to_string()),
                 score: Some("7.5".to_string()),
             }],
             references: vec![OsvReference {
                 url: "https://github.com/advisories/GHSA-xxxx-yyyy-zzzz".to_string(),
             }],
+            database_specific: None,
         }
     }
 
@@ -360,7 +419,7 @@ mod tests {
                             ]
                         }
                     ],
-                    "severity": [{"score": "9.1"}],
+                    "severity": [{"type": "CVSS_V3", "score": "9.1"}],
                     "references": [{"url": "https://example.com"}]
                 }
             ]
@@ -431,10 +490,68 @@ mod tests {
             }],
             severity: Vec::new(),
             references: Vec::new(),
+            database_specific: None,
         };
 
         let advisory = map_vuln(vuln, Ecosystem::Npm, "test-pkg");
         assert_eq!(advisory.affected_ranges.len(), 1);
         assert!(advisory.affected_ranges[0].fixed.is_none());
+    }
+
+    #[test]
+    fn test_severity_from_cvss_vector_falls_through_to_database_specific() {
+        let vuln = OsvVuln {
+            id: "GHSA-vec-test".to_string(),
+            summary: "Vector string severity".to_string(),
+            affected: Vec::new(),
+            severity: vec![OsvSeverity {
+                severity_type: Some("CVSS_V3".to_string()),
+                score: Some("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H".to_string()),
+            }],
+            references: Vec::new(),
+            database_specific: Some(OsvDatabaseSpecific {
+                severity: Some("CRITICAL".to_string()),
+            }),
+        };
+
+        let advisory = map_vuln(vuln, Ecosystem::Npm, "test-pkg");
+        assert_eq!(advisory.severity, Some(Severity::Critical));
+    }
+
+    #[test]
+    fn test_severity_from_database_specific_moderate() {
+        let vuln = OsvVuln {
+            id: "GHSA-mod-test".to_string(),
+            summary: "Moderate severity".to_string(),
+            affected: Vec::new(),
+            severity: Vec::new(),
+            references: Vec::new(),
+            database_specific: Some(OsvDatabaseSpecific {
+                severity: Some("MODERATE".to_string()),
+            }),
+        };
+
+        let advisory = map_vuln(vuln, Ecosystem::Npm, "test-pkg");
+        assert_eq!(advisory.severity, Some(Severity::Medium));
+    }
+
+    #[test]
+    fn test_severity_prefers_numeric_score() {
+        let vuln = OsvVuln {
+            id: "GHSA-num-test".to_string(),
+            summary: "Numeric score".to_string(),
+            affected: Vec::new(),
+            severity: vec![OsvSeverity {
+                severity_type: Some("CVSS_V3".to_string()),
+                score: Some("9.8".to_string()),
+            }],
+            references: Vec::new(),
+            database_specific: Some(OsvDatabaseSpecific {
+                severity: Some("LOW".to_string()),
+            }),
+        };
+
+        let advisory = map_vuln(vuln, Ecosystem::Npm, "test-pkg");
+        assert_eq!(advisory.severity, Some(Severity::Critical));
     }
 }

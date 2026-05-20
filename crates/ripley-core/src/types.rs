@@ -63,22 +63,25 @@ impl fmt::Display for Severity {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
-pub enum RiskLevel {
-    Low,
-    Medium,
-    High,
-    Critical,
+pub enum LogLevel {
+    Trace,
+    Debug,
+    #[default]
+    Info,
+    Warn,
+    Error,
 }
 
-impl fmt::Display for RiskLevel {
+impl fmt::Display for LogLevel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RiskLevel::Low => write!(f, "low"),
-            RiskLevel::Medium => write!(f, "medium"),
-            RiskLevel::High => write!(f, "high"),
-            RiskLevel::Critical => write!(f, "critical"),
+            LogLevel::Trace => write!(f, "trace"),
+            LogLevel::Debug => write!(f, "debug"),
+            LogLevel::Info => write!(f, "info"),
+            LogLevel::Warn => write!(f, "warn"),
+            LogLevel::Error => write!(f, "error"),
         }
     }
 }

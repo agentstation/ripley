@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use redb::{Database, ReadableTable, TableDefinition};
+use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 
 use crate::feed::Advisory;
 use crate::types::Ecosystem;
@@ -37,7 +37,15 @@ impl AdvisoryDb {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| DbError::Redb(redb::Error::Io(e)))?;
         }
-        let db = Database::create(path)?;
+        let db = match Database::create(path) {
+            Ok(db) => db,
+            Err(redb::DatabaseError::UpgradeRequired(_)) if path.exists() => {
+                // Advisory cache from an older redb version — safe to discard
+                std::fs::remove_file(path).map_err(|e| DbError::Redb(redb::Error::Io(e)))?;
+                Database::create(path)?
+            }
+            Err(e) => return Err(e.into()),
+        };
 
         let txn = db.begin_write()?;
         {

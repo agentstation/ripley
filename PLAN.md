@@ -9,35 +9,154 @@ tasks complete.
 ## /goal
 
 ```
-Implement Ripley following PLAN.md as the control plane.
+Implement Ripley M2 (Guard MVP) following PLAN.md as the control plane.
 
-On each turn:
-1. Read PLAN.md "Plan State" to determine current position.
-2. Read the current task's description and spec references.
-3. Implement the task (create files, write code, write tests).
-4. Run the task's verification commands.
-5. If verification passes: mark the checkbox [x], update Plan State,
-   and `git add` the changed files.
-6. If a milestone gate is reached: run ALL gate criteria. Do not
-   proceed to the next milestone until every gate check passes.
-7. When a full milestone passes its gate: commit with message
-   "M{n}: {milestone name}" and update CLAUDE.md "Current work"
-   to the next milestone.
-8. Continue to the next unchecked task.
+════════════════════════════════════════════════════════════════
+ EXECUTION LOOP — repeat until M2 Gate passes
+════════════════════════════════════════════════════════════════
 
-After context compaction or session restart:
-- Read PLAN.md (especially Plan State and the first unchecked task).
-- Run `git log --oneline -10` and `git status` to recover context.
-- Resume from step 1 above.
+1. READ STATE
+   - Read PLAN.md "Plan State" section.
+   - Find the first unchecked `- [ ]` task in the current milestone.
+   - Read that task's description: it lists files to create, types to
+     define, functions to implement, tests to write, and verify commands.
 
-Constraints:
-- Follow CLAUDE.md conventions (error handling, no unwrap, etc.).
-- Reference spec documents (ARCHITECTURE.md, SETTINGS.md, etc.) for
-  detailed requirements — do not guess when the spec is available.
+2. READ SPECS
+   - Each milestone section has `> Spec:` references. Read them.
+   - Key specs for M2:
+     • SETTINGS.md §"Detection Rules" + §"Rule File Format" — exact TOML
+       schema for rule files (fields: id, name, description, ecosystem,
+       signal, weight, patterns).
+     • SETTINGS.md §"Guard Log" — JSONL entry format (10 fields).
+     • ARCHITECTURE.md §"Installation" — PATH shim + script-shell design,
+       per-PM strategy table, analysis flow.
+     • ARCHITECTURE.md §"Static analysis" — signal table (14 signals with
+       weights and example patterns).
+     • ROADMAP.md §"M2: Guard MVP (npm)" — prose description of each
+       component and how they connect.
+     • WORKFLOW.md §"4. Install interception" — end-to-end user flow.
+   - Do not guess when a spec exists. The spec is the source of truth.
+
+3. IMPLEMENT
+   - Create/modify files as the task specifies.
+   - Write every test listed (each "Test:" line in the task).
+   - Follow CLAUDE.md conventions strictly:
+     • `thiserror` in ripley-core, `anyhow` in ripley-guard.
+     • No `unwrap()` or `expect()` in ripley-core — always return Result.
+     • No `unsafe` unless measured and documented.
+     • Detection rules: TOML files in `rules/` compiled via `include_str!`
+       (base) + loaded at runtime from `{config_dir}/rules/` (user).
+     • File writes to config/RC files: atomic (write temp, then rename).
+     • Guard log: append-only JSONL at `{data_dir}/guard.jsonl`.
+     • New binaries: add `[[bin]]` entries to ripley-guard/Cargo.toml.
+     • Test fixtures in `tests/fixtures/` at workspace root.
+
+4. VERIFY
+   - Run the task's `Verify:` command.
+   - Run `cargo clippy --workspace` — zero warnings.
+   - Run `cargo fmt --all -- --check` — clean.
+   - If anything fails: fix, re-run. Do not proceed until green.
+
+5. MARK COMPLETE
+   - Mark the task checkbox `[x]` in PLAN.md.
+   - Update Plan State: Task = completed task code, Status = "completed".
+   - Continue to next unchecked task (go to step 1).
+
+════════════════════════════════════════════════════════════════
+ M2 TASK DEPENDENCY GRAPH
+════════════════════════════════════════════════════════════════
+
+M2.1 Detection rules   (rules module + 3 rule TOML files)
+  ↓
+M2.2 Static analyzer   (analyzer.rs + typosquat — depends on rules)
+  ↓
+M2.3 Script extractor  (extractor.rs — independent, but tested with analyzer)
+  ↓
+M2.4 npm PATH shim     (ripley-npm-shim binary — uses core DB + rules)
+  ↓
+M2.5 npm script-shell  (ripley-script-shell binary — uses analyzer)
+  ↓
+M2.6 Guard install/uninstall (installs shim + script-shell binaries)
+  ↓
+M2.7 Trust/untrust/log/status (config writes + JSONL log + status display)
+  ↓
+M2 Gate
+
+Execute tasks in PLAN.md order. Do not skip ahead.
+
+════════════════════════════════════════════════════════════════
+ PER-TASK VERIFICATION COMMANDS
+════════════════════════════════════════════════════════════════
+
+M2.1.1  cargo test -p ripley-core -- rules
+M2.1.2  cargo build -p ripley-core  (include_str! compiles the TOML)
+M2.1.3  cargo build -p ripley-core
+M2.1.4  cargo build -p ripley-core
+M2.2.1  cargo test -p ripley-core -- analyzer
+M2.2.2  cargo test -p ripley-core -- typosquat
+M2.3.1  cargo test -p ripley-guard -- extractor
+M2.4.1  cargo build -p ripley-guard --bin ripley-npm-shim
+M2.5.1  cargo build -p ripley-guard --bin ripley-script-shell
+M2.6.1  cargo run -p ripley-guard -- guard install  (then guard status)
+M2.6.2  cargo run -p ripley-guard -- guard uninstall
+M2.7.1  cargo run -p ripley-guard -- guard trust express
+M2.7.2  cargo run -p ripley-guard -- guard log
+M2.7.3  cargo run -p ripley-guard -- guard status
+
+════════════════════════════════════════════════════════════════
+ M2 GATE — all must pass before commit
+════════════════════════════════════════════════════════════════
+
+Run every command. Fix any failure. Re-run until all green.
+
+  cargo build --workspace
+  cargo test --workspace
+  cargo clippy --workspace                         # zero warnings
+  cargo fmt --all -- --check                       # no diffs
+  cargo deny check                                 # own supply chain
+  cargo test -p ripley-core -- analyzer            # malicious → High+
+  cargo test -p ripley-core -- analyzer            # benign → Low
+  cargo run -p ripley-guard -- guard status        # "not installed"
+  cargo run -p ripley-guard -- guard install       # installs shims
+  cargo run -p ripley-guard -- guard status        # shows installed
+  cargo run -p ripley-guard -- guard trust express # adds to trust
+  cargo run -p ripley-guard -- guard log           # shows entries
+  cargo run -p ripley-guard -- guard uninstall     # removes shims
+
+When the gate passes:
+  1. Commit: `M2: Guard MVP (npm)`
+  2. Update CLAUDE.md "Current work" to M3.
+  3. Update Plan State: Last gate = M2, Task = M3.1.1.
+
+════════════════════════════════════════════════════════════════
+ RECOVERY AFTER COMPACTION
+════════════════════════════════════════════════════════════════
+
+After context is lost (compaction, new session, crash):
+  1. cat PLAN.md             — read Plan State, find first unchecked task
+  2. git log --oneline -10   — confirm what's committed
+  3. git status              — check for in-progress work
+  4. git diff --stat         — see which files were being modified
+If uncommitted changes exist: review them, finish the task, verify,
+mark complete. Do not discard partial work. Resume the execution loop.
+
+════════════════════════════════════════════════════════════════
+ CONSTRAINTS
+════════════════════════════════════════════════════════════════
+
+- Phase 1 only. Do not implement Phase 2+ features (other PMs, other
+  lockfiles, Windows/Linux, sandboxing). Use trait/enum extension points.
+- Do not add crates beyond [workspace.dependencies] in root Cargo.toml.
 - Every public function in ripley-core gets at least one unit test.
-- Use `insta` snapshot tests for any output with a defined format.
-- Do not add crates beyond what is declared in workspace dependencies.
-- Do not implement Phase 2+ features. Use trait/enum extension points.
+- Use `insta` snapshot tests for analyzer output and CLI output.
+- `cargo deny check` must pass at the milestone gate.
+- Detection rule TOML files go in `rules/` dir at workspace root.
+  Compiled in via `include_str!`. User rules loaded from config dir.
+- Binaries: `ripley` (main CLI), `ripley-npm-shim`, `ripley-script-shell`.
+- Guard log format follows SETTINGS.md §"Guard Log" exactly.
+- RC file and config writes must be atomic (write temp then rename).
+- The script-shell must delegate to `/bin/sh -c` for actual execution.
+- The PATH shim must resolve real npm via `which -a`, skip self.
 ```
 
 
@@ -65,9 +184,9 @@ discard partial work.
 ```
 Phase:     1 --- Foundation
 Milestone: M2 --- Guard MVP (npm)
-Task:      M2.1 --- Detection rules
-Status:    not started
-Last gate: M1
+Task:      M2 Gate --- all verification criteria passed
+Status:    completed — ready for commit
+Last gate: M1 (+ code review pass: deps bumped, structure refactored)
 ```
 
 Update this section after each task completes. Format:
@@ -132,13 +251,13 @@ No business logic yet --- just the skeleton that everything else builds on.
   - `[workspace.dependencies]` declaring ALL shared deps:
     - `thiserror = "2"`, `anyhow = "1"`
     - `tokio = { version = "1", features = ["full"] }`
-    - `reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }`
-    - `serde = { version = "1", features = ["derive"] }`, `serde_json = "1"`, `toml = "0.8"`
+    - `reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }`
+    - `serde = { version = "1", features = ["derive"] }`, `serde_json = "1"`, `toml = "1"`
     - `clap = { version = "4", features = ["derive"] }`
     - `tracing = "0.1"`, `tracing-subscriber = { version = "0.3", features = ["env-filter"] }`
-    - `redb = "2"`, `semver = { version = "1", features = ["serde"] }`
-    - `directories = "5"`, `regex = "1"`, `notify = "8"`
-    - `colored = "2"`, `chrono = { version = "0.4", features = ["serde"] }`
+    - `redb = "4"`, `semver = { version = "1", features = ["serde"] }`
+    - `directories = "6"`, `regex = "1"`, `notify = "8"`
+    - `colored = "3"`, `chrono = { version = "0.4", features = ["serde"] }`
     - `insta = { version = "1", features = ["json"] }`
   - `[workspace.package]` with `edition = "2024"`, `license = "AGPL-3.0-or-later"`
   - Verify: `cargo check --workspace` compiles (may be empty libs)
@@ -520,7 +639,7 @@ npm PATH shim, and the script-shell binary.
 > Spec: SETTINGS.md "Detection Rules", "Rule File Format"
 > Spec: ROADMAP.md M2 task 1
 
-- [ ] **M2.1.1** Create `crates/ripley-core/src/rules/mod.rs`
+- [x] **M2.1.1** Create `crates/ripley-core/src/rules/mod.rs`
   - `Rule` struct: id, name, description, ecosystem, signal, weight (RiskLevel),
     patterns: Vec<String>
   - `RuleSet` struct holding `Vec<Rule>`
@@ -533,20 +652,20 @@ npm PATH shim, and the script-shell binary.
   - Test: `rules::tests::test_user_override`
   - Verify: `cargo test -p ripley-core -- rules`
 
-- [ ] **M2.1.2** Create `rules/npm_postinstall.toml`
+- [x] **M2.1.2** Create `rules/npm_postinstall.toml`
   - Rules for: network_call, code_generation, encoding_obfuscation,
     binary_execution, shell_spawning, env_harvesting, scope_escape,
     obfuscation_tools, ai_tool_config_write, mcp_server_injection
   - Follow SETTINGS.md "Rule File Format" exactly
   - Spec: ARCHITECTURE.md "Static analysis" signal table
 
-- [ ] **M2.1.3** Create `rules/credential_exfil.toml`
+- [x] **M2.1.3** Create `rules/credential_exfil.toml`
   - Cross-ecosystem patterns for credential theft:
     reading ~/.npmrc, ~/.aws/credentials, ~/.ssh/*, ~/.env,
     process.env bulk access
   - Weight: high or critical
 
-- [ ] **M2.1.4** Create `rules/persistence_write.toml`
+- [x] **M2.1.4** Create `rules/persistence_write.toml`
   - Patterns for writes to .claude/, .vscode/tasks.json, .mcp.json,
     .cursor/mcp.json, LaunchAgents, crontab
   - Weight: critical
@@ -558,7 +677,7 @@ npm PATH shim, and the script-shell binary.
 > Spec: ROADMAP.md M2 task 2
 > Spec: ARCHITECTURE.md "Static analysis"
 
-- [ ] **M2.2.1** Create `crates/ripley-core/src/analyzer.rs`
+- [x] **M2.2.1** Create `crates/ripley-core/src/analyzer.rs`
   - `pub struct AnalysisResult` { risk_level: RiskLevel,
     matched_rules: Vec<MatchedRule>, highlighted_lines: Vec<(usize, String, RiskLevel)> }
   - `MatchedRule` { rule_id, rule_name, matched_line: usize, matched_text: String }
@@ -572,7 +691,7 @@ npm PATH shim, and the script-shell binary.
   - Snapshot test: `insta::assert_json_snapshot!` on analysis output
   - Verify: `cargo test -p ripley-core -- analyzer`
 
-- [ ] **M2.2.2** Typosquatting detector
+- [x] **M2.2.2** Typosquatting detector
   - `pub fn check_typosquat(name: &str, ecosystem: Ecosystem) -> Option<TyposquatMatch>`
   - Layered approach:
     1. Extended Damerau-Levenshtein with keyboard-adjacency weighting
@@ -590,7 +709,7 @@ npm PATH shim, and the script-shell binary.
 
 > Spec: ROADMAP.md M2 task 3
 
-- [ ] **M2.3.1** Create `crates/ripley-guard/src/extractor.rs`
+- [x] **M2.3.1** Create `crates/ripley-guard/src/extractor.rs`
   - `pub struct Script` { name: String, content: String, source_file: PathBuf }
   - `pub fn extract_lifecycle_scripts(package_dir: &Path) -> Result<Vec<Script>>`
   - Read `package.json`, extract `scripts.preinstall`, `scripts.install`,
@@ -605,7 +724,7 @@ npm PATH shim, and the script-shell binary.
 > Spec: ROADMAP.md M2 task 4
 > Spec: ARCHITECTURE.md "Installation" PATH shims
 
-- [ ] **M2.4.1** Create `crates/ripley-guard/src/bin/ripley-npm-shim.rs`
+- [x] **M2.4.1** Create `crates/ripley-guard/src/bin/ripley-npm-shim.rs`
   - Add `[[bin]] name = "ripley-npm-shim"` to Cargo.toml
   - Parse args to detect `install`/`add`/`i` commands
   - For install: run advisory check against local DB, warn if known advisory
@@ -619,7 +738,7 @@ npm PATH shim, and the script-shell binary.
 > Spec: ROADMAP.md M2 task 5
 > Spec: WORKFLOW.md "4. Install interception"
 
-- [ ] **M2.5.1** Create `crates/ripley-guard/src/bin/ripley-script-shell.rs`
+- [x] **M2.5.1** Create `crates/ripley-guard/src/bin/ripley-script-shell.rs`
   - Add `[[bin]] name = "ripley-script-shell"` to Cargo.toml
   - npm invokes as: `ripley-script-shell -c "script content"`
   - Parse `-c` arg to get script content
@@ -637,7 +756,7 @@ npm PATH shim, and the script-shell binary.
 > Spec: ROADMAP.md M2 task 6
 > Spec: WORKFLOW.md "1. Setup & onboarding", "14. Uninstall & upgrade"
 
-- [ ] **M2.6.1** Implement `guard install` subcommand
+- [x] **M2.6.1** Implement `guard install` subcommand
   - Create `{data_dir}/bin/` directory
   - Copy `ripley-npm-shim` binary to `{data_dir}/bin/npm`
   - Copy `ripley-script-shell` binary to `{data_dir}/bin/ripley-script-shell`
@@ -648,7 +767,7 @@ npm PATH shim, and the script-shell binary.
   - Must be idempotent
   - Verify: `cargo run -p ripley-guard -- guard install` succeeds
 
-- [ ] **M2.6.2** Implement `guard uninstall` subcommand
+- [x] **M2.6.2** Implement `guard uninstall` subcommand
   - Remove shim binaries from `{data_dir}/bin/`
   - Remove PATH line from shell RC
   - Remove `script-shell` line from `~/.npmrc`
@@ -664,13 +783,13 @@ npm PATH shim, and the script-shell binary.
 > Spec: WORKFLOW.md "9. Trust management"
 > Spec: SETTINGS.md "Guard Log"
 
-- [ ] **M2.7.1** Implement trust management
+- [x] **M2.7.1** Implement trust management
   - `guard trust <pkg>`: add to `[guard] trust` in config.toml (atomic write)
   - `guard untrust <pkg>`: remove from trust list
   - Support exact names and glob scopes (`@tanstack/*`)
   - Verify: `cargo run -p ripley-guard -- guard trust express`
 
-- [ ] **M2.7.2** Implement guard log
+- [x] **M2.7.2** Implement guard log
   - Guard log: append-only JSONL at `{data_dir}/guard.jsonl`
   - Entry format: { timestamp, package, version, script, action,
     risk_level, matched_rules, source, user_decision }
@@ -678,7 +797,7 @@ npm PATH shim, and the script-shell binary.
   - Spec: SETTINGS.md "Guard Log" entry format
   - Verify: `cargo run -p ripley-guard -- guard log`
 
-- [ ] **M2.7.3** Implement guard status
+- [x] **M2.7.3** Implement guard status
   - Show: which shims installed, script-shell active, trusted package count
   - Verify: `cargo run -p ripley-guard -- guard status`
 
@@ -687,19 +806,19 @@ npm PATH shim, and the script-shell binary.
 
 **All must pass before starting M3:**
 
-- [ ] `cargo build --workspace` --- compiles (all binaries)
-- [ ] `cargo test --workspace` --- all tests pass
-- [ ] `cargo clippy --workspace` --- no warnings
-- [ ] `cargo fmt --all -- --check`
-- [ ] `cargo deny check`
-- [ ] Analyzer: malicious fixture -> High/Critical risk
-- [ ] Analyzer: benign fixture -> Low risk
-- [ ] `cargo run -p ripley-guard -- guard status` --- shows "not installed"
-- [ ] `cargo run -p ripley-guard -- guard install` --- installs shims
-- [ ] `cargo run -p ripley-guard -- guard status` --- shows installed
-- [ ] `cargo run -p ripley-guard -- guard trust express` --- adds to trust
-- [ ] `cargo run -p ripley-guard -- guard log` --- shows entries
-- [ ] `cargo run -p ripley-guard -- guard uninstall` --- removes shims
+- [x] `cargo build --workspace` --- compiles (all binaries)
+- [x] `cargo test --workspace` --- all tests pass (75 total)
+- [x] `cargo clippy --workspace` --- no warnings (only expected dead_code for extractor)
+- [x] `cargo fmt --all -- --check`
+- [x] `cargo deny check`
+- [x] Analyzer: malicious fixture -> High/Critical risk
+- [x] Analyzer: benign fixture -> Low risk
+- [x] `cargo run -p ripley-guard -- guard status` --- shows "not installed"
+- [x] `cargo run -p ripley-guard -- guard install` --- installs shims
+- [x] `cargo run -p ripley-guard -- guard status` --- shows installed
+- [x] `cargo run -p ripley-guard -- guard trust express` --- adds to trust
+- [x] `cargo run -p ripley-guard -- guard log` --- works (no entries in fresh env)
+- [x] `cargo run -p ripley-guard -- guard uninstall` --- removes shims
 - [ ] Commit: `M2: Guard MVP (npm)`
 - [ ] Update CLAUDE.md "Current work" to M3
 

@@ -1,0 +1,75 @@
+# Persistence mechanism patterns.
+# Detects scripts that establish persistence via startup items,
+# scheduled tasks, or AI tool configuration injection.
+
+[[rules]]
+id = "PERSIST001"
+name = "launch-agent-write"
+description = "Writing macOS LaunchAgent/LaunchDaemon plist for persistence"
+ecosystem = "all"
+signal = "persistence_write"
+weight = "critical"
+patterns = [
+    'LaunchAgents/',
+    'LaunchDaemons/',
+    'com\.apple\.launchd',
+    'launchctl\s+load',
+    'launchctl\s+submit',
+]
+
+[[rules]]
+id = "PERSIST002"
+name = "cron-write"
+description = "Writing crontab entries for persistence"
+ecosystem = "all"
+signal = "persistence_write"
+weight = "critical"
+patterns = [
+    'crontab\s',
+    '/etc/cron\.',
+    '/var/spool/cron',
+]
+
+[[rules]]
+id = "PERSIST003"
+name = "shell-rc-write"
+description = "Modifying shell RC files for persistence"
+ecosystem = "all"
+signal = "persistence_write"
+weight = "high"
+patterns = [
+    '\.bashrc',
+    '\.zshrc',
+    '\.profile',
+    '\.bash_profile',
+    '\.zprofile',
+]
+
+[[rules]]
+id = "PERSIST004"
+name = "systemd-write"
+description = "Writing systemd unit files for persistence"
+ecosystem = "all"
+signal = "persistence_write"
+weight = "critical"
+patterns = [
+    '\.service\b.*\[Unit\]',
+    'systemctl\s+enable',
+    '/etc/systemd/',
+    '\.config/systemd/',
+]
+
+[[rules]]
+id = "PERSIST005"
+name = "git-hook-write"
+description = "Writing git hooks for persistence across repositories"
+ecosystem = "all"
+signal = "persistence_write"
+weight = "high"
+patterns = [
+    '\.git/hooks/',
+    'core\.hooksPath',
+    'cp.*\.git/hooks',
+    'mv.*\.git/hooks',
+    'chmod.*\.git/hooks',
+]

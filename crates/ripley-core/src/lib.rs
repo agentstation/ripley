@@ -1,7 +1,10 @@
+pub mod analyzer;
 pub mod config;
 pub mod db;
 pub mod dirs;
 pub mod feed;
 pub mod lockfile;
 pub mod matcher;
+pub mod rules;
 pub mod types;
+pub mod typosquat;

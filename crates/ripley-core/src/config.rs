@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::dirs;
-use crate::types::GuardMode;
+use crate::types::{GuardMode, LogLevel, Severity};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
@@ -27,6 +27,8 @@ pub enum ConfigError {
     #[error(transparent)]
     Dir(#[from] dirs::DirError),
 }
+
+// --- Resolved config (all fields have values) ---
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -155,7 +157,7 @@ impl Default for FeedsConfig {
 #[serde(default)]
 pub struct NotificationsConfig {
     pub enabled: bool,
-    pub min_severity: String,
+    pub min_severity: Severity,
     pub sound: bool,
 }
 
@@ -163,7 +165,7 @@ impl Default for NotificationsConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            min_severity: "low".to_string(),
+            min_severity: Severity::Low,
             sound: false,
         }
     }
@@ -172,7 +174,7 @@ impl Default for NotificationsConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LoggingConfig {
-    pub level: String,
+    pub level: LogLevel,
     pub file: bool,
     pub rotation: String,
 }
@@ -180,21 +182,176 @@ pub struct LoggingConfig {
 impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
-            level: "info".to_string(),
+            level: LogLevel::Info,
             file: true,
             rotation: "daily".to_string(),
         }
     }
 }
 
-fn read_toml_file(path: &Path) -> Result<Option<Config>, ConfigError> {
+// --- Overlay config (all fields optional, for layered merging) ---
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+struct ConfigOverlay {
+    general: GeneralOverlay,
+    monitoring: MonitoringOverlay,
+    guard: GuardOverlay,
+    posture: PostureOverlay,
+    feeds: FeedsOverlay,
+    notifications: NotificationsOverlay,
+    logging: LoggingOverlay,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+struct GeneralOverlay {
+    poll_interval_secs: Option<u64>,
+    harness: Option<String>,
+    launch_at_login: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+struct MonitoringOverlay {
+    project_roots: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+struct GuardOverlay {
+    mode: Option<GuardMode>,
+    trust: Option<Vec<String>>,
+    timeout_secs: Option<u64>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+struct PostureOverlay {
+    strict: Option<bool>,
+    require_lockfile: Option<bool>,
+    require_exact_versions: Option<bool>,
+    require_integrity_hashes: Option<bool>,
+    block_exotic_sources: Option<bool>,
+    allowed_registries: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+struct FeedsOverlay {
+    stale_threshold_secs: Option<u64>,
+    socket_api_key: Option<String>,
+    osv: Option<bool>,
+    ghsa: Option<bool>,
+    socket: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+struct NotificationsOverlay {
+    enabled: Option<bool>,
+    min_severity: Option<Severity>,
+    sound: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+struct LoggingOverlay {
+    level: Option<LogLevel>,
+    file: Option<bool>,
+    rotation: Option<String>,
+}
+
+fn apply_overlay(base: &mut Config, overlay: &ConfigOverlay) {
+    if let Some(v) = overlay.general.poll_interval_secs {
+        base.general.poll_interval_secs = v;
+    }
+    if let Some(ref v) = overlay.general.harness {
+        base.general.harness = Some(v.clone());
+    }
+    if let Some(v) = overlay.general.launch_at_login {
+        base.general.launch_at_login = v;
+    }
+
+    if let Some(ref roots) = overlay.monitoring.project_roots {
+        base.monitoring.project_roots.extend(roots.iter().cloned());
+    }
+
+    if let Some(v) = overlay.guard.mode {
+        base.guard.mode = v;
+    }
+    if let Some(ref v) = overlay.guard.trust {
+        base.guard.trust.extend(v.iter().cloned());
+    }
+    if let Some(v) = overlay.guard.timeout_secs {
+        base.guard.timeout_secs = v;
+    }
+
+    if let Some(v) = overlay.posture.strict {
+        base.posture.strict = v;
+    }
+    if let Some(v) = overlay.posture.require_lockfile {
+        base.posture.require_lockfile = v;
+    }
+    if let Some(v) = overlay.posture.require_exact_versions {
+        base.posture.require_exact_versions = v;
+    }
+    if let Some(v) = overlay.posture.require_integrity_hashes {
+        base.posture.require_integrity_hashes = v;
+    }
+    if let Some(v) = overlay.posture.block_exotic_sources {
+        base.posture.block_exotic_sources = v;
+    }
+    if let Some(ref v) = overlay.posture.allowed_registries {
+        base.posture.allowed_registries.clone_from(v);
+    }
+
+    if let Some(v) = overlay.feeds.osv {
+        base.feeds.osv = v;
+    }
+    if let Some(v) = overlay.feeds.ghsa {
+        base.feeds.ghsa = v;
+    }
+    if let Some(v) = overlay.feeds.socket {
+        base.feeds.socket = v;
+    }
+    if let Some(ref v) = overlay.feeds.socket_api_key {
+        base.feeds.socket_api_key = Some(v.clone());
+    }
+    if let Some(v) = overlay.feeds.stale_threshold_secs {
+        base.feeds.stale_threshold_secs = v;
+    }
+
+    if let Some(v) = overlay.notifications.enabled {
+        base.notifications.enabled = v;
+    }
+    if let Some(v) = overlay.notifications.min_severity {
+        base.notifications.min_severity = v;
+    }
+    if let Some(v) = overlay.notifications.sound {
+        base.notifications.sound = v;
+    }
+
+    if let Some(v) = overlay.logging.level {
+        base.logging.level = v;
+    }
+    if let Some(v) = overlay.logging.file {
+        base.logging.file = v;
+    }
+    if let Some(ref v) = overlay.logging.rotation {
+        base.logging.rotation.clone_from(v);
+    }
+}
+
+fn read_overlay(path: &Path) -> Result<Option<ConfigOverlay>, ConfigError> {
     match std::fs::read_to_string(path) {
         Ok(contents) => {
-            let config: Config = toml::from_str(&contents).map_err(|e| ConfigError::ParseToml {
-                path: path.to_path_buf(),
-                source: e,
-            })?;
-            Ok(Some(config))
+            let overlay: ConfigOverlay =
+                toml::from_str(&contents).map_err(|e| ConfigError::ParseToml {
+                    path: path.to_path_buf(),
+                    source: e,
+                })?;
+            Ok(Some(overlay))
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(ConfigError::ReadFile {
@@ -224,79 +381,10 @@ fn apply_env_overrides(config: &mut Config) {
     if let Ok(val) = std::env::var("RIPLEY_SOCKET_API_KEY") {
         config.feeds.socket_api_key = Some(val);
     }
-    if let Ok(val) = std::env::var("RIPLEY_LOG_LEVEL") {
-        config.logging.level = val;
-    }
-}
-
-fn merge_config(base: &mut Config, overlay: &Config) {
-    if overlay.general.poll_interval_secs != GeneralConfig::default().poll_interval_secs {
-        base.general.poll_interval_secs = overlay.general.poll_interval_secs;
-    }
-    if overlay.general.harness.is_some() {
-        base.general.harness.clone_from(&overlay.general.harness);
-    }
-    if overlay.general.launch_at_login {
-        base.general.launch_at_login = true;
-    }
-
-    if !overlay.monitoring.project_roots.is_empty() {
-        base.monitoring
-            .project_roots
-            .extend(overlay.monitoring.project_roots.iter().cloned());
-    }
-
-    if overlay.guard.mode != GuardMode::Strict {
-        base.guard.mode = overlay.guard.mode;
-    }
-    if !overlay.guard.trust.is_empty() {
-        base.guard.trust.extend(overlay.guard.trust.iter().cloned());
-    }
-    if overlay.guard.timeout_secs != GuardConfig::default().timeout_secs {
-        base.guard.timeout_secs = overlay.guard.timeout_secs;
-    }
-
-    if overlay.posture.strict {
-        base.posture.strict = true;
-    }
-    if overlay.posture.require_lockfile {
-        base.posture.require_lockfile = true;
-    }
-    if overlay.posture.require_exact_versions {
-        base.posture.require_exact_versions = true;
-    }
-    if overlay.posture.require_integrity_hashes {
-        base.posture.require_integrity_hashes = true;
-    }
-    if overlay.posture.block_exotic_sources {
-        base.posture.block_exotic_sources = true;
-    }
-    if overlay.posture.allowed_registries != PostureConfig::default().allowed_registries {
-        base.posture
-            .allowed_registries
-            .clone_from(&overlay.posture.allowed_registries);
-    }
-
-    if overlay.feeds.stale_threshold_secs != FeedsConfig::default().stale_threshold_secs {
-        base.feeds.stale_threshold_secs = overlay.feeds.stale_threshold_secs;
-    }
-    if overlay.feeds.socket_api_key.is_some() {
-        base.feeds
-            .socket_api_key
-            .clone_from(&overlay.feeds.socket_api_key);
-    }
-
-    if !overlay.notifications.enabled {
-        base.notifications.enabled = false;
-    }
-    if overlay.notifications.min_severity != NotificationsConfig::default().min_severity {
-        base.notifications
-            .min_severity
-            .clone_from(&overlay.notifications.min_severity);
-    }
-
-    if overlay.logging.level != LoggingConfig::default().level {
-        base.logging.level.clone_from(&overlay.logging.level);
+    if let Ok(val) = std::env::var("RIPLEY_LOG_LEVEL")
+        && let Ok(level) = serde_json::from_value(serde_json::Value::String(val))
+    {
+        config.logging.level = level;
     }
 }
 
@@ -304,13 +392,13 @@ pub fn load_config(working_dir: &Path) -> Result<Config, ConfigError> {
     let mut config = Config::default();
 
     let config_path = dirs::config_dir()?.join("config.toml");
-    if let Some(user_config) = read_toml_file(&config_path)? {
-        merge_config(&mut config, &user_config);
+    if let Some(overlay) = read_overlay(&config_path)? {
+        apply_overlay(&mut config, &overlay);
     }
 
     let project_config_path = working_dir.join(".ripley.toml");
-    if let Some(project_config) = read_toml_file(&project_config_path)? {
-        merge_config(&mut config, &project_config);
+    if let Some(overlay) = read_overlay(&project_config_path)? {
+        apply_overlay(&mut config, &overlay);
     }
 
     apply_env_overrides(&mut config);
@@ -398,18 +486,45 @@ require_lockfile = true
     }
 
     #[test]
-    fn test_apply_env_overrides() {
+    fn test_overlay_only_overrides_specified_fields() {
         let mut config = Config::default();
-        config.general.poll_interval_secs = 300;
-
-        // Test the merge logic directly instead of mutating process env
         let overlay_toml = r#"
 [general]
 poll_interval_secs = 60
 "#;
-        let overlay: Config = toml::from_str(overlay_toml).expect("parse");
-        merge_config(&mut config, &overlay);
+        let overlay: ConfigOverlay = toml::from_str(overlay_toml).expect("parse");
+        apply_overlay(&mut config, &overlay);
         assert_eq!(config.general.poll_interval_secs, 60);
+        assert!(!config.general.launch_at_login);
+        assert_eq!(config.guard.timeout_secs, 30);
+    }
+
+    #[test]
+    fn test_overlay_can_set_value_to_default() {
+        let mut config = Config::default();
+        config.general.poll_interval_secs = 60;
+
+        let overlay_toml = r#"
+[general]
+poll_interval_secs = 300
+"#;
+        let overlay: ConfigOverlay = toml::from_str(overlay_toml).expect("parse");
+        apply_overlay(&mut config, &overlay);
+        assert_eq!(config.general.poll_interval_secs, 300);
+    }
+
+    #[test]
+    fn test_overlay_can_disable_strict() {
+        let mut config = Config::default();
+        config.posture.strict = true;
+
+        let overlay_toml = r#"
+[posture]
+strict = false
+"#;
+        let overlay: ConfigOverlay = toml::from_str(overlay_toml).expect("parse");
+        apply_overlay(&mut config, &overlay);
+        assert!(!config.posture.strict);
     }
 
     #[test]
