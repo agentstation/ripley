@@ -1,0 +1,25 @@
+---
+source: crates/ripley-core/src/lockfile/npm.rs
+expression: parsed
+---
+{
+  "packages": [
+    {
+      "name": "picocolors",
+      "version": "1.0.0",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "uuid",
+      "version": "9.0.1",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "zod",
+      "version": "3.22.4",
+      "ecosystem": "npm"
+    }
+  ],
+  "risky_specs": [],
+  "warnings": []
+}

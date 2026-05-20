@@ -1,0 +1,48 @@
+{
+  "name": "risky-project",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "risky-project",
+      "version": "1.0.0",
+      "dependencies": {
+        "shady-lib": "*",
+        "forked-utils": "github:someone/utils#main",
+        "local-pkg": "file:../my-pkg",
+        "old-http-pkg": "^1.0.0"
+      }
+    },
+    "node_modules/shady-lib": {
+      "version": "1.0.0",
+      "resolved": "git+https://github.com/attacker/shady-lib.git#abc123def456"
+    },
+    "node_modules/forked-utils": {
+      "version": "2.3.1",
+      "resolved": "git+https://github.com/someone/utils.git#deadbeef"
+    },
+    "node_modules/local-pkg": {
+      "version": "0.1.0",
+      "resolved": "file:../my-pkg"
+    },
+    "node_modules/old-http-pkg": {
+      "version": "1.2.3",
+      "resolved": "http://registry.npmjs.org/old-http-pkg/-/old-http-pkg-1.2.3.tgz"
+    },
+    "node_modules/no-integrity-pkg": {
+      "version": "3.0.0",
+      "resolved": "https://registry.npmjs.org/no-integrity-pkg/-/no-integrity-pkg-3.0.0.tgz"
+    },
+    "node_modules/weak-hash-pkg": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/weak-hash-pkg/-/weak-hash-pkg-1.0.0.tgz",
+      "integrity": "sha1-aabbccdd"
+    },
+    "node_modules/safe-dep": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/safe-dep/-/safe-dep-2.0.0.tgz",
+      "integrity": "sha512-validhash1234567890abcdef=="
+    }
+  }
+}

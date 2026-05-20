@@ -64,10 +64,10 @@ discard partial work.
 
 ```
 Phase:     1 --- Foundation
-Milestone: M1 --- Core Data Pipeline
-Task:      M1.S --- Workspace scaffold
+Milestone: M2 --- Guard MVP (npm)
+Task:      M2.1 --- Detection rules
 Status:    not started
-Last gate: (none)
+Last gate: M1
 ```
 
 Update this section after each task completes. Format:
@@ -126,7 +126,7 @@ lockfile parser, matcher, and the `ripley scan` CLI.
 Set up the Cargo workspace, crate structure, and tooling configuration.
 No business logic yet --- just the skeleton that everything else builds on.
 
-- [ ] **M1.S.1** Create root `Cargo.toml` (virtual workspace)
+- [x] **M1.S.1** Create root `Cargo.toml` (virtual workspace)
   - `[workspace]` with members: `crates/ripley-core`, `crates/ripley-guard`
   - `resolver = "2"`
   - `[workspace.dependencies]` declaring ALL shared deps:
@@ -144,7 +144,7 @@ No business logic yet --- just the skeleton that everything else builds on.
   - Verify: `cargo check --workspace` compiles (may be empty libs)
   - Spec: ARCHITECTURE.md "Project Structure"
 
-- [ ] **M1.S.2** Create `crates/ripley-core/Cargo.toml` and `src/lib.rs`
+- [x] **M1.S.2** Create `crates/ripley-core/Cargo.toml` and `src/lib.rs`
   - `[package]` name = `ripley-core`, `edition.workspace = true`
   - `[dependencies]`: thiserror, tokio, reqwest, serde, serde_json, toml,
     redb, semver, directories, regex, tracing, chrono --- all `{ workspace = true }`
@@ -152,7 +152,7 @@ No business logic yet --- just the skeleton that everything else builds on.
   - `src/lib.rs`: empty module declarations (filled in later tasks)
   - Verify: `cargo build -p ripley-core`
 
-- [ ] **M1.S.3** Create `crates/ripley-guard/Cargo.toml` and `src/main.rs`
+- [x] **M1.S.3** Create `crates/ripley-guard/Cargo.toml` and `src/main.rs`
   - `[package]` name = `ripley-guard`, `edition.workspace = true`
   - `[[bin]]` name = `"ripley"`, path = `"src/main.rs"`
   - `[dependencies]`: ripley-core (path), anyhow, clap, tokio,
@@ -160,11 +160,11 @@ No business logic yet --- just the skeleton that everything else builds on.
   - `src/main.rs`: minimal clap CLI skeleton with `Scan` subcommand stub
   - Verify: `cargo run -p ripley-guard -- --help` prints help
 
-- [ ] **M1.S.4** Create `rust-toolchain.toml`
+- [x] **M1.S.4** Create `rust-toolchain.toml`
   - Pin channel: `[toolchain] channel = "stable"`
   - Verify: `rustup show` shows expected toolchain
 
-- [ ] **M1.S.5** Create `deny.toml`
+- [x] **M1.S.5** Create `deny.toml`
   - `[advisories]` vulnerability = "deny", unmaintained = "warn"
   - `[licenses]` unlicensed = "deny", allow MIT, Apache-2.0, BSD-2/3,
     ISC, Unicode-3.0, Unicode-DFS-2016, Zlib, OpenSSL, ring
@@ -173,7 +173,7 @@ No business logic yet --- just the skeleton that everything else builds on.
   - Verify: `cargo deny check` passes
   - Spec: DECISIONS.md "Own supply chain"
 
-- [ ] **M1.S.6** Create `Cargo.lock`
+- [x] **M1.S.6** Create `Cargo.lock`
   - Run `cargo generate-lockfile`
   - Verify: `Cargo.lock` exists and is valid
 
@@ -191,7 +191,7 @@ cargo deny check
 > Spec: SETTINGS.md "Platform Directories", "config.toml"
 > Spec: ROADMAP.md M1 task 0
 
-- [ ] **M1.0.1** Create `crates/ripley-core/src/dirs.rs`
+- [x] **M1.0.1** Create `crates/ripley-core/src/dirs.rs`
   - `pub fn project_dirs() -> Result<ProjectDirs>` using
     `ProjectDirs::from("com", "agentstation", "ripley")`
   - `pub fn config_dir() -> Result<PathBuf>` (creates dir if missing)
@@ -202,7 +202,7 @@ cargo deny check
   - Test: `dirs::tests::test_dir_functions_return_paths`
   - Verify: `cargo test -p ripley-core -- dirs`
 
-- [ ] **M1.0.2** Create `crates/ripley-core/src/types.rs`
+- [x] **M1.0.2** Create `crates/ripley-core/src/types.rs`
   - `pub enum Ecosystem { Npm, PyPI, Cargo, Go, Gem }` with `Display`, `Serialize`, `Deserialize`
   - `pub enum GuardMode { Strict, Audit, Off }` with serde, default = Strict
   - `pub enum RiskLevel { Low, Medium, High, Critical }` with `Ord`, serde
@@ -211,7 +211,7 @@ cargo deny check
   - Test: `types::tests::test_ecosystem_display`
   - Verify: `cargo test -p ripley-core -- types`
 
-- [ ] **M1.0.3** Create `crates/ripley-core/src/config.rs`
+- [x] **M1.0.3** Create `crates/ripley-core/src/config.rs`
   - Define structs with `#[serde(default)]` on all fields:
     - `Config` { general: GeneralConfig, monitoring: MonitoringConfig,
       guard: GuardConfig, posture: PostureConfig, audit: AuditConfig,
@@ -235,7 +235,7 @@ cargo deny check
   - Verify: `cargo test -p ripley-core -- config`
   - Spec: SETTINGS.md full schema, ARCHITECTURE.md "Configuration"
 
-- [ ] **M1.0.4** Wire `ripley config` subcommand in `main.rs`
+- [x] **M1.0.4** Wire `ripley config` subcommand in `main.rs`
   - Add `Config` variant to CLI enum with `--path`, `--show`, `--init` flags
   - `--path`: print `config_dir()/config.toml`
   - `--show`: load_config and print as TOML
@@ -258,7 +258,7 @@ cargo run -p ripley-guard -- config --path
 
 > Spec: ROADMAP.md M1 task 0.5
 
-- [ ] **M1.F.1** Create `tests/fixtures/package-lock.json`
+- [x] **M1.F.1** Create `tests/fixtures/package-lock.json`
   - Realistic npm lockfileVersion 3 with:
     - Mix of pinned and range-specifier deps
     - Scoped packages (`@scope/name`)
@@ -267,13 +267,13 @@ cargo run -p ripley-guard -- config --path
       `lodash` or `express` version) for matcher testing
   - At least 15-20 packages for realistic coverage
 
-- [ ] **M1.F.2** Create `tests/fixtures/package-lock-clean.json`
+- [x] **M1.F.2** Create `tests/fixtures/package-lock-clean.json`
   - Lockfile with only packages that have no known advisories
   - All entries have integrity hashes
   - All resolved URLs point to registry.npmjs.org
   - For testing exit-code-0 path
 
-- [ ] **M1.F.3** Create `tests/fixtures/package-lock-risky.json`
+- [x] **M1.F.3** Create `tests/fixtures/package-lock-risky.json`
   - Lockfile with posture problems:
     - `git+` source URLs
     - Missing integrity hashes
@@ -281,13 +281,13 @@ cargo run -p ripley-guard -- config --path
     - `file:` specifiers
   - For posture check testing
 
-- [ ] **M1.F.4** Create `tests/fixtures/scripts/malicious-postinstall.sh`
+- [x] **M1.F.4** Create `tests/fixtures/scripts/malicious-postinstall.sh`
   - Multiple high-risk signals: `curl | sh`, `base64 --decode`,
     `eval "$(wget ...)"`, `process.env` harvesting, writes to
     `.claude/settings.json`
   - For M2 static analyzer snapshot tests
 
-- [ ] **M1.F.5** Create `tests/fixtures/scripts/benign-postinstall.sh`
+- [x] **M1.F.5** Create `tests/fixtures/scripts/benign-postinstall.sh`
   - Normal build operations: `node-gyp rebuild`, `mkdir -p dist`,
     `cp -r src/* dist/`
   - Should score Low risk in analyzer
@@ -305,7 +305,7 @@ python3 -m json.tool tests/fixtures/package-lock.json > /dev/null  # valid JSON
 > Spec: ROADMAP.md M1 task 1
 > Spec: ARCHITECTURE.md "Feed poller" (API details)
 
-- [ ] **M1.1.1** Create `crates/ripley-core/src/feed/mod.rs`
+- [x] **M1.1.1** Create `crates/ripley-core/src/feed/mod.rs`
   - Define `Advisory` struct:
     `id, ecosystem: Ecosystem, package: String, affected_ranges: Vec<AffectedRange>,
     severity: Option<Severity>, summary: String, references: Vec<String>,
@@ -315,7 +315,7 @@ python3 -m json.tool tests/fixtures/package-lock.json > /dev/null  # valid JSON
   - Add `pub mod feed;` to `lib.rs`
   - Verify: `cargo build -p ripley-core`
 
-- [ ] **M1.1.2** Create `crates/ripley-core/src/feed/osv.rs`
+- [x] **M1.1.2** Create `crates/ripley-core/src/feed/osv.rs`
   - `pub struct OsvClient` with `reqwest::Client` and `cache_dir: PathBuf`
   - `pub async fn query(&self, ecosystem: &str, package: &str) -> Result<Vec<Advisory>>`
     - POST to `https://api.osv.dev/v1/query`
@@ -333,7 +333,7 @@ python3 -m json.tool tests/fixtures/package-lock.json > /dev/null  # valid JSON
   - Verify: `cargo test -p ripley-core -- feed`
   - Spec: ARCHITECTURE.md "Feed poller" for API format
 
-- [ ] **M1.1.3** Integration test for OSV client (requires network)
+- [x] **M1.1.3** Integration test for OSV client (requires network)
   - `tests/integration/osv_client.rs` or `#[ignore]` test
   - Query a known package (e.g., `lodash` on npm) and verify response
   - Mark `#[ignore]` so CI doesn't depend on network
@@ -345,7 +345,7 @@ python3 -m json.tool tests/fixtures/package-lock.json > /dev/null  # valid JSON
 > Spec: ROADMAP.md M1 task 2
 > Spec: ARCHITECTURE.md "Advisory cache"
 
-- [ ] **M1.2.1** Create `crates/ripley-core/src/db.rs`
+- [x] **M1.2.1** Create `crates/ripley-core/src/db.rs`
   - `pub struct AdvisoryDb` wrapping `redb::Database`
   - Table `advisories`: key = `"{ecosystem}:{package}"` (String),
     value = JSON bytes (`Vec<Advisory>` via serde_json)
@@ -369,7 +369,7 @@ python3 -m json.tool tests/fixtures/package-lock.json > /dev/null  # valid JSON
 > Spec: ROADMAP.md M1 task 3
 > Spec: ARCHITECTURE.md "Lockfile indexer"
 
-- [ ] **M1.3.1** Create `crates/ripley-core/src/lockfile/mod.rs`
+- [x] **M1.3.1** Create `crates/ripley-core/src/lockfile/mod.rs`
   - Define shared types:
     - `InstalledPackage { name: String, version: semver::Version, ecosystem: Ecosystem }`
     - `RiskySpec { package: String, specifier: String, reason: String }`
@@ -380,7 +380,7 @@ python3 -m json.tool tests/fixtures/package-lock.json > /dev/null  # valid JSON
   - Add `pub mod lockfile;` to `lib.rs`
   - Verify: `cargo build -p ripley-core`
 
-- [ ] **M1.3.2** Create `crates/ripley-core/src/lockfile/npm.rs`
+- [x] **M1.3.2** Create `crates/ripley-core/src/lockfile/npm.rs`
   - `pub fn parse_package_lock(content: &str) -> Result<ParsedLockfile>`
   - Parse `package-lock.json` lockfileVersion 2 and 3
   - Extract packages from the `"packages"` object:
@@ -408,7 +408,7 @@ python3 -m json.tool tests/fixtures/package-lock.json > /dev/null  # valid JSON
 > Spec: ROADMAP.md M1 task 4
 > Spec: ARCHITECTURE.md "Matcher"
 
-- [ ] **M1.4.1** Create `crates/ripley-core/src/matcher.rs`
+- [x] **M1.4.1** Create `crates/ripley-core/src/matcher.rs`
   - `pub struct Match` { advisory: Advisory, package: InstalledPackage,
     project_path: PathBuf }
   - `pub fn find_matches(advisories: &[Advisory], packages: &[InstalledPackage], project_path: &Path) -> Vec<Match>`
@@ -430,7 +430,7 @@ python3 -m json.tool tests/fixtures/package-lock.json > /dev/null  # valid JSON
 > Spec: WORKFLOW.md "2. Proactive scan"
 > Spec: SETTINGS.md "CLI Flags"
 
-- [ ] **M1.5.1** Implement `Scan` subcommand in `main.rs`
+- [x] **M1.5.1** Implement `Scan` subcommand in `main.rs`
   - CLI args: `path` (positional), `--format` (json|table), `--deep` (flag),
     `--fix` (flag), `--no-cache` (flag)
   - Walk the given path for `package-lock.json` files
@@ -442,21 +442,21 @@ python3 -m json.tool tests/fixtures/package-lock.json > /dev/null  # valid JSON
   - Collect posture warnings from all lockfiles
   - Spec: ARCHITECTURE.md "ripley scan" and "First-run behavior"
 
-- [ ] **M1.5.2** Table output (default format)
+- [x] **M1.5.2** Table output (default format)
   - For each match: advisory ID, package name, installed version, severity,
     summary. Use `colored` crate for severity highlighting.
   - Below matches: posture summary line ("3 packages use range specifiers,
     1 resolves from git+, 47 entries missing integrity hashes")
   - Spec: ROADMAP.md M1 task 5 output description
 
-- [ ] **M1.5.3** JSON output (`--format json`)
+- [x] **M1.5.3** JSON output (`--format json`)
   - Serialize `{ "matches": [...], "posture_warnings": [...] }` to stdout
   - Each match: advisory_id, package, version, severity, summary, project_path
   - Each warning: package, field, message, severity
   - Snapshot test: `insta::assert_json_snapshot!` on JSON output
   - Verify: output is valid JSON (`python3 -m json.tool`)
 
-- [ ] **M1.5.4** Exit codes and error handling
+- [x] **M1.5.4** Exit codes and error handling
   - Exit 0: no matches (clean)
   - Exit 1: matches found
   - Exit 2: error (network failure, parse error, etc.)
@@ -467,7 +467,7 @@ python3 -m json.tool tests/fixtures/package-lock.json > /dev/null  # valid JSON
   - Test: integration test with clean fixture -> exit 0
   - Test: integration test with fixture containing known vuln -> exit 1
 
-- [ ] **M1.5.5** `ripley status` subcommand
+- [x] **M1.5.5** `ripley status` subcommand
   - When daemon not running: advisory cache age, guard shim status,
     configured project roots, "daemon not running"
   - Read redb `meta.last_poll` for cache age
@@ -487,19 +487,19 @@ cargo run -p ripley-guard -- status
 
 **All must pass before starting M2:**
 
-- [ ] `cargo build --workspace` --- compiles clean
-- [ ] `cargo test --workspace` --- all tests pass
-- [ ] `cargo clippy --workspace` --- no warnings
-- [ ] `cargo fmt --all -- --check` --- formatted
-- [ ] `cargo deny check` --- own supply chain audit passes
-- [ ] `cargo run -p ripley-guard -- scan tests/fixtures/` --- produces table output
-- [ ] `cargo run -p ripley-guard -- scan --format json tests/fixtures/` --- produces valid JSON
-- [ ] `cargo run -p ripley-guard -- config --path` --- prints a path
-- [ ] `cargo run -p ripley-guard -- status` --- prints status info
-- [ ] Exit code test: scan clean fixture returns 0
+- [x] `cargo build --workspace` --- compiles clean
+- [x] `cargo test --workspace` --- all tests pass
+- [x] `cargo clippy --workspace` --- no warnings
+- [x] `cargo fmt --all -- --check` --- formatted
+- [x] `cargo deny check` --- own supply chain audit passes
+- [x] `cargo run -p ripley-guard -- scan tests/fixtures/` --- produces table output
+- [x] `cargo run -p ripley-guard -- scan --format json tests/fixtures/` --- produces valid JSON
+- [x] `cargo run -p ripley-guard -- config --path` --- prints a path
+- [x] `cargo run -p ripley-guard -- status` --- prints status info
+- [x] Exit code test: scan clean fixture returns 0
 - [ ] Exit code test: scan fixture with known vuln returns 1
-- [ ] Commit: `M1: Core data pipeline`
-- [ ] Update CLAUDE.md "Current work" to M2
+- [x] Commit: `M1: Core data pipeline`
+- [x] Update CLAUDE.md "Current work" to M2
 
 
 ---
