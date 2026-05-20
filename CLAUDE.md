@@ -37,9 +37,12 @@ cargo run -p ripley-guard -- guard status
 
 ## Current work
 
-**Phase 1 complete.** All M1-M5 milestones delivered. Phase 2 (Ecosystem Breadth) not yet started.
+**Phase 2: Ecosystem Breadth.** Phase 1 complete (M1-M5). Now implementing M6-M9:
+lockfile parsers (yarn, pnpm, pip, cargo, go, gem), guard shims (6 PMs),
+detection rules (pypi, cargo), feed integration (GHSA, Socket.dev), platform
+builds (Windows, Linux).
 
-See ROADMAP.md for the full task list with verification criteria.
+See PLAN.md for detailed task breakdown and ROADMAP.md for deliverable descriptions.
 
 ## Conventions
 
@@ -69,16 +72,19 @@ See ROADMAP.md for the full task list with verification criteria.
 
 ## Scope guardrails
 
-- **Phase 1 only.** Do not implement Phase 2+ features (other lockfile formats, other
-  PM shims, Windows/Linux builds, sandboxing). When the design needs an extension
-  point for later, use a trait or enum variant — don't build the implementation.
-- **No tray app until M3.** Milestones M1 and M2 are pure CLI. The tray app (`tray-icon`
-  + `muda`, no webview) and IPC layer come in M3. Do not add `ripley-app` or `ripley-ipc`
-  crates until M3.
+- **Phase 2 only.** Do not implement Phase 3+ features (ripley fix, ripley audit,
+  ripley harden, ripley monitor, sandboxing, behavioral analysis). Use trait/enum
+  extension points where the design needs them for later phases.
+- **New deps allowed:** `serde_yaml` for pnpm/yarn lockfile parsing. All other deps
+  should already be in `[workspace.dependencies]`. Do not add crates beyond what
+  Phase 2 deliverables require.
+- **Follow existing patterns.** Each new lockfile parser matches npm.rs shape (return
+  `ParsedLockfile`). Each new shim matches ripley-npm-shim (resolve real binary,
+  advisory check, delegate with passthrough).
+- **Cross-platform.** Use `cfg(target_os)` for platform-specific paths. Never hardcode
+  macOS paths in shared code. Factor platform-specific logic into `platform.rs` trait.
 - **Test as you go.** Every public function in `ripley-core` should have at least one
-  unit test. Use `insta` snapshot tests for any output that has a defined format
-  (analyzer results, CLI output, prompts).
-- **Keep dependencies minimal.** The workspace Cargo.toml already declares all needed
-  dependencies. Do not add new crates without a clear reason.
+  unit test. Use `insta` snapshot tests for all parser outputs and rule matches.
+- **Keep dependencies minimal.** Do not add new crates without a clear reason.
 - **Own supply chain.** Run `cargo deny check` as part of verification. A supply chain
   security tool that doesn't audit its own dependencies has no credibility.
