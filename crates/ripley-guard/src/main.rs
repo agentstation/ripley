@@ -40,6 +40,12 @@ enum Commands {
     },
     /// Show status of Ripley and monitored projects
     Status,
+    /// Start background daemon (poller, watcher, IPC server)
+    Watch {
+        /// Fork to background and log to file
+        #[arg(long)]
+        daemon: bool,
+    },
     /// Manage configuration
     Config {
         /// Print the config file path
@@ -106,6 +112,7 @@ async fn main() -> ExitCode {
             GuardCommands::Untrust { package } => commands::guard::cmd_untrust(&package),
             GuardCommands::Log => commands::guard::cmd_log(),
         },
+        Commands::Watch { daemon } => commands::watch::cmd_watch(daemon).await,
         Commands::Status => commands::status::cmd_status(),
         Commands::Config { path, show, init } => commands::config::cmd_config(path, show, init),
     };

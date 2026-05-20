@@ -1,0 +1,39 @@
+[package]
+name = "ripley-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "ripley-app"
+path = "src/main.rs"
+
+[dependencies]
+ripley-core = { workspace = true }
+ripley-ipc = { workspace = true }
+tray-icon = { workspace = true }
+iced = { workspace = true }
+notify-rust = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+notify = { workspace = true }
+directories = { workspace = true }
+
+[package.metadata.bundle]
+name = "Ripley"
+identifier = "com.agentstation.ripley"
+icon = ["icons/icon.png"]
+short_description = "Supply chain defense for developers"
+osx_minimum_system_version = "12.0"
+
+[package.metadata.bundle.osx]
+info_plist_path = "Info.plist"
+
+[lints]
+workspace = true

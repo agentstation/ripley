@@ -37,7 +37,7 @@ cargo run -p ripley-guard -- guard status
 
 ## Current work
 
-**Phase 1, Milestone 2: Guard MVP (npm)**
+**Phase 1, Milestone 4: Remediation Pipeline**
 
 See ROADMAP.md for the full task list with verification criteria.
 Work through milestones in order (M1 → M2 → M3 → M4 → M5).

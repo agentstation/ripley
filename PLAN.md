@@ -183,10 +183,10 @@ discard partial work.
 
 ```
 Phase:     1 --- Foundation
-Milestone: M2 --- Guard MVP (npm)
-Task:      M2 Gate --- all verification criteria passed
-Status:    completed — ready for commit
-Last gate: M1 (+ code review pass: deps bumped, structure refactored)
+Milestone: M4 --- Remediation Pipeline
+Task:      M4.1.1 --- Prompt generator
+Status:    not started
+Last gate: M3
 ```
 
 Update this section after each task completes. Format:
@@ -819,8 +819,8 @@ npm PATH shim, and the script-shell binary.
 - [x] `cargo run -p ripley-guard -- guard trust express` --- adds to trust
 - [x] `cargo run -p ripley-guard -- guard log` --- works (no entries in fresh env)
 - [x] `cargo run -p ripley-guard -- guard uninstall` --- removes shims
-- [ ] Commit: `M2: Guard MVP (npm)`
-- [ ] Update CLAUDE.md "Current work" to M3
+- [x] Commit: `M2: Guard MVP (npm)`
+- [x] Update CLAUDE.md "Current work" to M3
 
 
 ---
@@ -838,7 +838,7 @@ Build the system tray application and dashboard window.
 
 #### M3.1: Workspace expansion
 
-- [ ] **M3.1.1** Add `crates/ripley-app/` and `crates/ripley-ipc/`
+- [x] **M3.1.1** Add `crates/ripley-app/` and `crates/ripley-ipc/`
   - Add to workspace members in root Cargo.toml
   - `ripley-ipc`: depends on serde, serde_json, tokio, thiserror
   - `ripley-app`: depends on ripley-core, ripley-ipc, tray-icon, muda,
@@ -852,7 +852,7 @@ Build the system tray application and dashboard window.
 
 > Spec: ROADMAP.md M3 task 2
 
-- [ ] **M3.2.1** Create `crates/ripley-ipc/src/lib.rs`
+- [x] **M3.2.1** Create `crates/ripley-ipc/src/lib.rs`
   - Request enum: Status, Scan, GetAlerts, GuardPrompt
   - Response enum: Status, ScanResult, Alerts, GuardDecision, Error
   - Socket path: `{data_dir}/ripley.sock`
@@ -868,7 +868,7 @@ Build the system tray application and dashboard window.
 
 > Spec: ROADMAP.md M3 task 3
 
-- [ ] **M3.3.1** Create `crates/ripley-app/src/events.rs`
+- [x] **M3.3.1** Create `crates/ripley-app/src/events.rs`
   - `AppEvent` enum: AdvisoriesUpdated, LockfileChanged, MatchFound,
     UserAction, IpcRequest
   - `mpsc::channel<AppEvent>` shared by all components
@@ -881,7 +881,7 @@ Build the system tray application and dashboard window.
 > Spec: ROADMAP.md M3 task 4
 > Spec: UI.md "Tray Icon", "Tray Menu"
 
-- [ ] **M3.4.1** Create `crates/ripley-app/src/tray.rs`
+- [x] **M3.4.1** Create `crates/ripley-app/src/tray.rs`
   - System tray icon with `tray-icon` crate
   - Context menu with `muda`: Show Dashboard, Scan Now, Quit
   - Icon variants: shield outline (idle), shield+dot (alert), shield+! (critical)
@@ -894,7 +894,7 @@ Build the system tray application and dashboard window.
 
 > Spec: ROADMAP.md M3 task 5
 
-- [ ] **M3.5.1** Create `crates/ripley-app/src/poller.rs`
+- [x] **M3.5.1** Create `crates/ripley-app/src/poller.rs`
   - Tokio task: poll OSV.dev on configured interval
   - Use ETag caching and exponential backoff from M1 feed client
   - On new advisories: send AdvisoriesUpdated event
@@ -905,7 +905,7 @@ Build the system tray application and dashboard window.
 
 > Spec: ROADMAP.md M3 task 6
 
-- [ ] **M3.6.1** Create `crates/ripley-app/src/watcher.rs`
+- [x] **M3.6.1** Create `crates/ripley-app/src/watcher.rs`
   - Walk configured project roots, index all lockfiles (in-memory)
   - Watch for changes via `notify` v8
   - On change: re-parse, send LockfileChanged event
@@ -916,7 +916,7 @@ Build the system tray application and dashboard window.
 > Spec: ROADMAP.md M3 task 7
 > Spec: UI.md "Notifications" (3 variants)
 
-- [ ] **M3.7.1** Create `crates/ripley-app/src/notifier.rs`
+- [x] **M3.7.1** Create `crates/ripley-app/src/notifier.rs`
   - `notify-rust` for native OS notifications
   - Three variants: Before (Fix/View/Dismiss), During (Contain/View/Investigate),
     After (Remediate/View Report)
@@ -930,20 +930,20 @@ Build the system tray application and dashboard window.
 > Spec: UI.md (Dashboard, Alerts, Guard Log, Settings, First Run, Error States)
 > Spec: DESIGN.md (all component specs)
 
-- [ ] **M3.8.1** Create `crates/ripley-app/src/theme.rs`
+- [x] **M3.8.1** Create `crates/ripley-app/src/theme.rs`
   - Custom `iced::Theme` implementing DESIGN.md color system
   - Severity colors, surface colors, text hierarchy, accent
   - System fonts (SF Pro/SF Mono on macOS)
   - Spec: DESIGN.md "Colors", "Typography"
 
-- [ ] **M3.8.2** Create `crates/ripley-app/src/app.rs`
+- [x] **M3.8.2** Create `crates/ripley-app/src/app.rs`
   - `iced::Application` implementation
   - Message enum mapping to AppEvent
   - Sidebar navigation: Alerts (default), Guard, Settings
   - Window: 900x640 default, 720x480 minimum
   - Close hides window (does not quit)
 
-- [ ] **M3.8.3** Create `crates/ripley-app/src/views/alerts.rs`
+- [x] **M3.8.3** Create `crates/ripley-app/src/views/alerts.rs`
   - Alert list sorted by severity then recency
   - Row: severity dot + badge, package@version, advisory, project path, time, action
   - Alert detail slide-in panel
@@ -951,25 +951,25 @@ Build the system tray application and dashboard window.
   - First-run state: welcome screen with setup steps
   - Spec: UI.md "Alerts View", "Alert Detail", "First Run"
 
-- [ ] **M3.8.4** Create `crates/ripley-app/src/views/guard_log.rs`
+- [x] **M3.8.4** Create `crates/ripley-app/src/views/guard_log.rs`
   - Table: time, package, script, risk, action
   - Expandable rows with script excerpts
   - Spec: UI.md "Guard Log View"
 
-- [ ] **M3.8.5** Create `crates/ripley-app/src/views/settings.rs`
+- [x] **M3.8.5** Create `crates/ripley-app/src/views/settings.rs`
   - Form reads/writes config.toml
   - Sections: General, Monitoring, Guard, Posture, Advanced
   - Saves immediately, atomic writes
   - Spec: UI.md "Settings View", SETTINGS.md full schema
 
-- [ ] **M3.8.6** Guard interception dialog
+- [x] **M3.8.6** Guard interception dialog
   - Modal overlay, max 600px wide
   - Script content with line numbers and highlighted matched lines
   - Buttons: Allow Once, Block, Always Trust, Inspect
   - 30-second countdown timer, defaults to Block
   - Spec: UI.md "Guard Interception Dialog", DESIGN.md "Countdown Timer"
 
-- [ ] **M3.8.7** Error states
+- [x] **M3.8.7** Error states
   - Network failure banner
   - No lockfiles found state
   - Spec: UI.md "Error States"
@@ -979,7 +979,7 @@ Build the system tray application and dashboard window.
 
 > Spec: ROADMAP.md M3 task 9
 
-- [ ] **M3.9.1** Configure cargo-bundle for macOS
+- [x] **M3.9.1** Configure cargo-bundle for macOS
   - Package `ripley-app` as `Ripley.app`
   - `Info.plist`: `LSUIElement = true`
   - App icon in `crates/ripley-app/icons/`
@@ -991,7 +991,7 @@ Build the system tray application and dashboard window.
 > Spec: ROADMAP.md M3 task 10
 > Spec: ARCHITECTURE.md "ripley watch"
 
-- [ ] **M3.10.1** Implement `watch` subcommand in ripley-guard
+- [x] **M3.10.1** Implement `watch` subcommand in ripley-guard
   - Start poller, watcher, matcher, IPC server (no UI)
   - Fire notifications via notify-rust
   - `--daemon` flag: fork to background, log to file
@@ -1001,15 +1001,15 @@ Build the system tray application and dashboard window.
 
 #### M3 Gate
 
-- [ ] `cargo build --workspace` --- all 4 crates compile
-- [ ] `cargo test --workspace` --- all tests pass
-- [ ] `cargo clippy --workspace`
-- [ ] `cargo fmt --all -- --check`
-- [ ] `cargo deny check`
-- [ ] `cargo bundle --release -p ripley-app` --- produces Ripley.app
-- [ ] Manual: launch Ripley.app, tray icon appears with menu
-- [ ] Manual: `ripley status` shows IPC connection to daemon
-- [ ] Manual: `ripley watch` starts headless daemon, responds to `ripley status`
+- [x] `cargo build --workspace` --- all 4 crates compile
+- [x] `cargo test --workspace` --- all tests pass (79 total)
+- [x] `cargo clippy --workspace`
+- [x] `cargo fmt --all -- --check`
+- [x] `cargo deny check`
+- [x] `cargo bundle --release -p ripley-app` --- produces Ripley.app
+- [x] Manual: launch Ripley.app, tray icon appears with menu
+- [x] Manual: `ripley status` shows IPC connection to daemon
+- [x] Manual: `ripley watch` starts headless daemon, responds to `ripley status`
 - [ ] Commit: `M3: Tray app MVP (macOS)`
 - [ ] Update CLAUDE.md "Current work" to M4
 

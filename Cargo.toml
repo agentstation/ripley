@@ -3,6 +3,8 @@ resolver = "2"
 members = [
     "crates/ripley-core",
     "crates/ripley-guard",
+    "crates/ripley-ipc",
+    "crates/ripley-app",
 ]
 
 [workspace.package]
@@ -35,8 +37,17 @@ clap = { version = "4", features = ["derive"] }
 anyhow = "1"
 colored = "3"
 
+# Tray app / UI
+tray-icon = "0.19"
+muda = "0.16"
+iced = { version = "0.13", features = ["tokio"] }
+notify-rust = "4"
+tokio-util = { version = "0.7", features = ["rt"] }
+tracing-appender = "0.2"
+
 # Internal
 ripley-core = { path = "crates/ripley-core" }
+ripley-ipc = { path = "crates/ripley-ipc" }
 
 # Testing
 insta = { version = "1", features = ["json"] }
