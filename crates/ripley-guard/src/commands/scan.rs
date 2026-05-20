@@ -13,7 +13,7 @@ pub async fn cmd_scan(
     path: PathBuf,
     format: &str,
     _deep: bool,
-    _fix: bool,
+    fix: bool,
     no_cache: bool,
 ) -> anyhow::Result<ExitCode> {
     let cwd = std::env::current_dir()?;
@@ -75,6 +75,7 @@ pub async fn cmd_scan(
                     &all_risky,
                     &path,
                     format,
+                    fix,
                     &cfg,
                 );
             }
@@ -127,10 +128,12 @@ pub async fn cmd_scan(
         &all_risky,
         &path,
         format,
+        fix,
         &cfg,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_matcher_and_output(
     db: &AdvisoryDb,
     packages: &[InstalledPackage],
@@ -138,6 +141,7 @@ fn run_matcher_and_output(
     risky_specs: &[RiskySpec],
     path: &std::path::Path,
     format: &str,
+    fix: bool,
     cfg: &Config,
 ) -> anyhow::Result<ExitCode> {
     let all_advisories = db.get_all_advisories()?;
@@ -146,6 +150,29 @@ fn run_matcher_and_output(
     match format {
         "json" => output::print_json(&matches, warnings, risky_specs)?,
         _ => output::print_table(&matches, warnings, risky_specs),
+    }
+
+    if fix && !matches.is_empty() {
+        let prompt = ripley_core::prompt::generate_batch_prompt(&matches);
+
+        match ripley_core::harness::detect_harness() {
+            Some(harness) => {
+                eprintln!("\nripley: launching {} with remediation prompt...", harness);
+                match ripley_core::harness::launch(&harness, &prompt, path) {
+                    Ok(_) => eprintln!("ripley: harness launched"),
+                    Err(e) => eprintln!("ripley: failed to launch harness: {e}"),
+                }
+            }
+            None => {
+                eprintln!("\n--- Remediation Prompt ---\n");
+                eprintln!("{prompt}");
+                eprintln!("--- End Prompt ---\n");
+                eprintln!(
+                    "No AI harness found in PATH (claude, codex, opencode).\n\
+                     Copy the prompt above and paste it into your preferred tool."
+                );
+            }
+        }
     }
 
     let has_matches = !matches.is_empty();

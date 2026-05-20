@@ -183,10 +183,10 @@ discard partial work.
 
 ```
 Phase:     1 --- Foundation
-Milestone: M4 --- Remediation Pipeline
-Task:      M4.1.1 --- Prompt generator
+Milestone: M5 --- Forensic Scan
+Task:      M5.1.1 --- IOC scanner
 Status:    not started
-Last gate: M3
+Last gate: M4
 ```
 
 Update this section after each task completes. Format:
@@ -1010,8 +1010,8 @@ Build the system tray application and dashboard window.
 - [x] Manual: launch Ripley.app, tray icon appears with menu
 - [x] Manual: `ripley status` shows IPC connection to daemon
 - [x] Manual: `ripley watch` starts headless daemon, responds to `ripley status`
-- [ ] Commit: `M3: Tray app MVP (macOS)`
-- [ ] Update CLAUDE.md "Current work" to M4
+- [x] Commit: `M3: Tray app MVP (macOS)`
+- [x] Update CLAUDE.md "Current work" to M4
 
 
 ---
@@ -1028,7 +1028,7 @@ Wire the "Fix" button: prompt generation and AI harness launching.
 
 #### M4.1: Prompt generator
 
-- [ ] **M4.1.1** Create `crates/ripley-core/src/prompt.rs`
+- [x] **M4.1.1** Create `crates/ripley-core/src/prompt.rs`
   - `pub fn generate_remediation_prompt(m: &Match) -> String`
   - Template: project path, package@version, CVE, clean version,
     IOC file paths, credential hints, test instruction
@@ -1039,7 +1039,7 @@ Wire the "Fix" button: prompt generation and AI harness launching.
 
 #### M4.2: Harness launcher
 
-- [ ] **M4.2.1** Create `crates/ripley-core/src/harness.rs`
+- [x] **M4.2.1** Create `crates/ripley-core/src/harness.rs`
   - `pub fn detect_harness() -> Option<Harness>` --- check PATH for
     claude, codex, opencode (in order, or config preference)
   - `pub fn launch(harness: &Harness, prompt: &str) -> Result<Child>`
@@ -1051,12 +1051,12 @@ Wire the "Fix" button: prompt generation and AI harness launching.
 
 #### M4.3: Wire Fix action
 
-- [ ] **M4.3.1** Connect Fix in tray app
+- [x] **M4.3.1** Connect Fix in tray app
   - Notification "Fix" -> prompt generator -> harness launcher
   - Alert detail panel "Fix with Claude" -> same flow
   - Dashboard "Remediate All" -> batch prompt generation
 
-- [ ] **M4.3.2** Wire `--fix` flag on `ripley scan`
+- [x] **M4.3.2** Wire `--fix` flag on `ripley scan`
   - Generate prompts for all matches
   - Launch harness for each (or print to stdout if no harness)
   - Verify: `cargo run -p ripley-guard -- scan --fix tests/fixtures/`
@@ -1064,10 +1064,10 @@ Wire the "Fix" button: prompt generation and AI harness launching.
 
 #### M4 Gate
 
-- [ ] `cargo test --workspace`
-- [ ] `cargo clippy --workspace`
-- [ ] Prompt generator snapshot tests pass
-- [ ] `ripley scan --fix tests/fixtures/` generates prompt (prints to stdout)
+- [x] `cargo test --workspace` (86 tests)
+- [x] `cargo clippy --workspace`
+- [x] Prompt generator snapshot tests pass
+- [x] `ripley scan --fix tests/fixtures/` generates prompt (prints to stdout)
 - [ ] Commit: `M4: Remediation pipeline`
 - [ ] Update CLAUDE.md "Current work" to M5
 

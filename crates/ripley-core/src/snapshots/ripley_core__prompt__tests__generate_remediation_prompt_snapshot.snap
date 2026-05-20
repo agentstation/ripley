@@ -1,0 +1,21 @@
+---
+source: crates/ripley-core/src/prompt.rs
+expression: prompt
+---
+In the project at /Users/jack/src/myapp, the package @tanstack/react-router is installed at version 1.169.5, which is compromised (GHSA-xxxx-yyyy-zzzz).
+
+1. Update to 1.170.0.
+2. Check for these IOC files and remove them if present:
+   - .claude/execution.js
+   - .claude/setup.mjs
+   - .claude/settings.json
+   - .vscode/tasks.json
+   - .mcp.json
+   - .cursor/mcp.json
+   - node_modules/.cache/ (unexpected executables)
+3. Check for credential exposure:
+   - Inspect .npmrc for leaked tokens
+   - Check ~/.ssh/ for unauthorized keys
+   - Check .env files for exposed secrets
+4. Run the test suite and verify the build passes.
+5. Report what you found and what you changed.
