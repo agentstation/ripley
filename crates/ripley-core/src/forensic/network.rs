@@ -20,13 +20,13 @@ pub struct C2Finding {
     pub description: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct C2Database {
     pub domains: Vec<C2Indicator>,
     pub ip_ranges: Vec<C2Indicator>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct C2Indicator {
     pub value: String,
     pub description: String,
@@ -87,6 +87,14 @@ fn collect_netstat() -> Result<Vec<NetworkConnection>, std::io::Error> {
     Ok(parse_netstat_output(&stdout))
 }
 
+fn split_addr_port(s: &str) -> Option<(&str, &str)> {
+    if let Some(bracket_end) = s.find("]:") {
+        Some((&s[1..bracket_end], &s[bracket_end + 2..]))
+    } else {
+        s.rfind(':').map(|pos| (&s[..pos], &s[pos + 1..]))
+    }
+}
+
 pub fn parse_lsof_output(output: &str) -> Vec<NetworkConnection> {
     let mut connections = Vec::new();
 
@@ -103,6 +111,18 @@ pub fn parse_lsof_output(output: &str) -> Vec<NetworkConnection> {
         };
 
         let name_field = parts[parts.len() - 1];
+
+        let (name_field, state) = if let Some(paren_start) = name_field.rfind('(') {
+            if name_field.ends_with(')') {
+                let s = &name_field[paren_start + 1..name_field.len() - 1];
+                (&name_field[..paren_start], s.to_string())
+            } else {
+                (name_field, "ESTABLISHED".to_string())
+            }
+        } else {
+            (name_field, "ESTABLISHED".to_string())
+        };
+
         if !name_field.contains("->") {
             continue;
         }
@@ -113,8 +133,8 @@ pub fn parse_lsof_output(output: &str) -> Vec<NetworkConnection> {
         }
 
         let remote = arrow_parts[1];
-        let (remote_addr, remote_port) = match remote.rfind(':') {
-            Some(pos) => (&remote[..pos], &remote[pos + 1..]),
+        let (remote_addr, remote_port) = match split_addr_port(remote) {
+            Some(pair) => pair,
             None => continue,
         };
 
@@ -135,7 +155,7 @@ pub fn parse_lsof_output(output: &str) -> Vec<NetworkConnection> {
             protocol,
             remote_addr: remote_addr.to_string(),
             remote_port: port,
-            state: "ESTABLISHED".to_string(),
+            state,
         });
     }
 
@@ -154,8 +174,8 @@ pub fn parse_ss_output(output: &str) -> Vec<NetworkConnection> {
         let state = parts[0].to_string();
         let peer = parts[4];
 
-        let (remote_addr, remote_port) = match peer.rfind(':') {
-            Some(pos) => (&peer[..pos], &peer[pos + 1..]),
+        let (remote_addr, remote_port) = match split_addr_port(peer) {
+            Some(pair) => pair,
             None => continue,
         };
 
@@ -172,6 +192,53 @@ pub fn parse_ss_output(output: &str) -> Vec<NetworkConnection> {
             process,
             pid,
             protocol: "tcp".to_string(),
+            remote_addr: remote_addr.to_string(),
+            remote_port: port,
+            state,
+        });
+    }
+
+    connections
+}
+
+pub fn parse_netstat_output(output: &str) -> Vec<NetworkConnection> {
+    let mut connections = Vec::new();
+
+    for line in output.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 5 {
+            continue;
+        }
+
+        let proto = parts[0].to_uppercase();
+        if !proto.starts_with("TCP") && !proto.starts_with("UDP") {
+            continue;
+        }
+
+        let foreign = parts[2];
+        let state = if parts.len() > 3 {
+            parts[3].to_string()
+        } else {
+            String::new()
+        };
+
+        let (remote_addr, remote_port) = match split_addr_port(foreign) {
+            Some(pair) => pair,
+            None => continue,
+        };
+
+        let port: u16 = match remote_port.parse() {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+
+        let pid_idx = if parts.len() > 4 { 4 } else { parts.len() - 1 };
+        let pid: u32 = parts[pid_idx].parse().unwrap_or(0);
+
+        connections.push(NetworkConnection {
+            process: "unknown".to_string(),
+            pid,
+            protocol: proto.to_lowercase(),
             remote_addr: remote_addr.to_string(),
             remote_port: port,
             state,
@@ -208,7 +275,9 @@ pub fn check_c2_connections(
 
     for conn in connections {
         for domain in &c2_db.domains {
-            if conn.remote_addr.contains(&domain.value) {
+            if conn.remote_addr == domain.value
+                || conn.remote_addr.ends_with(&format!(".{}", domain.value))
+            {
                 findings.push(C2Finding {
                     connection: conn.clone(),
                     matched_indicator: domain.value.clone(),
@@ -261,7 +330,77 @@ mod tests {
     }
 
     #[test]
-    fn test_c2_match_found() {
+    fn test_parse_lsof_with_state() {
+        let output = "COMMAND     PID USER   FD   TYPE  DEVICE SIZE/OFF NODE NAME\n\
+                      node      1234 jack   22u  IPv4 0x1234      0t0  TCP 127.0.0.1:3000->93.184.216.34:443(CLOSE_WAIT)\n";
+
+        let connections = parse_lsof_output(output);
+        assert_eq!(connections.len(), 1);
+        assert_eq!(connections[0].state, "CLOSE_WAIT");
+    }
+
+    #[test]
+    fn test_parse_lsof_ipv6() {
+        let output = "COMMAND     PID USER   FD   TYPE  DEVICE SIZE/OFF NODE NAME\n\
+                      node      1234 jack   22u  IPv6 0x1234      0t0  TCP [::1]:3000->[::1]:443\n";
+
+        let connections = parse_lsof_output(output);
+        assert_eq!(connections.len(), 1);
+        assert_eq!(connections[0].remote_addr, "::1");
+        assert_eq!(connections[0].remote_port, 443);
+    }
+
+    #[test]
+    fn test_parse_ss_output() {
+        let output = "State  Recv-Q Send-Q Local Address:Port   Peer Address:Port Process\n\
+                      ESTAB  0      0      192.168.1.5:42000     93.184.216.34:443  users:((\"node\",pid=1234,fd=22))\n";
+
+        let connections = parse_ss_output(output);
+        assert_eq!(connections.len(), 1);
+        assert_eq!(connections[0].remote_addr, "93.184.216.34");
+        assert_eq!(connections[0].remote_port, 443);
+        assert_eq!(connections[0].process, "node");
+        assert_eq!(connections[0].pid, 1234);
+    }
+
+    #[test]
+    fn test_parse_ss_ipv6() {
+        let output = "State  Recv-Q Send-Q Local Address:Port   Peer Address:Port Process\n\
+                      ESTAB  0      0      [::1]:42000           [::1]:443  users:((\"node\",pid=1234,fd=22))\n";
+
+        let connections = parse_ss_output(output);
+        assert_eq!(connections.len(), 1);
+        assert_eq!(connections[0].remote_addr, "::1");
+        assert_eq!(connections[0].remote_port, 443);
+    }
+
+    #[test]
+    fn test_parse_netstat_output() {
+        let output = "  Proto  Local Address          Foreign Address        State           PID\n\
+                      TCP    192.168.1.5:49742     93.184.216.34:443      ESTABLISHED     1234\n\
+                      TCP    0.0.0.0:80            0.0.0.0:0              LISTENING       4\n";
+
+        let connections = parse_netstat_output(output);
+        assert_eq!(connections.len(), 2);
+        assert_eq!(connections[0].remote_addr, "93.184.216.34");
+        assert_eq!(connections[0].remote_port, 443);
+        assert_eq!(connections[0].pid, 1234);
+        assert_eq!(connections[0].state, "ESTABLISHED");
+        assert_eq!(connections[0].protocol, "tcp");
+    }
+
+    #[test]
+    fn test_parse_netstat_ipv6() {
+        let output = "  TCP    [::1]:49742           [::1]:443              ESTABLISHED     1234\n";
+
+        let connections = parse_netstat_output(output);
+        assert_eq!(connections.len(), 1);
+        assert_eq!(connections[0].remote_addr, "::1");
+        assert_eq!(connections[0].remote_port, 443);
+    }
+
+    #[test]
+    fn test_c2_exact_domain_match() {
         let connections = vec![NetworkConnection {
             process: "node".to_string(),
             pid: 1234,
@@ -283,6 +422,54 @@ mod tests {
         let findings = check_c2_connections(&connections, &c2_db);
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].severity, Severity::Critical);
+    }
+
+    #[test]
+    fn test_c2_subdomain_match() {
+        let connections = vec![NetworkConnection {
+            process: "node".to_string(),
+            pid: 1234,
+            protocol: "tcp".to_string(),
+            remote_addr: "sub.evil.example.com".to_string(),
+            remote_port: 443,
+            state: "ESTABLISHED".to_string(),
+        }];
+
+        let c2_db = C2Database {
+            domains: vec![C2Indicator {
+                value: "evil.example.com".to_string(),
+                description: "Known C2 domain".to_string(),
+                severity: Severity::Critical,
+            }],
+            ip_ranges: vec![],
+        };
+
+        let findings = check_c2_connections(&connections, &c2_db);
+        assert_eq!(findings.len(), 1);
+    }
+
+    #[test]
+    fn test_c2_no_partial_match() {
+        let connections = vec![NetworkConnection {
+            process: "chrome".to_string(),
+            pid: 5678,
+            protocol: "tcp".to_string(),
+            remote_addr: "notevil.example.com".to_string(),
+            remote_port: 443,
+            state: "ESTABLISHED".to_string(),
+        }];
+
+        let c2_db = C2Database {
+            domains: vec![C2Indicator {
+                value: "evil.example.com".to_string(),
+                description: "Bad".to_string(),
+                severity: Severity::Critical,
+            }],
+            ip_ranges: vec![],
+        };
+
+        let findings = check_c2_connections(&connections, &c2_db);
+        assert!(findings.is_empty());
     }
 
     #[test]
@@ -345,15 +532,17 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_ss_output() {
-        let output = "State  Recv-Q Send-Q Local Address:Port   Peer Address:Port Process\n\
-                      ESTAB  0      0      192.168.1.5:42000     93.184.216.34:443  users:((\"node\",pid=1234,fd=22))\n";
+    fn test_split_addr_port_ipv4() {
+        assert_eq!(split_addr_port("1.2.3.4:443"), Some(("1.2.3.4", "443")));
+    }
 
-        let connections = parse_ss_output(output);
-        assert_eq!(connections.len(), 1);
-        assert_eq!(connections[0].remote_addr, "93.184.216.34");
-        assert_eq!(connections[0].remote_port, 443);
-        assert_eq!(connections[0].process, "node");
-        assert_eq!(connections[0].pid, 1234);
+    #[test]
+    fn test_split_addr_port_ipv6() {
+        assert_eq!(split_addr_port("[::1]:443"), Some(("::1", "443")));
+    }
+
+    #[test]
+    fn test_split_addr_port_no_port() {
+        assert_eq!(split_addr_port("1.2.3.4"), None);
     }
 }

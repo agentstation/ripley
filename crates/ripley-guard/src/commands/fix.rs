@@ -7,7 +7,11 @@ use ripley_core::lockfile;
 use ripley_core::matcher;
 use ripley_core::prompt;
 
-pub async fn cmd_fix(cve_id: &str, path: Option<PathBuf>) -> anyhow::Result<ExitCode> {
+pub async fn cmd_fix(
+    cve_id: &str,
+    path: Option<PathBuf>,
+    format: &str,
+) -> anyhow::Result<ExitCode> {
     let cwd = std::env::current_dir()?;
     let target = path.unwrap_or_else(|| cwd.clone());
 
@@ -24,7 +28,7 @@ pub async fn cmd_fix(cve_id: &str, path: Option<PathBuf>) -> anyhow::Result<Exit
     if cve_advisories.is_empty() {
         eprintln!("No advisories found matching {cve_id} in local cache.");
         eprintln!("Run `ripley scan` first to populate the advisory database.");
-        return Ok(ExitCode::from(1));
+        return Ok(ExitCode::SUCCESS);
     }
 
     let lockfiles = lockfile::find_lockfiles(&target);
@@ -48,7 +52,7 @@ pub async fn cmd_fix(cve_id: &str, path: Option<PathBuf>) -> anyhow::Result<Exit
             "No packages affected by {cve_id} found in {}",
             target.display()
         );
-        return Ok(ExitCode::from(1));
+        return Ok(ExitCode::SUCCESS);
     }
 
     let ioc_profiles = IocProfileSet::load_compiled().ok();
@@ -56,22 +60,43 @@ pub async fn cmd_fix(cve_id: &str, path: Option<PathBuf>) -> anyhow::Result<Exit
 
     let fix_prompt = prompt::generate_cve_fix_prompt(cve_id, &matches, profiles_slice);
 
-    match ripley_core::harness::detect_harness() {
-        Some(harness) => {
-            println!(
-                "Found {} affected package(s). Launching {} with fix prompt...",
-                matches.len(),
-                harness.name()
-            );
-            ripley_core::harness::launch(&harness, &fix_prompt, &cwd)?;
+    match format {
+        "json" => {
+            let affected_packages: Vec<_> = matches
+                .iter()
+                .map(|m| {
+                    serde_json::json!({
+                        "name": m.package.name,
+                        "version": m.package.version.to_string(),
+                        "advisory_id": m.advisory.id,
+                        "project_path": m.project_path,
+                    })
+                })
+                .collect();
+            let output = serde_json::json!({
+                "cve": cve_id,
+                "prompt": fix_prompt,
+                "affected_packages": affected_packages,
+            });
+            println!("{}", serde_json::to_string_pretty(&output)?);
         }
-        None => {
-            println!(
-                "Found {} affected package(s). No AI harness detected.\n",
-                matches.len()
-            );
-            println!("{fix_prompt}");
-        }
+        _ => match ripley_core::harness::detect_harness() {
+            Some(harness) => {
+                println!(
+                    "Found {} affected package(s). Launching {} with fix prompt...",
+                    matches.len(),
+                    harness.name()
+                );
+                ripley_core::harness::launch(&harness, &fix_prompt, &cwd)?;
+            }
+            None => {
+                println!(
+                    "Found {} affected package(s). No AI harness detected.\n",
+                    matches.len()
+                );
+                println!("{fix_prompt}");
+            }
+        },
     }
 
     Ok(ExitCode::SUCCESS)

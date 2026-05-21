@@ -1,6 +1,7 @@
 use ripley_core::matcher::Match;
 use ripley_core::types::Severity;
 
+#[allow(dead_code)]
 pub fn notify_match(m: &Match) {
     let severity = m.advisory.severity.unwrap_or(Severity::Low);
     let severity_label = match severity {

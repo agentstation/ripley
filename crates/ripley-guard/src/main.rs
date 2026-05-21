@@ -84,6 +84,9 @@ enum Commands {
         cve: String,
         /// Path to scan (defaults to current directory)
         path: Option<PathBuf>,
+        /// Output format (table or json)
+        #[arg(long, default_value = "table")]
+        format: String,
     },
     /// Assess credential exposure for a specific CVE
     Exposure {
@@ -161,10 +164,12 @@ async fn main() -> ExitCode {
                 Err(e) => Err(e),
             }
         }
-        Commands::Fix { cve, path } => match commands::fix::cmd_fix(&cve, path).await {
-            Ok(code) => return code,
-            Err(e) => Err(e),
-        },
+        Commands::Fix { cve, path, format } => {
+            match commands::fix::cmd_fix(&cve, path, &format).await {
+                Ok(code) => return code,
+                Err(e) => Err(e),
+            }
+        }
         Commands::Exposure { cve, format } => {
             match commands::exposure::cmd_exposure(&cve, &format).await {
                 Ok(code) => return code,

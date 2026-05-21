@@ -1,13 +1,19 @@
 use std::process::ExitCode;
 
+use anyhow::Context;
+use colored::Colorize;
 use ripley_core::audit::{self, AuditReport, TrafficLight};
 use ripley_core::platform;
+
+use super::{traffic_light_colored, traffic_light_indicator};
 
 pub async fn cmd_audit(format: &str, fix: bool) -> anyhow::Result<ExitCode> {
     let home = platform::home_dir()
         .ok_or_else(|| anyhow::anyhow!("could not determine home directory"))?;
 
-    let report = audit::run_audit(&home);
+    let report = tokio::task::spawn_blocking(move || audit::run_audit(&home))
+        .await
+        .context("audit task panicked")?;
 
     match format {
         "json" => {
@@ -42,37 +48,21 @@ fn print_table(report: &AuditReport) {
     println!();
 
     for cat in &report.categories {
-        let indicator = match cat.overall {
-            TrafficLight::Green => "●",
-            TrafficLight::Yellow => "◐",
-            TrafficLight::Red => "○",
-        };
-        let color = match cat.overall {
-            TrafficLight::Green => "\x1b[32m",
-            TrafficLight::Yellow => "\x1b[33m",
-            TrafficLight::Red => "\x1b[31m",
-        };
-        let reset = "\x1b[0m";
+        let indicator = traffic_light_indicator(&cat.overall);
+        let colored_indicator = traffic_light_colored(indicator, &cat.overall);
+        let colored_status = traffic_light_colored(&cat.overall.to_string(), &cat.overall);
 
         println!(
-            "  {color}{indicator}{reset} {} [{color}{}{reset}]",
-            cat.category, cat.overall
+            "  {} {} [{}]",
+            colored_indicator, cat.category, colored_status
         );
 
         for finding in &cat.findings {
-            let f_color = match finding.status {
-                TrafficLight::Green => "\x1b[32m",
-                TrafficLight::Yellow => "\x1b[33m",
-                TrafficLight::Red => "\x1b[31m",
-            };
-            let f_indicator = match finding.status {
-                TrafficLight::Green => "●",
-                TrafficLight::Yellow => "◐",
-                TrafficLight::Red => "○",
-            };
+            let f_indicator = traffic_light_indicator(&finding.status);
+            let colored_f_indicator = traffic_light_colored(f_indicator, &finding.status);
             println!(
-                "      {f_color}{f_indicator}{reset} {}: {}",
-                finding.name, finding.detail
+                "      {} {}: {}",
+                colored_f_indicator, finding.name, finding.detail
             );
             if let Some(fix) = &finding.fix_command {
                 println!("        → {fix}");
@@ -99,7 +89,9 @@ fn print_table(report: &AuditReport) {
 
     println!(
         "  Summary: {} green, {} yellow, {} red",
-        green_count, yellow_count, red_count
+        green_count.to_string().green(),
+        yellow_count.to_string().yellow(),
+        red_count.to_string().red()
     );
     println!();
 }

@@ -8,6 +8,7 @@ use crate::theme::Colors;
 use crate::views;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct AlertEntry {
     pub advisory_id: String,
     pub package: String,
@@ -41,6 +42,7 @@ pub struct DeepScanFinding {
     pub path: PathBuf,
     pub description: String,
     pub severity: ripley_core::types::Severity,
+    #[allow(dead_code)]
     pub category: String,
 }
 
@@ -65,6 +67,7 @@ pub enum View {
 #[derive(Debug, Clone)]
 pub enum Message {
     NavigateTo(View),
+    #[allow(dead_code)]
     ScanNow,
     ToggleSection(String),
     RunDeepScan,

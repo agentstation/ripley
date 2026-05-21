@@ -59,7 +59,8 @@ pub fn evaluate_disk_encryption(output: &str) -> AuditFinding {
     }
     #[cfg(target_os = "linux")]
     {
-        if output.contains("crypto_LUKS") || output.contains("crypt") {
+        // Fix 6: Match specific LUKS identifiers instead of broad "crypt"
+        if output.contains("crypto_LUKS") || output.contains("TYPE=\"crypt\"") {
             AuditFinding {
                 name: "Disk encryption".to_string(),
                 status: TrafficLight::Green,
@@ -198,16 +199,23 @@ pub fn evaluate_firewall(output: &str) -> AuditFinding {
             }
         }
     }
+    // Fix 5: Match "State" line ending with "ON"/"OFF" instead of broad substring
     #[cfg(target_os = "windows")]
     {
-        if output.contains("ON") {
+        let state_on = output
+            .lines()
+            .any(|l| l.contains("State") && l.trim().ends_with("ON"));
+        let state_off = output
+            .lines()
+            .any(|l| l.contains("State") && l.trim().ends_with("OFF"));
+        if state_on {
             AuditFinding {
                 name: "Firewall".to_string(),
                 status: TrafficLight::Green,
                 detail: "Windows Firewall is active".to_string(),
                 fix_command: None,
             }
-        } else if output.contains("OFF") {
+        } else if state_off {
             AuditFinding {
                 name: "Firewall".to_string(),
                 status: TrafficLight::Red,
@@ -305,6 +313,7 @@ pub fn evaluate_os_updates(output: &str) -> AuditFinding {
             }
         }
     }
+    // Fix 8: Detect dnf vs apt output and suggest the correct command
     #[cfg(target_os = "linux")]
     {
         let upgradable = output
@@ -319,11 +328,19 @@ pub fn evaluate_os_updates(output: &str) -> AuditFinding {
                 fix_command: None,
             }
         } else {
+            let is_dnf = output
+                .lines()
+                .any(|l| l.ends_with(".rpm") || l.contains("updates available"));
+            let cmd = if is_dnf {
+                "sudo dnf upgrade -y"
+            } else {
+                "sudo apt upgrade -y"
+            };
             AuditFinding {
                 name: "OS updates".to_string(),
                 status: TrafficLight::Yellow,
                 detail: format!("{upgradable} package(s) upgradable"),
-                fix_command: Some("sudo apt upgrade -y".to_string()),
+                fix_command: Some(cmd.to_string()),
             }
         }
     }
@@ -477,10 +494,13 @@ pub fn check_machine_security() -> CategoryReport {
     CategoryReport::new(AuditCategory::MachineSecurity, findings)
 }
 
+// Fix 1: Platform-gate tests — macOS tests only run on macOS, Linux tests on Linux
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    // macOS-specific evaluate tests
+    #[cfg(target_os = "macos")]
     #[test]
     fn test_evaluate_filevault_on() {
         let finding = evaluate_disk_encryption("FileVault is On.");
@@ -488,6 +508,7 @@ mod tests {
         assert!(finding.fix_command.is_none());
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn test_evaluate_filevault_off() {
         let finding = evaluate_disk_encryption("FileVault is Off.");
@@ -495,12 +516,14 @@ mod tests {
         assert!(finding.fix_command.is_some());
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn test_evaluate_firewall_active() {
         let finding = evaluate_firewall("1\n");
         assert_eq!(finding.status, TrafficLight::Green);
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn test_evaluate_firewall_off() {
         let finding = evaluate_firewall("0\n");
@@ -508,6 +531,99 @@ mod tests {
         assert!(finding.fix_command.is_some());
     }
 
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_evaluate_os_updates_no_updates() {
+        let finding = evaluate_os_updates("No new software available.");
+        assert_eq!(finding.status, TrafficLight::Green);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_evaluate_os_updates_pending() {
+        let output = "Software Update found the following new or updated software:\n* macOS Sequoia 15.5-15.5\n";
+        let finding = evaluate_os_updates(output);
+        assert_eq!(finding.status, TrafficLight::Yellow);
+        assert!(finding.detail.contains("1"));
+    }
+
+    // Linux-specific evaluate tests
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_evaluate_disk_encryption_luks() {
+        let output = "NAME=\"sda1\" FSTYPE=\"crypto_LUKS\" MOUNTPOINT=\"\"\nNAME=\"sda2\" FSTYPE=\"ext4\" MOUNTPOINT=\"/\"";
+        let finding = evaluate_disk_encryption(output);
+        assert_eq!(finding.status, TrafficLight::Green);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_evaluate_disk_encryption_crypt_type() {
+        let output = "NAME=\"dm-0\" FSTYPE=\"ext4\" TYPE=\"crypt\" MOUNTPOINT=\"/\"";
+        let finding = evaluate_disk_encryption(output);
+        assert_eq!(finding.status, TrafficLight::Green);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_evaluate_disk_encryption_none() {
+        let output = "NAME=\"sda1\" FSTYPE=\"ext4\" MOUNTPOINT=\"/\"";
+        let finding = evaluate_disk_encryption(output);
+        assert_eq!(finding.status, TrafficLight::Red);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_evaluate_firewall_active_linux() {
+        let finding = evaluate_firewall("Status: active\n");
+        assert_eq!(finding.status, TrafficLight::Green);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_evaluate_firewall_inactive_linux() {
+        let finding = evaluate_firewall("Status: inactive\n");
+        assert_eq!(finding.status, TrafficLight::Red);
+        assert!(finding.fix_command.is_some());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_evaluate_os_updates_none_linux() {
+        let output = "Listing...\n";
+        let finding = evaluate_os_updates(output);
+        assert_eq!(finding.status, TrafficLight::Green);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_evaluate_os_updates_apt_pending() {
+        let output = "Listing...\nlibfoo/stable 1.2-1 amd64 [upgradable from: 1.1-1]\n";
+        let finding = evaluate_os_updates(output);
+        assert_eq!(finding.status, TrafficLight::Yellow);
+        assert!(
+            finding
+                .fix_command
+                .as_deref()
+                .is_some_and(|c| c.contains("apt"))
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_evaluate_os_updates_dnf_pending() {
+        let output = "foo.x86_64  1.2-1.fc39  Upgrade\nbar-1.0.rpm\n";
+        let finding = evaluate_os_updates(output);
+        assert_eq!(finding.status, TrafficLight::Yellow);
+        assert!(
+            finding
+                .fix_command
+                .as_deref()
+                .is_some_and(|c| c.contains("dnf"))
+        );
+    }
+
+    // Cross-platform evaluate_screen_lock tests (logic is not platform-gated)
     #[test]
     fn test_evaluate_screen_lock_5min() {
         let finding = evaluate_screen_lock("300");
@@ -530,19 +646,5 @@ mod tests {
     fn test_evaluate_screen_lock_gnome_format() {
         let finding = evaluate_screen_lock("uint32 300");
         assert_eq!(finding.status, TrafficLight::Green);
-    }
-
-    #[test]
-    fn test_evaluate_os_updates_no_updates() {
-        let finding = evaluate_os_updates("No new software available.");
-        assert_eq!(finding.status, TrafficLight::Green);
-    }
-
-    #[test]
-    fn test_evaluate_os_updates_pending() {
-        let output = "Software Update found the following new or updated software:\n* macOS Sequoia 15.5-15.5\n";
-        let finding = evaluate_os_updates(output);
-        assert_eq!(finding.status, TrafficLight::Yellow);
-        assert!(finding.detail.contains("1"));
     }
 }

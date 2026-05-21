@@ -2,6 +2,11 @@ use std::path::Path;
 
 use super::{AuditCategory, AuditError, AuditFinding, CategoryReport, TrafficLight};
 
+/// Shell-quote a string using single quotes with proper escaping.
+fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
 pub fn evaluate_mcp_config(content: &str, path: &Path) -> Vec<AuditFinding> {
     let filename = path
         .file_name()
@@ -34,8 +39,10 @@ pub fn evaluate_mcp_config(content: &str, path: &Path) -> Vec<AuditFinding> {
                                 detail: format!(
                                     "Potential prompt injection in {filename}: pattern '{pattern}'"
                                 ),
+                                // Fix 2: Shell-quote attacker-controlled name
                                 fix_command: Some(format!(
-                                    "Review and remove suspicious MCP server '{name}' from {filename}"
+                                    "Review and remove suspicious MCP server {} from {filename}",
+                                    shell_quote(name)
                                 )),
                             });
                         }
@@ -135,27 +142,40 @@ pub fn evaluate_claude_hooks(content: &str) -> Vec<AuditFinding> {
     findings
 }
 
+// Fix 7: Parse JSON instead of string matching for MCP settings
 pub fn evaluate_project_mcp_settings(content: &str) -> AuditFinding {
-    let lower = content.to_lowercase();
-    if lower.contains("enableallprojectmcpservers")
-        && (lower.contains("true") || lower.contains(": true"))
-    {
-        AuditFinding {
-            name: "Project MCP settings".to_string(),
-            status: TrafficLight::Red,
-            detail: "enableAllProjectMcpServers is enabled — all project MCP servers are trusted"
-                .to_string(),
-            fix_command: Some(
-                "Remove or set enableAllProjectMcpServers to false in settings".to_string(),
-            ),
+    match serde_json::from_str::<serde_json::Value>(content) {
+        Ok(value) => {
+            if value
+                .get("enableAllProjectMcpServers")
+                .and_then(|v| v.as_bool())
+                == Some(true)
+            {
+                AuditFinding {
+                    name: "Project MCP settings".to_string(),
+                    status: TrafficLight::Red,
+                    detail:
+                        "enableAllProjectMcpServers is enabled — all project MCP servers are trusted"
+                            .to_string(),
+                    fix_command: Some(
+                        "Remove or set enableAllProjectMcpServers to false in settings".to_string(),
+                    ),
+                }
+            } else {
+                AuditFinding {
+                    name: "Project MCP settings".to_string(),
+                    status: TrafficLight::Green,
+                    detail: "Project MCP servers require explicit approval".to_string(),
+                    fix_command: None,
+                }
+            }
         }
-    } else {
-        AuditFinding {
+        Err(_) => AuditFinding {
             name: "Project MCP settings".to_string(),
-            status: TrafficLight::Green,
-            detail: "Project MCP servers require explicit approval".to_string(),
+            status: TrafficLight::Yellow,
+            detail: "Could not parse settings as JSON".to_string(),
             fix_command: None,
-        }
+        },
     }
 }
 
@@ -195,7 +215,8 @@ pub fn evaluate_vscode_extensions(output: &str) -> Vec<AuditFinding> {
                     name: format!("VS Code ext: {ext}"),
                     status: TrafficLight::Yellow,
                     detail: "Extension from unverified or suspicious publisher".to_string(),
-                    fix_command: Some(format!("code --uninstall-extension {ext}")),
+                    // Fix 2: Shell-quote extension name from attacker-controlled input
+                    fix_command: Some(format!("code --uninstall-extension {}", shell_quote(ext))),
                 });
             }
         }
@@ -295,6 +316,21 @@ mod tests {
     #[test]
     fn test_evaluate_project_mcp_disabled() {
         let content = r#"{"enableAllProjectMcpServers": false}"#;
+        let finding = evaluate_project_mcp_settings(content);
+        assert_eq!(finding.status, TrafficLight::Green);
+    }
+
+    #[test]
+    fn test_evaluate_project_mcp_invalid_json() {
+        let content = "not valid json {{{";
+        let finding = evaluate_project_mcp_settings(content);
+        assert_eq!(finding.status, TrafficLight::Yellow);
+    }
+
+    #[test]
+    fn test_evaluate_project_mcp_string_true_not_bool() {
+        // "true" as a string value should NOT trigger Red
+        let content = r#"{"enableAllProjectMcpServers": "true"}"#;
         let finding = evaluate_project_mcp_settings(content);
         assert_eq!(finding.status, TrafficLight::Green);
     }

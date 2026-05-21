@@ -45,7 +45,7 @@ impl fmt::Display for AuditCategory {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AuditFinding {
     pub name: String,
     pub status: TrafficLight,
@@ -53,7 +53,7 @@ pub struct AuditFinding {
     pub fix_command: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CategoryReport {
     pub category: AuditCategory,
     pub findings: Vec<AuditFinding>,

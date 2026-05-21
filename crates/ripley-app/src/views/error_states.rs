@@ -4,6 +4,7 @@ use iced::widget::{column, container, text};
 use crate::app::Message;
 use crate::theme::Colors;
 
+#[allow(dead_code)]
 pub fn network_failure_banner(cache_age: &str) -> Element<'_, Message> {
     container(
         text(format!(
@@ -23,6 +24,7 @@ pub fn network_failure_banner(cache_age: &str) -> Element<'_, Message> {
     .into()
 }
 
+#[allow(dead_code)]
 pub fn no_lockfiles_found(path: &str) -> Element<'_, Message> {
     container(
         column![

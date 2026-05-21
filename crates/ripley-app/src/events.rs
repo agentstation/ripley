@@ -7,6 +7,7 @@ use ripley_ipc::{Request, Response};
 use tokio::sync::oneshot;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum AppEvent {
     AdvisoriesUpdated(Vec<Advisory>),
     LockfileChanged {
@@ -19,6 +20,7 @@ pub enum AppEvent {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum Action {
     View(String),
     Fix(String),

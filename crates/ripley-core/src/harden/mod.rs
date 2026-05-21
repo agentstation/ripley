@@ -30,7 +30,7 @@ impl fmt::Display for HardenCategory {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HardenFinding {
     pub name: String,
     pub status: TrafficLight,
@@ -69,6 +69,7 @@ pub struct DetectedPm {
     pub version: Option<String>,
     pub lockfile_path: PathBuf,
     pub config_path: Option<PathBuf>,
+    pub binary: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,16 +80,21 @@ pub struct HardenReport {
 }
 
 pub fn detect_package_managers(path: &Path) -> Vec<DetectedPm> {
-    let lockfile_map = [
-        ("package-lock.json", "npm"),
-        ("pnpm-lock.yaml", "pnpm"),
-        ("yarn.lock", "yarn"),
-        ("bun.lockb", "bun"),
+    let lockfile_map: &[(&str, &str, bool)] = &[
+        ("package-lock.json", "npm", false),
+        ("pnpm-lock.yaml", "pnpm", false),
+        ("yarn.lock", "yarn", false),
+        ("bun.lockb", "bun", true),
+        ("Cargo.lock", "cargo", false),
+        ("go.sum", "go", false),
+        ("Pipfile.lock", "pip", false),
+        ("poetry.lock", "pip", false),
+        ("Gemfile.lock", "gem", false),
     ];
 
     let mut detected = Vec::new();
 
-    for (lockfile, pm_name) in &lockfile_map {
+    for (lockfile, pm_name, binary) in lockfile_map {
         let lockfile_path = path.join(lockfile);
         if lockfile_path.exists() {
             let version = get_pm_version(pm_name);
@@ -98,6 +104,7 @@ pub fn detect_package_managers(path: &Path) -> Vec<DetectedPm> {
                 version,
                 lockfile_path,
                 config_path,
+                binary: *binary,
             });
         }
     }
@@ -106,7 +113,11 @@ pub fn detect_package_managers(path: &Path) -> Vec<DetectedPm> {
 }
 
 fn get_pm_version(pm_name: &str) -> Option<String> {
-    std::process::Command::new(pm_name)
+    let cmd = match pm_name {
+        "pip" => "pip3",
+        other => other,
+    };
+    std::process::Command::new(cmd)
         .arg("--version")
         .output()
         .ok()
@@ -128,6 +139,10 @@ fn find_config_path(project_path: &Path, pm_name: &str) -> Option<PathBuf> {
         "yarn" => {
             let yarnrc = project_path.join(".yarnrc.yml");
             if yarnrc.exists() { Some(yarnrc) } else { None }
+        }
+        "bun" => {
+            let bunfig = project_path.join("bunfig.toml");
+            if bunfig.exists() { Some(bunfig) } else { None }
         }
         _ => None,
     }
@@ -187,6 +202,7 @@ mod tests {
         let pms = detect_package_managers(dir.path());
         assert_eq!(pms.len(), 1);
         assert_eq!(pms[0].name, "npm");
+        assert!(!pms[0].binary);
     }
 
     #[test]
@@ -206,6 +222,69 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_bun_binary_flag() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("bun.lockb"), &[0u8; 10]).expect("write");
+        let pms = detect_package_managers(dir.path());
+        assert_eq!(pms.len(), 1);
+        assert_eq!(pms[0].name, "bun");
+        assert!(pms[0].binary);
+    }
+
+    #[test]
+    fn test_detect_cargo_lockfile() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("Cargo.lock"), "").expect("write");
+        let pms = detect_package_managers(dir.path());
+        assert_eq!(pms.len(), 1);
+        assert_eq!(pms[0].name, "cargo");
+        assert!(!pms[0].binary);
+    }
+
+    #[test]
+    fn test_detect_go_lockfile() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("go.sum"), "").expect("write");
+        let pms = detect_package_managers(dir.path());
+        assert_eq!(pms.len(), 1);
+        assert_eq!(pms[0].name, "go");
+    }
+
+    #[test]
+    fn test_detect_pip_lockfile() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("Pipfile.lock"), "{}").expect("write");
+        let pms = detect_package_managers(dir.path());
+        assert_eq!(pms.len(), 1);
+        assert_eq!(pms[0].name, "pip");
+    }
+
+    #[test]
+    fn test_detect_gem_lockfile() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("Gemfile.lock"), "").expect("write");
+        let pms = detect_package_managers(dir.path());
+        assert_eq!(pms.len(), 1);
+        assert_eq!(pms[0].name, "gem");
+    }
+
+    #[test]
+    fn test_find_config_path_bun() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let bunfig = dir.path().join("bunfig.toml");
+        std::fs::write(&bunfig, "").expect("write");
+        let result = find_config_path(dir.path(), "bun");
+        assert_eq!(result, Some(bunfig));
+    }
+
+    #[test]
+    fn test_find_config_path_bun_missing() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let result = find_config_path(dir.path(), "bun");
+        assert_eq!(result, None);
+    }
+
+    #[test]
     fn test_harden_category_display() {
         assert_eq!(
             HardenCategory::DependencyPinning.to_string(),
@@ -217,5 +296,18 @@ mod tests {
             HardenCategory::CredentialHygiene.to_string(),
             "Credential Hygiene"
         );
+    }
+
+    #[test]
+    fn test_harden_finding_partial_eq() {
+        let a = HardenFinding {
+            name: "test".to_string(),
+            status: TrafficLight::Green,
+            detail: "ok".to_string(),
+            fix_command: None,
+            pm: "npm".to_string(),
+        };
+        let b = a.clone();
+        assert_eq!(a, b);
     }
 }

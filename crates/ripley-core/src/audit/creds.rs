@@ -1,3 +1,4 @@
+use std::io::BufRead;
 use std::path::Path;
 
 use super::{AuditCategory, AuditFinding, CategoryReport, TrafficLight};
@@ -7,13 +8,41 @@ const TOKEN_PATTERNS: &[(&str, &str)] = &[
     ("ghp_", "GitHub personal access token"),
     ("gho_", "GitHub OAuth token"),
     ("ghs_", "GitHub App installation token"),
-    ("sk-", "API secret key"),
     ("AKIA", "AWS access key"),
     ("xoxb-", "Slack bot token"),
     ("xoxp-", "Slack user token"),
     ("glpat-", "GitLab personal access token"),
     ("pypi-AgEIcH", "PyPI token"),
 ];
+
+/// Check if a line contains an `sk-` token at a word boundary followed by at
+/// least 20 alphanumeric characters (avoids false positives like `flask-app`).
+fn contains_sk_token(line: &str) -> bool {
+    let pat = "sk-";
+    let mut start = 0;
+    while let Some(pos) = line[start..].find(pat) {
+        let abs = start + pos;
+        // Check word boundary: must be preceded by start-of-string, space, =, ", or '
+        let at_boundary = abs == 0 || {
+            let prev = line.as_bytes()[abs - 1];
+            matches!(prev, b' ' | b'=' | b'"' | b'\'' | b'\t' | b'\n')
+        };
+        if at_boundary {
+            let after = &line[abs + pat.len()..];
+            let alnum_count = after.chars().take_while(|c| c.is_alphanumeric()).count();
+            if alnum_count >= 20 {
+                return true;
+            }
+        }
+        start = abs + 1;
+    }
+    false
+}
+
+/// Shell-quote a string using single quotes with proper escaping.
+fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
 
 pub fn evaluate_shell_history_secrets(content: &str) -> Vec<AuditFinding> {
     let mut findings = Vec::new();
@@ -31,6 +60,18 @@ pub fn evaluate_shell_history_secrets(content: &str) -> Vec<AuditFinding> {
         }
     }
 
+    // Fix 3: Check sk- tokens with word-boundary matching to avoid false positives
+    if content.lines().any(contains_sk_token) {
+        findings.push(AuditFinding {
+            name: "Shell history: API secret key".to_string(),
+            status: TrafficLight::Red,
+            detail: "Found API secret key pattern in shell history".to_string(),
+            fix_command: Some(
+                "Remove the token from history and rotate the API secret key".to_string(),
+            ),
+        });
+    }
+
     if findings.is_empty() {
         findings.push(AuditFinding {
             name: "Shell history secrets".to_string(),
@@ -43,51 +84,59 @@ pub fn evaluate_shell_history_secrets(content: &str) -> Vec<AuditFinding> {
     findings
 }
 
-pub fn evaluate_env_in_git(project_path: &Path) -> Vec<AuditFinding> {
-    let mut findings = Vec::new();
-
+// Fix 4: Split evaluate_env_in_git into collect (I/O) and evaluate (pure)
+pub fn collect_env_in_git(project_path: &Path) -> Result<String, std::io::Error> {
     let output = std::process::Command::new("git")
         .args(["ls-files", ".env", ".env.local", ".env.production"])
         .current_dir(project_path)
-        .output();
+        .output()?;
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
 
-    match output {
-        Ok(out) => {
-            let tracked = String::from_utf8_lossy(&out.stdout);
-            let tracked_files: Vec<&str> =
-                tracked.lines().filter(|l| !l.trim().is_empty()).collect();
+pub fn evaluate_env_in_git(git_output: &str) -> Vec<AuditFinding> {
+    let mut findings = Vec::new();
 
-            if tracked_files.is_empty() {
-                findings.push(AuditFinding {
-                    name: ".env files in git".to_string(),
-                    status: TrafficLight::Green,
-                    detail: "No .env files tracked by git".to_string(),
-                    fix_command: None,
-                });
-            } else {
-                for file in tracked_files {
-                    findings.push(AuditFinding {
-                        name: format!(".env in git: {file}"),
-                        status: TrafficLight::Red,
-                        detail: format!("{file} is committed to git"),
-                        fix_command: Some(format!(
-                            "git rm --cached {file} && echo '{file}' >> .gitignore"
-                        )),
-                    });
-                }
-            }
-        }
-        Err(_) => {
+    let tracked_files: Vec<&str> = git_output
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .collect();
+
+    if tracked_files.is_empty() {
+        findings.push(AuditFinding {
+            name: ".env files in git".to_string(),
+            status: TrafficLight::Green,
+            detail: "No .env files tracked by git".to_string(),
+            fix_command: None,
+        });
+    } else {
+        for file in tracked_files {
+            // Fix 2: Shell-quote filenames to prevent command injection
+            let quoted = shell_quote(file);
             findings.push(AuditFinding {
-                name: ".env files in git".to_string(),
-                status: TrafficLight::Yellow,
-                detail: "Could not check git status (not a git repository?)".to_string(),
-                fix_command: None,
+                name: format!(".env in git: {file}"),
+                status: TrafficLight::Red,
+                detail: format!("{file} is committed to git"),
+                fix_command: Some(format!(
+                    "git rm --cached {quoted} && echo {quoted} >> .gitignore"
+                )),
             });
         }
     }
 
     findings
+}
+
+/// Combined check for backwards compatibility with `check_credentials`.
+fn check_env_in_git(project_path: &Path) -> Vec<AuditFinding> {
+    match collect_env_in_git(project_path) {
+        Ok(output) => evaluate_env_in_git(&output),
+        Err(_) => vec![AuditFinding {
+            name: ".env files in git".to_string(),
+            status: TrafficLight::Yellow,
+            detail: "Could not check git status (not a git repository?)".to_string(),
+            fix_command: None,
+        }],
+    }
 }
 
 pub fn evaluate_npmrc_tokens(content: &str) -> Vec<AuditFinding> {
@@ -150,6 +199,18 @@ pub fn evaluate_rc_file_tokens(content: &str, path: &Path) -> Vec<AuditFinding> 
         }
     }
 
+    // Fix 3: Check sk- tokens with word-boundary matching
+    if content.lines().any(contains_sk_token) {
+        findings.push(AuditFinding {
+            name: format!("RC file token: {filename}"),
+            status: TrafficLight::Red,
+            detail: format!("Found API secret key in {filename}"),
+            fix_command: Some(format!(
+                "Remove the token from {filename} and use a credential manager"
+            )),
+        });
+    }
+
     if findings.is_empty() {
         findings.push(AuditFinding {
             name: format!("RC file: {filename}"),
@@ -165,15 +226,27 @@ pub fn evaluate_rc_file_tokens(content: &str, path: &Path) -> Vec<AuditFinding> 
 pub fn check_credentials(home: &Path) -> CategoryReport {
     let mut findings = Vec::new();
 
+    // Fix 10: Use BufReader for shell history files instead of read_to_string
     for hist_name in &[".bash_history", ".zsh_history"] {
         let hist_path = home.join(hist_name);
-        if let Ok(content) = std::fs::read_to_string(&hist_path) {
+        if let Ok(file) = std::fs::File::open(&hist_path) {
+            let reader = std::io::BufReader::new(file);
+            let mut content = String::new();
+            for line in reader.lines() {
+                match line {
+                    Ok(l) => {
+                        content.push_str(&l);
+                        content.push('\n');
+                    }
+                    Err(_) => break,
+                }
+            }
             findings.extend(evaluate_shell_history_secrets(&content));
         }
     }
 
     let cwd = std::env::current_dir().unwrap_or_else(|_| home.to_path_buf());
-    findings.extend(evaluate_env_in_git(&cwd));
+    findings.extend(check_env_in_git(&cwd));
 
     let npmrc_path = home.join(".npmrc");
     if let Ok(content) = std::fs::read_to_string(&npmrc_path) {
@@ -258,5 +331,67 @@ mod tests {
         let content = "export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\n";
         let findings = evaluate_rc_file_tokens(content, Path::new(".profile"));
         assert!(findings.iter().any(|f| f.status == TrafficLight::Red));
+    }
+
+    #[test]
+    fn test_evaluate_env_in_git_tracked() {
+        let output = ".env\n.env.local\n";
+        let findings = evaluate_env_in_git(output);
+        assert_eq!(findings.len(), 2);
+        assert!(findings.iter().all(|f| f.status == TrafficLight::Red));
+        // Verify shell quoting in fix_command
+        assert!(
+            findings[0]
+                .fix_command
+                .as_ref()
+                .is_some_and(|c| c.contains("'.env'"))
+        );
+    }
+
+    #[test]
+    fn test_evaluate_env_in_git_clean() {
+        let output = "";
+        let findings = evaluate_env_in_git(output);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].status, TrafficLight::Green);
+    }
+
+    #[test]
+    fn test_evaluate_env_in_git_shell_quote_special() {
+        let output = ".env'special\n";
+        let findings = evaluate_env_in_git(output);
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].status, TrafficLight::Red);
+        // Single-quote escaping should replace ' with '\''
+        let cmd = findings[0].fix_command.as_ref().expect("fix_command");
+        assert!(cmd.contains("'\\''"));
+    }
+
+    #[test]
+    fn test_sk_token_real() {
+        assert!(contains_sk_token(
+            "export OPENAI_KEY=sk-abcdefghijklmnopqrstuvwxyz1234"
+        ));
+    }
+
+    #[test]
+    fn test_sk_token_at_start() {
+        assert!(contains_sk_token("sk-abcdefghijklmnopqrstuvwxyz1234"));
+    }
+
+    #[test]
+    fn test_sk_token_false_positive_flask() {
+        assert!(!contains_sk_token("pip install flask-app"));
+    }
+
+    #[test]
+    fn test_sk_token_false_positive_desk() {
+        assert!(!contains_sk_token("buy a desk-lamp"));
+    }
+
+    #[test]
+    fn test_sk_token_short_suffix() {
+        // sk- followed by fewer than 20 chars should not match
+        assert!(!contains_sk_token("sk-short"));
     }
 }

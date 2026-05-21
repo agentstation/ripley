@@ -4,6 +4,7 @@ use iced::{Element, Length, Theme};
 use crate::app::Message;
 use crate::theme::Colors;
 
+#[allow(dead_code)]
 pub struct GuardDialogData {
     pub package: String,
     pub version: String,
@@ -14,12 +15,14 @@ pub struct GuardDialogData {
     pub countdown_secs: u32,
 }
 
+#[allow(dead_code)]
 pub struct MatchedRuleDisplay {
     pub severity: String,
     pub name: String,
     pub description: String,
 }
 
+#[allow(dead_code)]
 pub fn view(data: &GuardDialogData) -> Element<'_, Message> {
     let header = row![
         text(format!("● {} RISK", data.risk_level.to_uppercase()))

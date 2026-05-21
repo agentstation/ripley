@@ -63,13 +63,14 @@ pub fn assess_cve_exposure(
     let mut clean = Vec::new();
 
     for target in &profile.credentials.targeted {
-        let expanded = expand_path(target, home);
+        let expanded = credentials::expand_cred_path(target, home);
         let path = PathBuf::from(&expanded);
         let exists = path.exists();
 
         if exists {
             let contains_secret = check_contains_secret(&path);
-            let rotation_command = rotation_command_for_path(&path);
+            let rotation_command = credentials::rotation_command_for(&path)
+                .unwrap_or_else(|| "Rotate this credential manually".to_string());
             let priority = if profile.credentials.dead_man_switch {
                 Severity::Critical
             } else {
@@ -115,58 +116,48 @@ pub fn assess_cve_exposure(
     })
 }
 
-fn expand_path(pattern: &str, home: &Path) -> String {
-    if pattern.starts_with("~/") {
-        return format!("{}{}", home.display(), &pattern[1..]);
-    }
-    pattern.to_string()
-}
-
 fn check_contains_secret(path: &Path) -> bool {
-    let content = match std::fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(_) => return false,
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return false;
     };
-
-    let secret_patterns = [
-        "_authToken",
-        "BEGIN RSA PRIVATE KEY",
-        "BEGIN OPENSSH PRIVATE KEY",
-        "BEGIN EC PRIVATE KEY",
-        "aws_secret_access_key",
+    let secret_keys = [
         "password",
         "token",
         "secret",
+        "api_key",
+        "apikey",
+        "auth_token",
+        "_auth",
     ];
-
-    secret_patterns.iter().any(|p| content.contains(p))
-}
-
-fn rotation_command_for_path(path: &Path) -> String {
-    let path_str = path.to_str().unwrap_or("");
-    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-
-    if path_str.contains(".npmrc") {
-        "npm token revoke <token> && npm login".to_string()
-    } else if path_str.contains(".ssh/") {
-        if file_name == "authorized_keys" {
-            "Review and remove unauthorized keys from ~/.ssh/authorized_keys".to_string()
-        } else {
-            "Generate new SSH key: ssh-keygen -t ed25519 && update remote services".to_string()
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('#') || trimmed.starts_with("//") {
+            continue;
         }
-    } else if path_str.contains(".aws/credentials") {
-        "aws iam delete-access-key && aws iam create-access-key".to_string()
-    } else if path_str.contains(".gitconfig") {
-        "Review ~/.gitconfig for unauthorized credential helpers".to_string()
-    } else if file_name == ".env" || path_str.contains(".env") {
-        "Rotate all secrets in .env and redeploy".to_string()
-    } else if path_str.contains(".docker/config.json") {
-        "docker logout && docker login".to_string()
-    } else if path_str.contains(".kube/config") {
-        "Rotate Kubernetes service account tokens".to_string()
-    } else {
-        "Rotate this credential manually".to_string()
+        let lower = trimmed.to_lowercase();
+        // Look for key=value or key: value with non-empty, non-placeholder values
+        for sep in ["=", ": ", "\":"] {
+            if let Some(pos) = lower.find(sep) {
+                let key = &lower[..pos];
+                let value = lower[pos + sep.len()..]
+                    .trim()
+                    .trim_matches('"')
+                    .trim_matches('\'');
+                if value.is_empty()
+                    || value == "null"
+                    || value == "none"
+                    || value.starts_with("${")
+                    || value.starts_with('$')
+                {
+                    continue;
+                }
+                if secret_keys.iter().any(|k| key.contains(k)) {
+                    return true;
+                }
+            }
+        }
     }
+    false
 }
 
 #[cfg(test)]
@@ -202,8 +193,7 @@ mod tests {
     #[test]
     fn test_assess_cve_exposure_with_existing_creds() {
         let dir = tempfile::tempdir().expect("tempdir");
-        std::fs::write(dir.path().join(".npmrc"), "//registry/:_authToken=secret\n")
-            .expect("write");
+        std::fs::write(dir.path().join(".npmrc"), "_authToken=npm_abc123secret\n").expect("write");
 
         let profile = test_profile("CVE-2024-001", vec!["~/.npmrc".into()], false);
         let profiles = profile_set_with(vec![profile]);

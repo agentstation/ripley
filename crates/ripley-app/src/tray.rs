@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use tray_icon::TrayIconBuilder;
 use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
 

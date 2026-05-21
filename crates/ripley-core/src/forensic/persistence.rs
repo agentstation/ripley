@@ -1,9 +1,11 @@
 use std::path::{Path, PathBuf};
 
+use serde::Serialize;
+
 use crate::platform;
 use crate::types::Severity;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PersistenceFinding {
     pub path: PathBuf,
     pub description: String,
@@ -11,7 +13,7 @@ pub struct PersistenceFinding {
     pub category: PersistenceCategory,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub enum PersistenceCategory {
     LaunchAgent,
     SystemdService,

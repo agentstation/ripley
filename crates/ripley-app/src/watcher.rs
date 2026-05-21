@@ -8,6 +8,7 @@ use ripley_core::config::Config;
 
 use crate::events::AppEvent;
 
+#[allow(dead_code)]
 pub async fn run(config: Config, tx: mpsc::Sender<AppEvent>, cancel: CancellationToken) {
     let (fs_tx, mut fs_rx) = tokio::sync::mpsc::channel::<PathBuf>(64);
 
@@ -42,6 +43,7 @@ pub async fn run(config: Config, tx: mpsc::Sender<AppEvent>, cancel: Cancellatio
     }
 }
 
+#[allow(dead_code)]
 fn setup_watcher(
     config: &Config,
     tx: mpsc::Sender<PathBuf>,
@@ -68,6 +70,7 @@ fn setup_watcher(
     Ok(watcher)
 }
 
+#[allow(dead_code)]
 fn is_lockfile(path: &std::path::Path) -> bool {
     path.file_name()
         .and_then(|n| n.to_str())

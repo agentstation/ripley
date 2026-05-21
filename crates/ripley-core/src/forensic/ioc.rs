@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::glob_to_regex;
 use crate::platform;
@@ -27,7 +27,7 @@ pub enum IocError {
     },
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IocProfile {
     pub id: String,
     pub name: String,
@@ -43,7 +43,7 @@ pub struct IocProfile {
     pub credentials: IocCredentials,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IocPackages {
     pub ecosystem: String,
     pub names: Vec<String>,
@@ -51,7 +51,7 @@ pub struct IocPackages {
     pub clean_version: String,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct IocIndicators {
     #[serde(default)]
     pub files: Vec<String>,
@@ -67,7 +67,7 @@ pub struct IocIndicators {
     pub ips: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct IocCredentials {
     #[serde(default)]
     pub targeted: Vec<String>,
@@ -77,7 +77,7 @@ pub struct IocCredentials {
     pub rotation_warning: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct IocFinding {
     pub path: PathBuf,
     pub description: String,
@@ -85,6 +85,7 @@ pub struct IocFinding {
     pub profile_id: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
 pub struct IocProfileSet {
     profiles: Vec<IocProfile>,
 }

@@ -12,13 +12,7 @@ pub fn check_trusted_publishing(project_path: &Path) -> HardenFinding {
     let workflows_dir = project_path.join(".github/workflows");
 
     if !workflows_dir.exists() {
-        return HardenFinding {
-            name: "Trusted Publishing".to_string(),
-            status: TrafficLight::Yellow,
-            detail: "No GitHub workflows found — cannot check OIDC publishing".to_string(),
-            fix_command: None,
-            pm: String::new(),
-        };
+        return evaluate_trusted_publishing(None);
     }
 
     let has_provenance = std::fs::read_dir(&workflows_dir)
@@ -31,24 +25,34 @@ pub fn check_trusted_publishing(project_path: &Path) -> HardenFinding {
         })
         .unwrap_or(false);
 
-    if has_provenance {
-        HardenFinding {
+    evaluate_trusted_publishing(Some(has_provenance))
+}
+
+pub fn evaluate_trusted_publishing(has_provenance: Option<bool>) -> HardenFinding {
+    match has_provenance {
+        None => HardenFinding {
+            name: "Trusted Publishing".to_string(),
+            status: TrafficLight::Yellow,
+            detail: "No GitHub workflows found — cannot check OIDC publishing".to_string(),
+            fix_command: None,
+            pm: "all".to_string(),
+        },
+        Some(true) => HardenFinding {
             name: "Trusted Publishing".to_string(),
             status: TrafficLight::Green,
             detail: "OIDC/provenance configuration detected in CI workflows".to_string(),
             fix_command: None,
-            pm: String::new(),
-        }
-    } else {
-        HardenFinding {
+            pm: "all".to_string(),
+        },
+        Some(false) => HardenFinding {
             name: "Trusted Publishing".to_string(),
             status: TrafficLight::Yellow,
             detail: "No provenance/OIDC configuration found in workflows".to_string(),
             fix_command: Some(
                 "Add provenance: true to your npm publish workflow or configure OIDC".to_string(),
             ),
-            pm: String::new(),
-        }
+            pm: "all".to_string(),
+        },
     }
 }
 
@@ -61,6 +65,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let finding = check_trusted_publishing(dir.path());
         assert_eq!(finding.status, TrafficLight::Yellow);
+        assert_eq!(finding.pm, "all");
     }
 
     #[test]
@@ -76,6 +81,7 @@ mod tests {
 
         let finding = check_trusted_publishing(dir.path());
         assert_eq!(finding.status, TrafficLight::Green);
+        assert_eq!(finding.pm, "all");
     }
 
     #[test]
@@ -91,5 +97,28 @@ mod tests {
 
         let finding = check_trusted_publishing(dir.path());
         assert_eq!(finding.status, TrafficLight::Yellow);
+        assert_eq!(finding.pm, "all");
+    }
+
+    // --- evaluate tests ---
+
+    #[test]
+    fn test_evaluate_no_workflows() {
+        let f = evaluate_trusted_publishing(None);
+        assert_eq!(f.status, TrafficLight::Yellow);
+        assert_eq!(f.pm, "all");
+    }
+
+    #[test]
+    fn test_evaluate_has_provenance() {
+        let f = evaluate_trusted_publishing(Some(true));
+        assert_eq!(f.status, TrafficLight::Green);
+    }
+
+    #[test]
+    fn test_evaluate_no_provenance() {
+        let f = evaluate_trusted_publishing(Some(false));
+        assert_eq!(f.status, TrafficLight::Yellow);
+        assert!(f.fix_command.is_some());
     }
 }

@@ -48,6 +48,7 @@ pub fn evaluate_git_signing(output: &str) -> AuditFinding {
     }
 }
 
+// Fix 9: Use .pub file first line to detect key type instead of file size
 pub fn evaluate_ssh_keys(ssh_dir: &Path) -> Vec<AuditFinding> {
     let mut findings = Vec::new();
 
@@ -72,21 +73,33 @@ pub fn evaluate_ssh_keys(ssh_dir: &Path) -> Vec<AuditFinding> {
 
         if name.starts_with("id_") && !name.ends_with(".pub") {
             found_key = true;
-            let (status, detail) = if name.contains("ed25519") {
+
+            // Read the corresponding .pub file to determine key type reliably
+            let pub_path = path.with_extension("pub");
+            let pub_first_line = std::fs::read_to_string(&pub_path)
+                .ok()
+                .and_then(|c| c.lines().next().map(|l| l.to_string()));
+
+            let (status, detail) = if let Some(ref line) = pub_first_line {
+                if line.contains("ssh-ed25519") {
+                    (TrafficLight::Green, "Ed25519 key (strong)".to_string())
+                } else if line.contains("ssh-rsa") {
+                    (
+                        TrafficLight::Yellow,
+                        "RSA key — consider upgrading to Ed25519".to_string(),
+                    )
+                } else {
+                    (TrafficLight::Yellow, "Unknown key type".to_string())
+                }
+            } else if name.contains("ed25519") {
                 (TrafficLight::Green, "Ed25519 key (strong)".to_string())
             } else if name.contains("ecdsa") {
                 (TrafficLight::Green, "ECDSA key".to_string())
             } else if name.contains("rsa") {
-                let key_content = std::fs::read_to_string(&path).unwrap_or_default();
-                let key_len = key_content.len();
-                if key_len > 3000 {
-                    (TrafficLight::Yellow, "RSA key (>=4096 bit)".to_string())
-                } else {
-                    (
-                        TrafficLight::Red,
-                        "RSA key (potentially weak, <4096 bit)".to_string(),
-                    )
-                }
+                (
+                    TrafficLight::Yellow,
+                    "RSA key — consider upgrading to Ed25519".to_string(),
+                )
             } else if name.contains("dsa") {
                 (TrafficLight::Red, "DSA key (deprecated)".to_string())
             } else {
@@ -97,7 +110,7 @@ pub fn evaluate_ssh_keys(ssh_dir: &Path) -> Vec<AuditFinding> {
                 name: format!("SSH key: {name}"),
                 status,
                 detail,
-                fix_command: if status == TrafficLight::Red {
+                fix_command: if status == TrafficLight::Red || status == TrafficLight::Yellow {
                     Some("ssh-keygen -t ed25519 -C \"your_email@example.com\"".to_string())
                 } else {
                     None
@@ -295,7 +308,20 @@ mod tests {
     }
 
     #[test]
-    fn test_evaluate_ssh_key_ed25519() {
+    fn test_evaluate_ssh_key_ed25519_from_pub() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("id_ed25519"), "fake-key-content").expect("write");
+        std::fs::write(
+            dir.path().join("id_ed25519.pub"),
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG... user@host",
+        )
+        .expect("write pub");
+        let findings = evaluate_ssh_keys(dir.path());
+        assert!(findings.iter().any(|f| f.status == TrafficLight::Green));
+    }
+
+    #[test]
+    fn test_evaluate_ssh_key_ed25519_no_pub() {
         let dir = tempfile::tempdir().expect("tempdir");
         std::fs::write(dir.path().join("id_ed25519"), "fake-key-content").expect("write");
         let findings = evaluate_ssh_keys(dir.path());
@@ -303,10 +329,31 @@ mod tests {
     }
 
     #[test]
-    fn test_evaluate_ssh_key_rsa_weak() {
+    fn test_evaluate_ssh_key_rsa_from_pub() {
         let dir = tempfile::tempdir().expect("tempdir");
-        std::fs::write(dir.path().join("id_rsa"), "short-key").expect("write");
+        std::fs::write(dir.path().join("id_rsa"), "fake-key-content").expect("write");
+        std::fs::write(
+            dir.path().join("id_rsa.pub"),
+            "ssh-rsa AAAAB3NzaC1yc2EAAA... user@host",
+        )
+        .expect("write pub");
         let findings = evaluate_ssh_keys(dir.path());
-        assert!(findings.iter().any(|f| f.status == TrafficLight::Red));
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.status == TrafficLight::Yellow && f.detail.contains("RSA"))
+        );
+    }
+
+    #[test]
+    fn test_evaluate_ssh_key_rsa_no_pub() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("id_rsa"), "fake-key-content").expect("write");
+        let findings = evaluate_ssh_keys(dir.path());
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.status == TrafficLight::Yellow && f.detail.contains("RSA"))
+        );
     }
 }

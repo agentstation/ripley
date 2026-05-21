@@ -10,6 +10,7 @@ use ripley_core::types::Ecosystem;
 
 use crate::events::AppEvent;
 
+#[allow(dead_code)]
 pub async fn run(
     config: Config,
     db_path: std::path::PathBuf,
@@ -33,6 +34,7 @@ pub async fn run(
     }
 }
 
+#[allow(dead_code)]
 async fn poll_once(
     config: &Config,
     db_path: &std::path::Path,

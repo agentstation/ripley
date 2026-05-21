@@ -1,10 +1,12 @@
 use std::path::{Path, PathBuf};
 
+use serde::Serialize;
+
 use super::glob_to_regex;
 use super::ioc::IocProfile;
 use crate::types::Severity;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct CredentialFinding {
     pub path: PathBuf,
     pub description: String,
@@ -13,7 +15,7 @@ pub struct CredentialFinding {
     pub profile_id: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ExposureReport {
     pub findings: Vec<CredentialFinding>,
     pub dead_man_switch_warning: Option<String>,
@@ -68,7 +70,7 @@ pub fn assess_exposure(profiles: &[IocProfile], home: &Path) -> ExposureReport {
     }
 }
 
-fn expand_cred_path(pattern: &str, home: &Path) -> String {
+pub fn expand_cred_path(pattern: &str, home: &Path) -> String {
     if pattern.starts_with("~/") {
         return format!("{}{}", home.display(), &pattern[1..]);
     }
@@ -113,7 +115,7 @@ fn resolve_cred_glob(pattern: &str) -> Vec<PathBuf> {
         .collect()
 }
 
-fn rotation_command_for(path: &Path) -> Option<String> {
+pub fn rotation_command_for(path: &Path) -> Option<String> {
     let path_str = path.to_str().unwrap_or("");
     let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 

@@ -94,6 +94,26 @@ pub fn view(report: &Option<HardenReport>) -> Element<'_, Message> {
                         }
                     }
                 }
+
+                let summary = format!(
+                    "Summary: {} green, {} yellow, {} red",
+                    report
+                        .categories
+                        .iter()
+                        .filter(|c| c.overall == TrafficLight::Green)
+                        .count(),
+                    report
+                        .categories
+                        .iter()
+                        .filter(|c| c.overall == TrafficLight::Yellow)
+                        .count(),
+                    report
+                        .categories
+                        .iter()
+                        .filter(|c| c.overall == TrafficLight::Red)
+                        .count(),
+                );
+                content = content.push(text(summary).size(12).color(Colors::TEXT_SECONDARY));
             }
         }
     }

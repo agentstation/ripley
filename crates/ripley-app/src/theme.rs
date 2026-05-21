@@ -13,11 +13,13 @@ impl Colors {
         0x1b as f32 / 255.0,
         0x22 as f32 / 255.0,
     );
+    #[allow(dead_code)]
     pub const SURFACE_HOVER: Color = Color::from_rgb(
         0x1c as f32 / 255.0,
         0x21 as f32 / 255.0,
         0x28 as f32 / 255.0,
     );
+    #[allow(dead_code)]
     pub const SURFACE_ACTIVE: Color = Color::from_rgb(
         0x28 as f32 / 255.0,
         0x2e as f32 / 255.0,
@@ -55,6 +57,7 @@ impl Colors {
         0xa6 as f32 / 255.0,
         0xff as f32 / 255.0,
     );
+    #[allow(dead_code)]
     pub const ACCENT_HOVER: Color = Color::from_rgb(
         0x79 as f32 / 255.0,
         0xc0 as f32 / 255.0,
