@@ -1,12 +1,15 @@
 pub mod analyzer;
+pub mod audit;
 pub mod config;
 pub mod db;
 pub mod dirs;
 pub mod feed;
 pub mod forensic;
+pub mod harden;
 pub mod harness;
 pub mod lockfile;
 pub mod matcher;
+pub mod platform;
 pub mod prompt;
 pub mod rules;
 pub mod types;

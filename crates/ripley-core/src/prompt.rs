@@ -67,6 +67,80 @@ pub fn generate_batch_prompt(matches: &[Match]) -> String {
     prompt
 }
 
+pub fn generate_audit_prompt(report: &crate::audit::AuditReport) -> String {
+    let mut prompt = String::from(
+        "Review the following environment security audit findings and generate \
+         environment-specific fix commands for each issue. Prioritize by actual \
+         risk — consider the combination of findings (e.g., disabled disk \
+         encryption + exposed tokens is critical).\n\n",
+    );
+
+    for cat in &report.categories {
+        prompt.push_str(&format!("## {} [{}]\n\n", cat.category, cat.overall));
+        for finding in &cat.findings {
+            prompt.push_str(&format!(
+                "- [{}] {}: {}\n",
+                finding.status, finding.name, finding.detail
+            ));
+            if let Some(fix) = &finding.fix_command {
+                prompt.push_str(&format!("  Suggested fix: {fix}\n"));
+            }
+        }
+        prompt.push('\n');
+    }
+
+    prompt.push_str(
+        "For each finding, generate the exact command to run on this machine. \
+         If a finding is already green, skip it. Group related fixes together \
+         and explain why each matters in the context of supply chain defense.\n",
+    );
+
+    prompt
+}
+
+pub fn generate_harden_prompt(report: &crate::harden::HardenReport) -> String {
+    let mut prompt = String::from(
+        "Review the following package manager hardening findings and generate \
+         fix commands for each issue. These settings protect against supply chain \
+         attacks by controlling how packages are installed and verified.\n\n",
+    );
+
+    if !report.detected_pms.is_empty() {
+        prompt.push_str("Detected package managers: ");
+        let pms: Vec<String> = report
+            .detected_pms
+            .iter()
+            .map(|pm| {
+                let ver = pm.version.as_deref().unwrap_or("unknown");
+                format!("{} v{ver}", pm.name)
+            })
+            .collect();
+        prompt.push_str(&pms.join(", "));
+        prompt.push_str("\n\n");
+    }
+
+    for cat in &report.categories {
+        prompt.push_str(&format!("## {} [{}]\n\n", cat.category, cat.overall));
+        for finding in &cat.findings {
+            prompt.push_str(&format!(
+                "- [{}] {}: {}\n",
+                finding.status, finding.name, finding.detail
+            ));
+            if let Some(fix) = &finding.fix_command {
+                prompt.push_str(&format!("  Suggested fix: {fix}\n"));
+            }
+        }
+        prompt.push('\n');
+    }
+
+    prompt.push_str(
+        "For each non-green finding, generate the exact command to run. \
+         Explain which supply chain attack each setting mitigates.\n",
+    );
+
+    prompt
+}
+
 fn default_ioc_paths() -> Vec<&'static str> {
     vec![
         ".claude/execution.js",
@@ -82,7 +156,7 @@ fn default_ioc_paths() -> Vec<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::feed::{Advisory, AffectedRange};
+    use crate::feed::{Advisory, AffectedRange, FeedSource};
     use crate::lockfile::InstalledPackage;
     use crate::types::{Ecosystem, Severity};
     use std::path::PathBuf;
@@ -91,6 +165,7 @@ mod tests {
         Match {
             advisory: Advisory {
                 id: "GHSA-xxxx-yyyy-zzzz".into(),
+                source: FeedSource::Osv,
                 ecosystem: Ecosystem::Npm,
                 package: "@tanstack/react-router".into(),
                 affected_ranges: vec![AffectedRange {

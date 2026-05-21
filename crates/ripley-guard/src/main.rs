@@ -58,6 +58,26 @@ enum Commands {
         #[arg(long)]
         init: bool,
     },
+    /// Run environment security audit
+    Audit {
+        /// Output format (table or json)
+        #[arg(long, default_value = "table")]
+        format: String,
+        /// Generate AI-powered remediation for findings
+        #[arg(long)]
+        fix: bool,
+    },
+    /// Check and harden package manager security settings
+    Harden {
+        /// Path to check (defaults to current directory)
+        path: Option<PathBuf>,
+        /// Output format (table or json)
+        #[arg(long, default_value = "table")]
+        format: String,
+        /// Generate AI-powered remediation for findings
+        #[arg(long)]
+        fix: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -115,6 +135,17 @@ async fn main() -> ExitCode {
         Commands::Watch { daemon } => commands::watch::cmd_watch(daemon).await,
         Commands::Status => commands::status::cmd_status(),
         Commands::Config { path, show, init } => commands::config::cmd_config(path, show, init),
+        Commands::Audit { format, fix } => match commands::audit::cmd_audit(&format, fix).await {
+            Ok(code) => return code,
+            Err(e) => Err(e),
+        },
+        Commands::Harden { path, format, fix } => {
+            let target = path.unwrap_or_else(|| PathBuf::from("."));
+            match commands::harden::cmd_harden(target, &format, fix).await {
+                Ok(code) => return code,
+                Err(e) => Err(e),
+            }
+        }
     };
 
     match result {
