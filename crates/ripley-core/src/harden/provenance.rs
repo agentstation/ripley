@@ -5,11 +5,7 @@ use crate::audit::TrafficLight;
 use super::HardenFinding;
 
 pub fn check_provenance(project_path: &Path) -> Vec<HardenFinding> {
-    let mut findings = Vec::new();
-
-    findings.push(check_trusted_publishing(project_path));
-
-    findings
+    vec![check_trusted_publishing(project_path)]
 }
 
 pub fn check_trusted_publishing(project_path: &Path) -> HardenFinding {

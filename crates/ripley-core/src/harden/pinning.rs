@@ -4,14 +4,12 @@ use crate::lockfile;
 use super::{DetectedPm, HardenFinding};
 
 pub fn check_dependency_pinning(pm: &DetectedPm) -> Vec<HardenFinding> {
-    let mut findings = Vec::new();
-
-    findings.push(check_save_exact(pm));
-    findings.push(check_lockfile_committed(pm));
-    findings.push(check_integrity_hashes(pm));
-    findings.push(check_exotic_sources(pm));
-
-    findings
+    vec![
+        check_save_exact(pm),
+        check_lockfile_committed(pm),
+        check_integrity_hashes(pm),
+        check_exotic_sources(pm),
+    ]
 }
 
 pub fn check_save_exact(pm: &DetectedPm) -> HardenFinding {

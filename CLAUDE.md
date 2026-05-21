@@ -37,10 +37,8 @@ cargo run -p ripley-guard -- guard status
 
 ## Current work
 
-**Phase 2: Ecosystem Breadth.** Phase 1 complete (M1-M5). Now implementing M6-M9:
-lockfile parsers (yarn, pnpm, pip, cargo, go, gem), guard shims (6 PMs),
-detection rules (pypi, cargo), feed integration (GHSA, Socket.dev), platform
-builds (Windows, Linux).
+**Phase 4: Active Detection.** Phases 1-3 complete (M1-M13). Now implementing M14+:
+real-time monitoring, runtime containment, behavioral analysis, sandboxing.
 
 See PLAN.md for detailed task breakdown and ROADMAP.md for deliverable descriptions.
 
@@ -72,19 +70,20 @@ See PLAN.md for detailed task breakdown and ROADMAP.md for deliverable descripti
 
 ## Scope guardrails
 
-- **Phase 2 only.** Do not implement Phase 3+ features (ripley fix, ripley audit,
-  ripley harden, ripley monitor, sandboxing, behavioral analysis). Use trait/enum
-  extension points where the design needs them for later phases.
-- **New deps allowed:** `serde_yaml` for pnpm/yarn lockfile parsing. All other deps
-  should already be in `[workspace.dependencies]`. Do not add crates beyond what
-  Phase 2 deliverables require.
-- **Follow existing patterns.** Each new lockfile parser matches npm.rs shape (return
-  `ParsedLockfile`). Each new shim matches ripley-npm-shim (resolve real binary,
-  advisory check, delegate with passthrough).
-- **Cross-platform.** Use `cfg(target_os)` for platform-specific paths. Never hardcode
-  macOS paths in shared code. Factor platform-specific logic into `platform.rs` trait.
+- **Phase 4 only.** Do not implement Phase 5+ features (community rule sharing,
+  plugin system, hosted dashboard). Use trait/enum extension points where the design
+  needs them for later phases.
+- **New deps:** Evaluate carefully. Do not add crates without a clear reason.
+- **Follow existing patterns.** Audit checks use collect/evaluate pattern: `collect_*()`
+  runs system commands (platform-specific via `cfg(target_os)`), `evaluate_*(output)`
+  is pure and testable. Traffic-light output uses `TrafficLight` enum across audit and
+  harden. New CLI commands follow existing `scan.rs` shape (`cmd_*`, `--format`, exit
+  codes). Prompt generation extends `prompt.rs`. Harness reuses `harness.rs`.
+- **Cross-platform.** Use `cfg(target_os)` for platform-specific system checks. Never
+  hardcode macOS commands in shared code. Use `platform.rs` helpers for paths, shells.
 - **Test as you go.** Every public function in `ripley-core` should have at least one
-  unit test. Use `insta` snapshot tests for all parser outputs and rule matches.
+  unit test. Audit checks test via `evaluate_*` with mock command output. Use `insta`
+  snapshot tests for all command outputs.
 - **Keep dependencies minimal.** Do not add new crates without a clear reason.
 - **Own supply chain.** Run `cargo deny check` as part of verification. A supply chain
   security tool that doesn't audit its own dependencies has no credibility.

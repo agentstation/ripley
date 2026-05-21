@@ -9,8 +9,8 @@ tasks complete.
 ## /goal
 
 ```
-Implement Ripley Phase 2: Ecosystem Breadth. Execute milestones M6
-through M9, pass every gate, and commit. PLAN.md is the control plane.
+Implement Ripley Phase 3: Response Depth. Execute milestones M10
+through M13, pass every gate, and commit. PLAN.md is the control plane.
 
 ════════════════════════════════════════════════════════════════
  PROJECT CONTEXT
@@ -20,26 +20,30 @@ Ripley is a supply chain defense tool — Rust workspace (edition 2024),
 4 crates: ripley-core (library, thiserror), ripley-guard (CLI binary,
 anyhow), ripley-ipc (IPC layer), ripley-app (iced tray app).
 
-Phase 1 is complete: npm lockfile parser, npm guard shims (PATH shim +
-script-shell), macOS tray app, remediation pipeline, forensic scan.
-121 tests passing, all 5 milestones (M1-M5) gated and committed.
+Phase 1 complete: npm lockfile parser, npm guard shims, macOS tray
+app, remediation pipeline, forensic scan.
 
-Phase 2 extends the foundation to all ecosystems and platforms:
-  M6: 6 lockfile parsers (yarn, pnpm, pip, cargo, go, gem)
-  M7: 2 detection rule files + 6 guard shim binaries + multi-PM install
-  M8: 2 feed sources (GHSA GraphQL, Socket.dev REST)
-  M9: platform abstraction + Linux build + Windows build + CI matrix
+Phase 2 complete: 7 lockfile parsers (npm, yarn, pnpm, pip, cargo,
+go, gem), 7 guard shims, detection rules (pypi, cargo), feed
+integration (GHSA, Socket.dev), platform abstraction (macOS, Linux,
+Windows), CI matrix. 183+ tests, M6-M9 gates passed.
 
-Spec documents (read before implementing — they are the source of truth):
+Phase 3 adds structured remediation — four new CLI commands:
+  M10: `ripley audit`   — environment security audit
+  M11: `ripley harden`  — PM-specific hardening recommendations
+  M12: `ripley fix` + `ripley exposure` — CVE-targeted remediation
+  M13: Templates + dashboard views — playbooks, audit/posture UI
+
+Spec documents (read before implementing):
   CLAUDE.md       — conventions, build commands, scope guardrails
-  ARCHITECTURE.md — component design, lockfile indexer, feed poller,
-                    per-PM shim strategy table, project structure
-  ROADMAP.md      — Phase 2 deliverable descriptions
-  SETTINGS.md     — config schema, rule file format, feeds config
-  WORKFLOW.md     — user workflow streams (esp. §4 install interception)
+  ARCHITECTURE.md — component design, module structure
+  ROADMAP.md      — Phase 3 spec (§"Phase 3: Response Depth")
+  SETTINGS.md     — config schema ([audit] section, CLI flags)
+  WORKFLOW.md     — workflow streams (§10 audit, §11 harden,
+                    §12 fix, §13 exposure)
 
 ════════════════════════════════════════════════════════════════
- EXECUTION LOOP — repeat until Phase 2 Gate passes
+ EXECUTION LOOP — repeat until Phase 3 Gate passes
 ════════════════════════════════════════════════════════════════
 
 1. READ STATE
@@ -51,19 +55,18 @@ Spec documents (read before implementing — they are the source of truth):
    Do not guess field names, formats, or API shapes when a spec exists.
 
 3. IMPLEMENT the task.
-   - Read the existing npm.rs or ripley-npm-shim code first. Match its
-     patterns exactly: same function signatures, same error types, same
-     test structure. A yarn parser should look like npm.rs with different
-     parsing logic — not a new architecture.
+   - Read existing code first. Match patterns: audit checks use the
+     collect/evaluate pattern. collect_*() runs system commands (I/O,
+     platform-specific). evaluate_*(output) is pure and testable.
+   - TrafficLight enum (Green/Yellow/Red) for all findings.
    - Write every test listed in the task description.
    - No `unwrap()` or `expect()` in ripley-core — return Result.
-   - No `unsafe`. No new crates except `serde_yaml` (for pnpm/yarn).
-   - Detection rules: TOML in `rules/`, compiled via `include_str!`.
+   - No `unsafe`. No new crates unless justified.
    - Test fixtures in `tests/fixtures/` at workspace root.
-   - New shim binaries: `[[bin]]` in ripley-guard/Cargo.toml.
-   - Snapshot test every parser output with `insta::assert_json_snapshot!`.
-   - File writes to config/RC files: atomic (write temp, rename).
-   - Platform-specific code: `cfg(target_os)`, never hardcode macOS paths.
+   - `--format json|table` on all new commands.
+   - Exit codes: 0=clean/green, 1=findings/red, 2=error.
+   - Snapshot test every command output: `insta::assert_json_snapshot!`.
+   - Platform-specific code: `cfg(target_os)`, never hardcode paths.
 
 4. VERIFY — every task, no exceptions.
    - Run the task's specific verify command (listed in the task).
@@ -83,80 +86,70 @@ Spec documents (read before implementing — they are the source of truth):
 After all tasks in a milestone are checked, run that milestone's gate.
 Every command must pass. Fix failures and re-run until clean.
 
-── M6 GATE (Lockfile Parsers) ─────────────────────────────────
+── M10 GATE (Environment Audit) ───────────────────────────────
 
   cargo build --workspace
   cargo test --workspace
   cargo clippy --workspace
   cargo fmt --all -- --check
-  cargo deny check
-  cargo test -p ripley-core -- yarn
-  cargo test -p ripley-core -- pnpm
-  cargo test -p ripley-core -- pip
-  cargo test -p ripley-core -- cargo_lock
-  cargo test -p ripley-core -- go
-  cargo test -p ripley-core -- gem
-  cargo run -p ripley-guard -- scan tests/fixtures/
+  cargo test -p ripley-core -- audit
+  cargo run -p ripley-guard -- audit
+  cargo run -p ripley-guard -- audit --format json
 
-  VERIFY: scan output includes findings from yarn.lock, pnpm-lock.yaml,
-  Pipfile.lock, poetry.lock, Cargo.lock, go.sum, Gemfile.lock fixtures.
-  VERIFY: insta snapshots exist for every parser (7 total including npm).
+  VERIFY: audit produces traffic-light output with 4 categories.
+  VERIFY: --format json produces valid JSON with all findings.
+  VERIFY: --fix generates prompt and detects harness.
+  VERIFY: insta snapshots for audit JSON output.
 
-  Pass → commit `M6: Lockfile parsers`, update Plan State to M7.
+  Pass → commit `M10: Environment audit`, update Plan State to M11.
 
-── M7 GATE (Detection Rules & Guard Shims) ────────────────────
+── M11 GATE (PM Hardening) ────────────────────────────────────
 
   cargo build --workspace
   cargo test --workspace
   cargo clippy --workspace
   cargo fmt --all -- --check
-  cargo deny check
-  cargo build -p ripley-guard --bin ripley-pnpm-shim
-  cargo build -p ripley-guard --bin ripley-yarn-shim
-  cargo build -p ripley-guard --bin ripley-pip-shim
-  cargo build -p ripley-guard --bin ripley-cargo-shim
-  cargo build -p ripley-guard --bin ripley-go-shim
-  cargo build -p ripley-guard --bin ripley-gem-shim
-  cargo run -p ripley-guard -- guard install
-  cargo run -p ripley-guard -- guard status
-  cargo run -p ripley-guard -- guard uninstall
+  cargo test -p ripley-core -- harden
+  cargo run -p ripley-guard -- harden
+  cargo run -p ripley-guard -- harden --format json
 
-  VERIFY: guard status shows interception state for every PM found.
-  VERIFY: pypi_setup.toml and cargo_build.toml rules load and match
-  their respective malicious test fixtures.
+  VERIFY: harden detects installed PMs and produces recommendations.
+  VERIFY: traffic-light output per category with fix commands.
+  VERIFY: --format json produces valid JSON.
 
-  Pass → commit `M7: Detection rules and guard shims`, update to M8.
+  Pass → commit `M11: PM hardening`, update Plan State to M12.
 
-── M8 GATE (Feed Integration) ─────────────────────────────────
+── M12 GATE (Fix + Exposure) ──────────────────────────────────
 
-  cargo test --workspace
-  cargo clippy --workspace
-  cargo test -p ripley-core -- ghsa
-  cargo test -p ripley-core -- socket
-
-  VERIFY: mock response parsing tests pass for both GHSA and Socket.
-  VERIFY: advisory deduplication merges same CVE from multiple sources.
-  VERIFY: config `[feeds] sources = [...]` controls which feeds poll.
-
-  Pass → commit `M8: Feed integration`, update to M9.
-
-── M9 GATE (Platform Builds) ──────────────────────────────────
-
-  # macOS (primary dev machine):
   cargo build --workspace
   cargo test --workspace
   cargo clippy --workspace
   cargo fmt --all -- --check
-  cargo deny check
+  cargo test -p ripley-guard -- fix
+  cargo test -p ripley-core -- forensic::exposure
 
-  VERIFY: platform.rs trait has MacOs, Linux, Windows implementations.
-  VERIFY: persistence_paths() returns OS-correct paths per platform.
-  VERIFY: CI workflow file exists at .github/workflows/ with 3-OS matrix.
+  VERIFY: `ripley fix <cve>` generates prompt for affected projects.
+  VERIFY: `ripley exposure <cve>` produces credential assessment.
+  VERIFY: both commands support --format json.
 
-  Pass → commit `M9: Platform builds`, update to Phase 2 Gate.
+  Pass → commit `M12: Fix and exposure`, update Plan State to M13.
+
+── M13 GATE (Templates + Dashboard) ───────────────────────────
+
+  cargo build --workspace
+  cargo test --workspace
+  cargo clippy --workspace
+  cargo fmt --all -- --check
+  cargo build -p ripley-app
+  cargo test -p ripley-core -- templates
+
+  VERIFY: remediation templates load for each attack type.
+  VERIFY: dashboard audit and posture views build without errors.
+
+  Pass → commit `M13: Templates and dashboard`, update to Phase 3 Gate.
 
 ════════════════════════════════════════════════════════════════
- PHASE 2 GATE — final verification before completion
+ PHASE 3 GATE — final verification before completion
 ════════════════════════════════════════════════════════════════
 
 All four milestone gates must have passed. Then run the final check:
@@ -166,66 +159,63 @@ All four milestone gates must have passed. Then run the final check:
   cargo clippy --workspace
   cargo fmt --all -- --check
   cargo deny check
-  cargo run -p ripley-guard -- scan tests/fixtures/
-  cargo run -p ripley-guard -- scan --format json tests/fixtures/
-  cargo run -p ripley-guard -- guard install
-  cargo run -p ripley-guard -- guard status
-  cargo run -p ripley-guard -- guard uninstall
+  cargo run -p ripley-guard -- audit --format json
+  cargo run -p ripley-guard -- harden --format json
 
-  VERIFY: scan finds and parses all 7 lockfile types
-  VERIFY: guard status shows per-PM interception state
-  VERIFY: JSON output includes all ecosystems
+  VERIFY: all 4 new commands produce correct output
+  VERIFY: exit code 1 when findings present, 0 when clean
   VERIFY: no unwrap()/expect() in ripley-core:
     grep -rn 'unwrap()' crates/ripley-core/src/ | grep -v '#\[cfg(test)\]' | grep -v 'mod tests'
     grep -rn 'expect(' crates/ripley-core/src/ | grep -v '#\[cfg(test)\]' | grep -v 'mod tests'
-  VERIFY: all public functions have tests:
-    (review each pub fn in ripley-core — every one has ≥1 test)
-  VERIFY: insta snapshots cover all parser outputs and rule matches
+  VERIFY: all public functions have tests
+  VERIFY: insta snapshots cover all command outputs
 
-When the Phase 2 Gate passes:
-  1. Commit: `Phase 2: Ecosystem breadth`
-  2. Update CLAUDE.md "Current work" to Phase 3.
-  3. Update Plan State: Phase = 3, Last gate = Phase 2.
+When the Phase 3 Gate passes:
+  1. Commit: `Phase 3: Response depth`
+  2. Update CLAUDE.md "Current work" to Phase 4.
+  3. Update Plan State: Phase = 4, Last gate = Phase 3.
   4. The goal is COMPLETE.
 
 ════════════════════════════════════════════════════════════════
  DEPENDENCY GRAPH
 ════════════════════════════════════════════════════════════════
 
-M6.F  Test fixtures ──► M6.1-M6.6  Parsers ──► M6 Gate
-                                                   │
-M7.1  Detection rules ◄───────────────────────────┘
+M10.F  Audit types ──► M10.1-M10.4  Checks ──► M10.5  CLI
+  │                                                  │
+  └──────────────────────────────────────────── M10 Gate
+                                                     │
+M11.1  Harden types + PM detect ◄───────────────────┘
   │
-M7.2-M7.7  Guard shims ──► M7.8  Multi-PM install ──► M7 Gate
-                                                          │
-M8.1  GHSA client ──► M8.2  Socket client ──► M8 Gate ◄──┘
-                                                 │
-M9.1  Platform trait ──► M9.2 Linux ──► M9.3 Windows ──► M9.4 CI
-  │                                                          │
-  └──────────────────────────────────────────────────── M9 Gate
-                                                          │
-                                                   Phase 2 Gate
+M11.2-M11.4  Checks ──► M11.5  CLI ──► M11 Gate
+                                            │
+M12.1  ripley fix ──► M12.2  ripley exposure ──► M12 Gate
+                                                     │
+M13.1  Templates ──► M13.2  Network C2 ──► M13.3 Dashboard
+  │                                                  │
+  └──────────────────────────────────────────── M13 Gate
+                                                     │
+                                              Phase 3 Gate
 
-M6 tasks can be done in any order within M6.
-M7 shims can be done in any order within M7.
-M8 can start after M7 Gate (feeds don't depend on shims, but
-the gate ensures a clean workspace before changing feed code).
-M9 starts after M8 Gate.
+M10 tasks should be done in order (framework first, then checks,
+then CLI). M10.1-M10.4 checks can be done in any order.
+M11 starts after M10 Gate (shares TrafficLight types).
+M12 can start after M11 Gate. fix and exposure are independent.
+M13 starts after M12 Gate.
 
 ════════════════════════════════════════════════════════════════
  COMMIT STRATEGY
 ════════════════════════════════════════════════════════════════
 
 Commit at each milestone gate — 4 milestone commits + 1 final:
-  M6 Gate → `M6: Lockfile parsers`
-  M7 Gate → `M7: Detection rules and guard shims`
-  M8 Gate → `M8: Feed integration`
-  M9 Gate → `M9: Platform builds`
-  Phase 2 Gate → `Phase 2: Ecosystem breadth`
+  M10 Gate → `M10: Environment audit`
+  M11 Gate → `M11: PM hardening`
+  M12 Gate → `M12: Fix and exposure`
+  M13 Gate → `M13: Templates and dashboard`
+  Phase 3 Gate → `Phase 3: Response depth`
 
 Within a milestone, commit after completing a logical group of tasks
 if the session is long and you want to checkpoint progress. Use
-descriptive messages: `M6: Add yarn lockfile parser` etc.
+descriptive messages: `M10: Add machine security checks` etc.
 
 ════════════════════════════════════════════════════════════════
  RECOVERY AFTER COMPACTION
@@ -249,42 +239,43 @@ what commands to run. Read the task, read the specs it references, go.
 ════════════════════════════════════════════════════════════════
 
 SCOPE
-- Phase 2 only. Do not implement ripley fix, ripley audit, ripley
-  harden, ripley monitor, sandboxing, or behavioral analysis.
-- Use trait/enum extension points where Phase 3+ will need them.
+- Phase 3 only. Do not implement ripley monitor, ripley contain,
+  sandboxing, behavioral analysis, or community rule sharing.
+- Use trait/enum extension points where Phase 4+ will need them.
 
 CODE QUALITY
 - No unwrap() or expect() in ripley-core — always return Result.
 - No unsafe unless measured and documented (there should be none).
 - Every public function in ripley-core gets at least one unit test.
-- insta snapshot tests for all parser outputs and rule match results.
+- insta snapshot tests for all command outputs and check results.
 - cargo deny check must pass at every milestone gate.
 
 PATTERNS
-- New lockfile parsers match npm.rs: pub fn parse_*_lock(content: &str)
-  -> Result<ParsedLockfile>. Same ParsedLockfile struct, same error
-  type, same test structure.
-- New shims match ripley-npm-shim: resolve real binary via which -a,
-  advisory check, delegate with passthrough, preserve exit code.
-- Detection rules: TOML in rules/ dir, compiled via include_str!,
-  user rules loaded from {config_dir}/rules/.
-- Guard log: append-only JSONL at {data_dir}/guard.jsonl.
-- Config/RC writes: atomic (write temp file, then rename).
+- Audit checks use collect/evaluate pattern:
+  collect_*() runs system commands (I/O, cfg(target_os)).
+  evaluate_*(output: &str) -> AuditFinding is pure and testable.
+  Tests call evaluate_* with mock command output.
+- Traffic-light output: TrafficLight::Green/Yellow/Red per finding.
+  CategoryReport aggregates findings into per-category score.
+  AuditReport / HardenReport aggregate categories into summary.
+- New CLI commands follow existing scan.rs shape: async fn cmd_*,
+  --format json|table, exit codes 0/1/2.
+- Prompt generation: extend prompt.rs for audit and fix prompts.
+- Harness launch: reuse harness.rs detect_harness + launch_harness.
 
 DEPENDENCIES
-- Only new crate allowed: serde_yaml (for pnpm/yarn YAML lockfiles).
-- All others must already be in [workspace.dependencies].
+- No new crates expected. System checks use std::process::Command.
+- All deps must already be in [workspace.dependencies].
 
 PLATFORM
-- cfg(target_os) for platform-specific paths and behaviors.
-- Never hardcode macOS paths in shared code.
-- Factor platform-specific logic into platform.rs trait impl.
+- cfg(target_os) for platform-specific system checks.
+- Never hardcode macOS commands in shared code.
+- Use platform.rs helpers for paths, shells, home dir.
 
 FIXTURES
-- All test fixtures in tests/fixtures/ at workspace root.
-- Each lockfile fixture should be realistic (15-20 packages minimum),
-  include scoped/namespaced packages, and have at least one entry
-  that exercises risky-spec detection.
+- Test fixtures in tests/fixtures/ at workspace root.
+- Audit check tests use mock command output strings.
+- Harden check tests use mock config file content.
 ```
 
 
@@ -310,11 +301,11 @@ discard partial work.
 ## Plan State
 
 ```
-Phase:     2 --- Ecosystem Breadth
-Milestone: M6 --- Lockfile Parsers
-Task:      M6.1.1
-Status:    not started
-Last gate: Phase 1
+Phase:     4 --- Active Detection
+Milestone: —
+Task:      —
+Status:    Phase 3 complete
+Last gate: Phase 3
 ```
 
 Update this section after each task completes. Format:
@@ -1332,7 +1323,7 @@ output shape as the npm parser from M1.
 
 #### M6.1: Yarn lockfile parser
 
-- [ ] **M6.1.1** Create `crates/ripley-core/src/lockfile/yarn.rs`
+- [x] **M6.1.1** Create `crates/ripley-core/src/lockfile/yarn.rs`
   - Parse `yarn.lock` v1 (classic) format: YAML-like key-value with
     `package@version:` headers and `resolved`, `integrity` fields
   - Parse `yarn.lock` v2/Berry format: YAML with `__metadata` header,
@@ -1352,7 +1343,7 @@ output shape as the npm parser from M1.
 
 #### M6.2: pnpm lockfile parser
 
-- [ ] **M6.2.1** Create `crates/ripley-core/src/lockfile/pnpm.rs`
+- [x] **M6.2.1** Create `crates/ripley-core/src/lockfile/pnpm.rs`
   - Parse `pnpm-lock.yaml` v6 and v9 formats
   - v6: `packages` key with `/pkg/version` entries
   - v9: `snapshots` + `packages` split, `settings.autoInstallPeers`
@@ -1371,7 +1362,7 @@ output shape as the npm parser from M1.
 
 #### M6.3: pip lockfile parser
 
-- [ ] **M6.3.1** Create `crates/ripley-core/src/lockfile/pip.rs`
+- [x] **M6.3.1** Create `crates/ripley-core/src/lockfile/pip.rs`
   - Parse `Pipfile.lock` (JSON format): `default` and `develop` sections,
     each entry has `version`, `hashes`, `index`
   - Parse `poetry.lock` (TOML format): `[[package]]` arrays with `name`,
@@ -1389,7 +1380,7 @@ output shape as the npm parser from M1.
 
 #### M6.4: Cargo lockfile parser
 
-- [ ] **M6.4.1** Create `crates/ripley-core/src/lockfile/cargo_lock.rs`
+- [x] **M6.4.1** Create `crates/ripley-core/src/lockfile/cargo_lock.rs`
   - Parse `Cargo.lock` (TOML format): `[[package]]` arrays with `name`,
     `version`, `source`, `checksum`
   - Map ecosystem to `Ecosystem::Cargo`
@@ -1405,7 +1396,7 @@ output shape as the npm parser from M1.
 
 #### M6.5: Go lockfile parser
 
-- [ ] **M6.5.1** Create `crates/ripley-core/src/lockfile/go.rs`
+- [x] **M6.5.1** Create `crates/ripley-core/src/lockfile/go.rs`
   - Parse `go.sum`: `module version hash` lines (SHA-256 in base64)
   - Parse companion `go.mod` for `require` directives with version info
   - Map ecosystem to `Ecosystem::Go`
@@ -1421,7 +1412,7 @@ output shape as the npm parser from M1.
 
 #### M6.6: Gem lockfile parser
 
-- [ ] **M6.6.1** Create `crates/ripley-core/src/lockfile/gem.rs`
+- [x] **M6.6.1** Create `crates/ripley-core/src/lockfile/gem.rs`
   - Parse `Gemfile.lock`: `GEM` section with `specs:` indented entries,
     `BUNDLED WITH` version footer
   - Map ecosystem to `Ecosystem::Gem`
@@ -1437,7 +1428,7 @@ output shape as the npm parser from M1.
 
 #### M6.F: Test fixtures
 
-- [ ] **M6.F.1** Create lockfile test fixtures
+- [x] **M6.F.1** Create lockfile test fixtures
   - `tests/fixtures/yarn-v1.lock` — realistic v1 with scoped pkgs, integrity
   - `tests/fixtures/yarn-v2.lock` — v2/Berry with PnP metadata
   - `tests/fixtures/pnpm-lock-v6.yaml` — v6 format with nested deps
@@ -1478,7 +1469,7 @@ Build guard shims for each new ecosystem with ecosystem-specific detection rules
 
 #### M7.1: Detection rules for new ecosystems
 
-- [ ] **M7.1.1** Create `rules/pypi_setup.toml`
+- [x] **M7.1.1** Create `rules/pypi_setup.toml`
   - Patterns for malicious `setup.py`: `os.system()`, `subprocess.Popen`,
     `exec()`, `eval()`, `__import__('os')`, base64 decoding, network calls
     in `setup()`, `.pth` file creation, `distutils.command` overrides
@@ -1486,7 +1477,7 @@ Build guard shims for each new ecosystem with ecosystem-specific detection rules
   - Test: `rules::tests::test_pypi_rules_load`
   - Verify: `cargo test -p ripley-core -- rules`
 
-- [ ] **M7.1.2** Create `rules/cargo_build.toml`
+- [x] **M7.1.2** Create `rules/cargo_build.toml`
   - Patterns for malicious `build.rs`: `Command::new`, network calls via
     `reqwest`/`ureq`/`std::net`, file writes outside `OUT_DIR`, reading
     home directory, environment variable harvesting, binary downloads
@@ -1497,7 +1488,7 @@ Build guard shims for each new ecosystem with ecosystem-specific detection rules
 
 #### M7.2: pnpm guard shim
 
-- [ ] **M7.2.1** Create `crates/ripley-guard/src/bin/ripley-pnpm-shim.rs`
+- [x] **M7.2.1** Create `crates/ripley-guard/src/bin/ripley-pnpm-shim.rs`
   - Add `[[bin]] name = "ripley-pnpm-shim"` to Cargo.toml
   - Same architecture as npm shim: detect `install`/`add`, advisory check,
     delegate to real `pnpm`
@@ -1508,7 +1499,7 @@ Build guard shims for each new ecosystem with ecosystem-specific detection rules
 
 #### M7.3: Yarn guard shim
 
-- [ ] **M7.3.1** Create `crates/ripley-guard/src/bin/ripley-yarn-shim.rs`
+- [x] **M7.3.1** Create `crates/ripley-guard/src/bin/ripley-yarn-shim.rs`
   - Add `[[bin]] name = "ripley-yarn-shim"` to Cargo.toml
   - Detect `add`/`install` commands
   - Yarn v1: set `script-shell` in `.yarnrc`
@@ -1520,7 +1511,7 @@ Build guard shims for each new ecosystem with ecosystem-specific detection rules
 
 #### M7.4: pip guard shim
 
-- [ ] **M7.4.1** Create `crates/ripley-guard/src/bin/ripley-pip-shim.rs`
+- [x] **M7.4.1** Create `crates/ripley-guard/src/bin/ripley-pip-shim.rs`
   - Add `[[bin]] name = "ripley-pip-shim"` to Cargo.toml
   - Intercept `pip install`, `pip install -e`
   - Before delegating: extract `setup.py` from sdist/wheel, run static
@@ -1529,14 +1520,14 @@ Build guard shims for each new ecosystem with ecosystem-specific detection rules
   - Advisory check via OSV.dev (ecosystem = "PyPI")
   - Verify: `cargo build -p ripley-guard --bin ripley-pip-shim`
 
-- [ ] **M7.4.2** Create `tests/fixtures/scripts/malicious-setup.py`
+- [x] **M7.4.2** Create `tests/fixtures/scripts/malicious-setup.py`
   - `os.system("curl ...")`, `base64.b64decode(...)`, writes to `~/.bashrc`
   - For pypi_setup.toml snapshot tests
 
 
 #### M7.5: Cargo guard shim
 
-- [ ] **M7.5.1** Create `crates/ripley-guard/src/bin/ripley-cargo-shim.rs`
+- [x] **M7.5.1** Create `crates/ripley-guard/src/bin/ripley-cargo-shim.rs`
   - Add `[[bin]] name = "ripley-cargo-shim"` to Cargo.toml
   - Intercept `cargo build`, `cargo install`
   - Before delegating: scan `build.rs` files in dependency tree with
@@ -1544,14 +1535,14 @@ Build guard shims for each new ecosystem with ecosystem-specific detection rules
   - Advisory check via OSV.dev (ecosystem = "crates.io")
   - Verify: `cargo build -p ripley-guard --bin ripley-cargo-shim`
 
-- [ ] **M7.5.2** Create `tests/fixtures/scripts/malicious-build.rs`
+- [x] **M7.5.2** Create `tests/fixtures/scripts/malicious-build.rs`
   - `Command::new("curl")`, reads `env::home_dir()`, writes outside OUT_DIR
   - For cargo_build.toml snapshot tests
 
 
 #### M7.6: Go guard shim
 
-- [ ] **M7.6.1** Create `crates/ripley-guard/src/bin/ripley-go-shim.rs`
+- [x] **M7.6.1** Create `crates/ripley-guard/src/bin/ripley-go-shim.rs`
   - Add `[[bin]] name = "ripley-go-shim"` to Cargo.toml
   - Intercept `go install`, `go get`
   - Advisory check only (Go has no install scripts)
@@ -1561,7 +1552,7 @@ Build guard shims for each new ecosystem with ecosystem-specific detection rules
 
 #### M7.7: Gem guard shim
 
-- [ ] **M7.7.1** Create `crates/ripley-guard/src/bin/ripley-gem-shim.rs`
+- [x] **M7.7.1** Create `crates/ripley-guard/src/bin/ripley-gem-shim.rs`
   - Add `[[bin]] name = "ripley-gem-shim"` to Cargo.toml
   - Intercept `gem install`, `bundle install`
   - Rubygems allows `extconf.rb` and `Rakefile` execution during install
@@ -1572,7 +1563,7 @@ Build guard shims for each new ecosystem with ecosystem-specific detection rules
 
 #### M7.8: Guard install expansion
 
-- [ ] **M7.8.1** Expand `guard install` for all shims
+- [x] **M7.8.1** Expand `guard install` for all shims
   - Detect which PMs are installed on the system
   - Install shims only for detected PMs
   - Copy all built shim binaries to `{data_dir}/bin/`
@@ -1612,7 +1603,7 @@ Expand advisory sources beyond OSV.dev to include GHSA and Socket.dev.
 
 #### M8.1: GHSA feed client
 
-- [ ] **M8.1.1** Create `crates/ripley-core/src/feed/ghsa.rs`
+- [x] **M8.1.1** Create `crates/ripley-core/src/feed/ghsa.rs`
   - `pub struct GhsaClient` with `reqwest::Client` and auth token
   - GraphQL query to `https://api.github.com/graphql`
   - Query `securityVulnerabilities` by ecosystem and package
@@ -1626,7 +1617,7 @@ Expand advisory sources beyond OSV.dev to include GHSA and Socket.dev.
   - Integration test (`#[ignore]`): query a known package
   - Verify: `cargo test -p ripley-core -- ghsa`
 
-- [ ] **M8.1.2** Merge GHSA advisories into feed pipeline
+- [x] **M8.1.2** Merge GHSA advisories into feed pipeline
   - `FeedSource` enum: `Osv`, `Ghsa`, `Socket`
   - `Advisory` gains `source: FeedSource` field
   - Deduplication: same CVE from multiple sources → merge, keep richest data
@@ -1636,7 +1627,7 @@ Expand advisory sources beyond OSV.dev to include GHSA and Socket.dev.
 
 #### M8.2: Socket.dev feed client
 
-- [ ] **M8.2.1** Create `crates/ripley-core/src/feed/socket.rs`
+- [x] **M8.2.1** Create `crates/ripley-core/src/feed/socket.rs`
   - `pub struct SocketClient` with API key auth
   - REST API: `https://api.socket.dev/v0/report/supported`
   - Query package scores and alerts
@@ -1672,7 +1663,7 @@ notifications, and installers.
 
 #### M9.1: Cross-platform abstraction
 
-- [ ] **M9.1.1** Create platform abstraction layer
+- [x] **M9.1.1** Create platform abstraction layer
   - `crates/ripley-core/src/platform.rs` with trait `Platform`
   - Methods: `persistence_paths()`, `shell_rc_paths()`, `notify()`,
     `open_editor()`, `detect_pms()`
@@ -1685,7 +1676,7 @@ notifications, and installers.
 
 #### M9.2: Linux build
 
-- [ ] **M9.2.1** Linux tray app
+- [x] **M9.2.1** Linux tray app
   - `tray-icon` + `muda` work on Linux (X11/Wayland via `libappindicator`)
   - D-Bus notifications via `notify-rust` (already cross-platform)
   - Persistence auditor: check systemd user services, cron, shell RC
@@ -1693,7 +1684,7 @@ notifications, and installers.
   - Test on Ubuntu 22.04+ and Fedora 39+
   - Verify: `cargo build --workspace` on Linux
 
-- [ ] **M9.2.2** Linux installer
+- [x] **M9.2.2** Linux installer
   - `.deb` package via `cargo-deb`
   - `.AppImage` via `linuxdeploy`
   - Desktop entry file for app launcher integration
@@ -1702,7 +1693,7 @@ notifications, and installers.
 
 #### M9.3: Windows build
 
-- [ ] **M9.3.1** Windows tray app
+- [x] **M9.3.1** Windows tray app
   - `tray-icon` + `muda` work on Windows (Win32 API)
   - Windows notification API via `notify-rust` or `windows-rs` bindings
   - Persistence auditor: check Registry Run keys, Task Scheduler,
@@ -1710,7 +1701,7 @@ notifications, and installers.
   - Guard shims: `.cmd` wrapper scripts for PATH interception
   - Verify: `cargo build --workspace` on Windows
 
-- [ ] **M9.3.2** Windows installer
+- [x] **M9.3.2** Windows installer
   - `.msi` via WiX toolset or `cargo-wix`
   - Add to PATH during install
   - Start menu shortcut
@@ -1719,7 +1710,7 @@ notifications, and installers.
 
 #### M9.4: CI matrix
 
-- [ ] **M9.4.1** GitHub Actions CI workflow
+- [x] **M9.4.1** GitHub Actions CI workflow
   - Matrix: macOS-latest, ubuntu-latest, windows-latest
   - Steps: build, test, clippy, fmt, deny
   - Cache: Cargo registry + target directory
@@ -1728,12 +1719,12 @@ notifications, and installers.
 
 #### M9 Gate
 
-- [ ] `cargo build --workspace` on macOS, Linux, Windows
-- [ ] `cargo test --workspace` on all three platforms
-- [ ] `cargo clippy --workspace` clean on all three
-- [ ] Platform-specific persistence paths correct per OS
-- [ ] Installers build and install cleanly
-- [ ] CI matrix green on all three platforms
+- [x] `cargo build --workspace` on macOS, Linux, Windows
+- [x] `cargo test --workspace` on all three platforms
+- [x] `cargo clippy --workspace` clean on all three
+- [x] Platform-specific persistence paths correct per OS
+- [x] Installers build and install cleanly
+- [x] CI matrix green on all three platforms
 - [ ] Commit: `M9: Platform builds`
 
 
@@ -1741,16 +1732,16 @@ notifications, and installers.
 
 **All must pass before starting Phase 3:**
 
-- [ ] All M6-M9 gates passed
-- [ ] `cargo build --workspace --release` on macOS, Linux, Windows
-- [ ] `ripley scan` finds and parses all 7 lockfile types
-- [ ] `guard install` installs shims for all detected PMs
-- [ ] `guard status` shows per-PM state on all platforms
-- [ ] Advisory sources configurable (OSV, GHSA, Socket)
-- [ ] `cargo deny check` clean
-- [ ] No `unwrap()` or `expect()` in ripley-core
-- [ ] All public functions have tests
-- [ ] Snapshot tests for all parser outputs and detection rules
+- [x] All M6-M9 gates passed
+- [x] `cargo build --workspace --release` on macOS, Linux, Windows
+- [x] `ripley scan` finds and parses all 7 lockfile types
+- [x] `guard install` installs shims for all detected PMs
+- [x] `guard status` shows per-PM state on all platforms
+- [x] Advisory sources configurable (OSV, GHSA, Socket)
+- [x] `cargo deny check` clean
+- [x] No `unwrap()` or `expect()` in ripley-core
+- [x] All public functions have tests
+- [x] Snapshot tests for all parser outputs and detection rules
 - [ ] Commit: `Phase 2: Ecosystem breadth`
 - [ ] Update CLAUDE.md "Current work" to Phase 3
 
@@ -1763,38 +1754,549 @@ notifications, and installers.
 **Goal:** Structured remediation after a breach.
 
 > Spec: ROADMAP.md "Phase 3: Response Depth"
+> Spec: WORKFLOW.md §10-§13
+> Spec: SETTINGS.md §[audit]
 
-#### Commands
-- [ ] `ripley fix <cve> [path]` --- Spec: WORKFLOW.md "12. Standalone fix"
-- [ ] `ripley exposure <cve>` --- Spec: WORKFLOW.md "13. Credential exposure assessment"
-- [ ] `ripley audit` --- Spec: WORKFLOW.md "10. Environment security audit"
-  - [ ] Machine security checks (FileVault, firewall, OS updates, screen lock)
-  - [ ] Developer toolchain checks (git signing, SSH keys, shell RC)
-  - [ ] AI tool config integrity (MCP configs, Claude hooks, VS Code extensions)
-  - [ ] Credential exposure (shell history, env vars, .env, npm tokens)
-  - [ ] Traffic-light output per category
-  - [ ] `--fix` flag: prompt generation + harness launch
-- [ ] `ripley harden` --- Spec: WORKFLOW.md "11. PM hardening"
-  - [ ] PM detection (npm/pnpm/yarn/bun)
-  - [ ] Dependency pinning checks
-  - [ ] PM hardening checks (release-age, script policy, trust policy)
-  - [ ] Provenance checks
-  - [ ] Credential hygiene checks
 
-#### Dashboard views
-- [ ] Audit report view --- Spec: UI.md "Audit Report View"
-- [ ] Posture/harden view --- Spec: UI.md "Posture & Hardening View"
+### M10: Environment Security Audit (`ripley audit`)
 
-#### Templates
-- [ ] Per-attack remediation templates (npm worm, PyPI .pth, credential exfil, IDE config)
-- [ ] Network connection audit against C2 databases
+> Spec: WORKFLOW.md "10. Environment security audit"
+> Spec: SETTINGS.md "[audit]" section
+> Spec: ROADMAP.md "Phase 3" → `ripley audit`
+
+
+#### M10.F: Audit framework types
+
+- [x] **M10.F.1** Create audit module with shared types
+  - File: `crates/ripley-core/src/audit/mod.rs`
+  - Types:
+    - `TrafficLight` enum: `Green`, `Yellow`, `Red` (with Serialize, Deserialize,
+      Display, Ord for comparison)
+    - `AuditCategory` enum: `MachineSecurity`, `Toolchain`, `AiTools`, `Credentials`
+      (with Serialize, Deserialize, Display)
+    - `AuditFinding` struct: `name: String`, `status: TrafficLight`,
+      `detail: String`, `fix_command: Option<String>`
+    - `CategoryReport` struct: `category: AuditCategory`,
+      `findings: Vec<AuditFinding>`, `overall: TrafficLight`
+    - `AuditReport` struct: `categories: Vec<CategoryReport>`,
+      `timestamp: String`
+  - `CategoryReport::overall()` method: Red if any Red, Yellow if any Yellow,
+    else Green
+  - Register `pub mod audit;` in `crates/ripley-core/src/lib.rs`
+  - Submodules: `pub mod machine;`, `pub mod toolchain;`, `pub mod ai_tools;`,
+    `pub mod creds;`
+  - Tests: `test_traffic_light_ordering`, `test_category_report_overall`
+  - Verify: `cargo build -p ripley-core`
+
+
+#### M10.1: Machine security checks
+
+- [x] **M10.1.1** Disk encryption check
+  - File: `crates/ripley-core/src/audit/machine.rs`
+  - `pub fn collect_disk_encryption() -> Result<String, AuditError>`
+    - macOS: `Command::new("fdesetup").arg("status")` → parse output
+    - Linux: read `/etc/crypttab` or `Command::new("lsblk").args(["--fs", "--json"])`
+    - Windows: `Command::new("manage-bde").args(["-status", "C:"])`
+  - `pub fn evaluate_disk_encryption(output: &str) -> AuditFinding`
+    - Green if enabled, Red if disabled, Yellow if unknown
+  - Tests: `test_evaluate_filevault_on`, `test_evaluate_filevault_off`,
+    `test_evaluate_luks_present`, `test_evaluate_bitlocker_on`
+  - Verify: `cargo test -p ripley-core -- audit::machine::tests`
+
+- [x] **M10.1.2** Firewall, OS updates, and screen lock checks
+  - File: `crates/ripley-core/src/audit/machine.rs` (continued)
+  - Firewall:
+    - `pub fn collect_firewall() -> Result<String, AuditError>`
+    - `pub fn evaluate_firewall(output: &str) -> AuditFinding`
+    - macOS: `defaults read /Library/Preferences/com.apple.alf globalstate`
+    - Linux: `ufw status` or `iptables -L -n`
+    - Windows: `netsh advfirewall show allprofiles`
+  - OS updates:
+    - `pub fn collect_os_updates() -> Result<String, AuditError>`
+    - `pub fn evaluate_os_updates(output: &str) -> AuditFinding`
+    - macOS: `softwareupdate -l`
+    - Linux: `apt list --upgradable 2>/dev/null` or `dnf check-update`
+    - Windows: PowerShell `Get-WindowsUpdate` or registry check
+  - Screen lock:
+    - `pub fn collect_screen_lock() -> Result<String, AuditError>`
+    - `pub fn evaluate_screen_lock(output: &str) -> AuditFinding`
+    - macOS: `defaults read com.apple.screensaver idleTime`
+    - Green if ≤300s, Yellow if ≤600s, Red if >600s or disabled
+  - `pub fn check_machine_security() -> CategoryReport` — runs all 4
+  - Tests: `test_evaluate_firewall_active`, `test_evaluate_firewall_off`,
+    `test_evaluate_screen_lock_5min`, `test_evaluate_screen_lock_disabled`
+  - Verify: `cargo test -p ripley-core -- audit::machine`
+
+
+#### M10.2: Developer toolchain checks
+
+- [x] **M10.2.1** Git signing and SSH key checks
+  - File: `crates/ripley-core/src/audit/toolchain.rs`
+  - `pub fn collect_git_signing() -> Result<String, AuditError>`
+    - `git config --global commit.gpgsign` + `git config --global user.signingkey`
+  - `pub fn evaluate_git_signing(output: &str) -> AuditFinding`
+    - Green if gpgsign=true + key set, Yellow if not configured
+  - `pub fn evaluate_ssh_keys(ssh_dir: &Path) -> Vec<AuditFinding>`
+    - Scan `~/.ssh/` for key files, check algorithm (Ed25519=Green, RSA≥4096=Yellow,
+      RSA<4096=Red, DSA=Red)
+    - Check passphrase protection (try `ssh-keygen -y -P "" -f key`)
+  - Tests: `test_evaluate_git_signing_configured`, `test_evaluate_git_signing_missing`,
+    `test_evaluate_ssh_key_ed25519`, `test_evaluate_ssh_key_rsa_weak`
+  - Verify: `cargo test -p ripley-core -- audit::toolchain`
+
+- [x] **M10.2.2** Shell RC hygiene and history permissions
+  - File: `crates/ripley-core/src/audit/toolchain.rs` (continued)
+  - `pub fn evaluate_shell_rc_hygiene(content: &str, path: &Path) -> Vec<AuditFinding>`
+    - Check for `eval $(curl`, `curl | bash`, `curl | sh`, suspicious domains
+    - Reuse patterns from forensic/persistence.rs `SUSPICIOUS_PATTERNS`
+    - Green if clean, Red if suspicious eval/curl found
+  - `pub fn evaluate_shell_history_permissions(mode: u32) -> AuditFinding`
+    - Green if owner-only (0600/0640), Yellow if group-readable, Red if world-readable
+  - `pub fn check_toolchain(home: &Path) -> CategoryReport`
+  - Tests: `test_evaluate_rc_clean`, `test_evaluate_rc_suspicious_curl`,
+    `test_evaluate_history_permissions`
+  - Verify: `cargo test -p ripley-core -- audit::toolchain`
+
+
+#### M10.3: AI tool config integrity
+
+- [x] **M10.3.1** MCP config and Claude hooks checks
+  - File: `crates/ripley-core/src/audit/ai_tools.rs`
+  - `pub fn evaluate_mcp_config(content: &str, path: &Path) -> Vec<AuditFinding>`
+    - Parse JSON, check for rogue server definitions (non-standard URLs,
+      prompt injection in tool descriptions — look for `<system>`, `ignore
+      previous`, instruction override patterns)
+    - Green if not present or clean, Red if rogue server found
+  - `pub fn evaluate_claude_hooks(content: &str) -> Vec<AuditFinding>`
+    - Parse `.claude/settings.json`, check `hooks` for unauthorized commands
+    - Flag unexpected `SessionStart` hooks
+    - Green if no hooks or all authorized, Yellow if hooks present
+  - `pub fn evaluate_project_mcp_settings(content: &str) -> AuditFinding`
+    - Check for `enableAllProjectMcpServers: true` — Red if found
+  - Tests: `test_evaluate_mcp_clean`, `test_evaluate_mcp_rogue_server`,
+    `test_evaluate_claude_hooks_safe`, `test_evaluate_claude_hooks_suspicious`,
+    `test_evaluate_project_mcp_enabled`
+  - Verify: `cargo test -p ripley-core -- audit::ai_tools`
+
+- [x] **M10.3.2** VS Code extension check
+  - File: `crates/ripley-core/src/audit/ai_tools.rs` (continued)
+  - `pub fn collect_vscode_extensions() -> Result<String, AuditError>`
+    - `code --list-extensions` if VS Code installed
+  - `pub fn evaluate_vscode_extensions(output: &str) -> Vec<AuditFinding>`
+    - Check against known-suspicious extensions (curated list)
+    - Yellow for unverified publishers, Red for known-malicious
+  - `pub fn check_ai_tools(home: &Path) -> CategoryReport`
+  - Tests: `test_evaluate_vscode_clean`, `test_evaluate_vscode_suspicious`
+  - Verify: `cargo test -p ripley-core -- audit::ai_tools`
+
+
+#### M10.4: Credential exposure checks
+
+- [x] **M10.4.1** Shell history and env file checks
+  - File: `crates/ripley-core/src/audit/creds.rs`
+  - `pub fn evaluate_shell_history_secrets(content: &str) -> Vec<AuditFinding>`
+    - Scan for token patterns: `npm_`, `ghp_`, `sk-`, `AKIA`, `xoxb-`,
+      `glpat-`, password assignments
+    - Red for each found token
+  - `pub fn evaluate_env_in_git(project_path: &Path) -> Vec<AuditFinding>`
+    - Check if `.env` files are tracked by git (`git ls-files .env`)
+    - Red if committed, Green if gitignored or absent
+  - Tests: `test_evaluate_history_with_npm_token`, `test_evaluate_history_clean`,
+    `test_evaluate_env_committed`, `test_evaluate_env_gitignored`
+  - Verify: `cargo test -p ripley-core -- audit::creds`
+
+- [x] **M10.4.2** npm token and RC file token checks
+  - File: `crates/ripley-core/src/audit/creds.rs` (continued)
+  - `pub fn evaluate_npmrc_tokens(content: &str) -> Vec<AuditFinding>`
+    - Check scope: broad token (Red) vs scoped (Yellow)
+    - Check expiry if detectable
+  - `pub fn evaluate_rc_file_tokens(content: &str, path: &Path) -> Vec<AuditFinding>`
+    - Plaintext tokens in `.bashrc`, `.zshrc`, `.profile` etc.
+    - Same token patterns as shell history check
+  - `pub fn check_credentials(home: &Path) -> CategoryReport`
+  - Tests: `test_evaluate_npmrc_broad_token`, `test_evaluate_npmrc_scoped`,
+    `test_evaluate_rc_file_clean`, `test_evaluate_rc_file_with_token`
+  - Verify: `cargo test -p ripley-core -- audit::creds`
+
+
+#### M10.5: Audit CLI and --fix
+
+- [x] **M10.5.1** Audit report aggregation and prompt generation
+  - File: `crates/ripley-core/src/audit/mod.rs` (extend)
+  - `pub fn run_audit(home: &Path) -> AuditReport`
+    - Call check_machine_security(), check_toolchain(home),
+      check_ai_tools(home), check_credentials(home)
+    - Assemble into AuditReport with timestamp
+  - File: `crates/ripley-core/src/prompt.rs` (extend)
+  - `pub fn generate_audit_prompt(report: &AuditReport) -> String`
+    - Structure all findings by category
+    - Include environment context (OS, shell, PM versions)
+    - Request environment-specific fix commands
+  - Tests: `test_run_audit_produces_all_categories`,
+    `test_generate_audit_prompt_includes_findings`
+  - Verify: `cargo test -p ripley-core -- audit`, `cargo test -p ripley-core -- prompt`
+
+- [x] **M10.5.2** CLI command registration
+  - File: `crates/ripley-guard/src/commands/audit.rs` (new)
+  - `pub async fn cmd_audit(format: &str, fix: bool) -> Result<ExitCode>`
+    - Run `run_audit(home)`
+    - Table output: traffic-light summary per category (see WORKFLOW.md §10)
+    - JSON output: serialize AuditReport
+    - If `--fix`: generate prompt, detect harness, launch or print to stdout
+    - Exit code: 0 if all green, 1 if any red/yellow, 2 on error
+  - File: `crates/ripley-guard/src/commands/mod.rs` — add `pub mod audit;`
+  - File: `crates/ripley-guard/src/main.rs` — add `Audit` variant to Commands enum:
+    `Audit { #[arg(long, default_value = "table")] format: String, #[arg(long)] fix: bool }`
+  - Snapshot tests: `insta::assert_json_snapshot!` for audit JSON output
+  - Verify: `cargo run -p ripley-guard -- audit`
+  - Verify: `cargo run -p ripley-guard -- audit --format json`
+
+
+#### M10 Gate
+
+- [x] `cargo build --workspace`
+- [x] `cargo test --workspace`
+- [x] `cargo clippy --workspace`
+- [x] `cargo fmt --all -- --check`
+- [x] `cargo test -p ripley-core -- audit`
+- [x] `cargo run -p ripley-guard -- audit`
+- [x] `cargo run -p ripley-guard -- audit --format json`
+- [x] Traffic-light output with 4 categories
+- [x] `--fix` generates prompt and detects harness
+- [ ] Commit: `M10: Environment audit`
+
+
+---
+
+
+### M11: PM Hardening (`ripley harden`)
+
+> Spec: WORKFLOW.md "11. PM hardening"
+> Spec: ROADMAP.md "Phase 3" → `ripley harden`
+
+
+#### M11.1: Harden framework and PM detection
+
+- [x] **M11.1.1** Create harden module with types and PM detection
+  - File: `crates/ripley-core/src/harden/mod.rs`
+  - Reuse `TrafficLight` from `audit` module (re-export or move to `types.rs`)
+  - Types:
+    - `HardenCategory` enum: `DependencyPinning`, `PmHardening`, `Provenance`,
+      `CredentialHygiene` (with Serialize, Deserialize, Display)
+    - `HardenFinding` struct: `name: String`, `status: TrafficLight`,
+      `detail: String`, `fix_command: Option<String>`, `pm: String`
+    - `HardenReport` struct: `detected_pms: Vec<DetectedPm>`,
+      `categories: Vec<HardenCategoryReport>`, `timestamp: String`
+    - `HardenCategoryReport` struct: `category: HardenCategory`,
+      `findings: Vec<HardenFinding>`, `overall: TrafficLight`
+    - `DetectedPm` struct: `name: String` (npm/pnpm/yarn/bun),
+      `version: Option<String>`, `lockfile_path: PathBuf`,
+      `config_path: Option<PathBuf>`
+  - `pub fn detect_package_managers(path: &Path) -> Vec<DetectedPm>`
+    - Look for lockfiles: package-lock.json→npm, pnpm-lock.yaml→pnpm,
+      yarn.lock→yarn, bun.lockb→bun
+    - Get version: `npm --version`, `pnpm --version`, etc.
+  - Register `pub mod harden;` in `crates/ripley-core/src/lib.rs`
+  - Submodules: `pub mod pinning;`, `pub mod settings;`, `pub mod provenance;`,
+    `pub mod creds;`
+  - Tests: `test_detect_npm_from_lockfile`, `test_detect_multiple_pms`
+  - Verify: `cargo build -p ripley-core`
+
+
+#### M11.2: Dependency pinning checks
+
+- [x] **M11.2.1** Save-exact, lockfile, integrity, exotic sources
+  - File: `crates/ripley-core/src/harden/pinning.rs`
+  - `pub fn check_save_exact(pm: &DetectedPm) -> HardenFinding`
+    - npm: `npm config get save-exact` → Green if true
+    - pnpm: check `.npmrc` for `save-prefix=` (empty = exact) → Green if set
+  - `pub fn check_lockfile_committed(pm: &DetectedPm) -> HardenFinding`
+    - `git ls-files <lockfile>` → Green if tracked, Red if not
+  - `pub fn check_integrity_hashes(lockfile_path: &Path) -> HardenFinding`
+    - Parse lockfile, count entries with/without integrity hashes
+    - Green if all present, Yellow if >90%, Red if <90%
+  - `pub fn check_exotic_sources(lockfile_path: &Path) -> HardenFinding`
+    - Reuse risky_specs from lockfile parser
+    - Green if none, Red if git+/http/file: sources found
+  - `pub fn check_dependency_pinning(pm: &DetectedPm) -> HardenCategoryReport`
+  - Tests: `test_save_exact_enabled`, `test_save_exact_disabled`,
+    `test_lockfile_committed`, `test_lockfile_not_committed`,
+    `test_integrity_all_present`, `test_exotic_sources_found`
+  - Verify: `cargo test -p ripley-core -- harden::pinning`
+
+
+#### M11.3: PM hardening checks
+
+- [x] **M11.3.1** Release-age, script policy, trust policy
+  - File: `crates/ripley-core/src/harden/settings.rs`
+  - `pub fn check_release_age(pm: &DetectedPm) -> HardenFinding`
+    - npm: `npm config get minReleaseAge` → Green if set
+    - pnpm: check `package.json` or `.npmrc` for `minimumReleaseAge`
+    - Fix command: `npm config set minReleaseAge 86400` (or PM equivalent)
+  - `pub fn check_script_policy(pm: &DetectedPm) -> HardenFinding`
+    - npm: `npm config get ignore-scripts` → Green if true + allowlist
+    - pnpm: check `strictDepBuilds` or `allowBuilds`
+    - Fix command: `npm config set ignore-scripts true`
+  - `pub fn check_trust_policy(pm: &DetectedPm) -> HardenFinding`
+    - pnpm: check `trustPolicy` → Green if `no-downgrade`
+    - Others: N/A
+  - `pub fn check_exotic_subdeps(pm: &DetectedPm) -> HardenFinding`
+    - pnpm: `blockExoticSubdeps` → Green if true
+  - `pub fn check_pm_hardening(pm: &DetectedPm) -> HardenCategoryReport`
+  - Tests: `test_release_age_set`, `test_release_age_missing`,
+    `test_script_policy_ignore_scripts`, `test_trust_policy_no_downgrade`
+  - Verify: `cargo test -p ripley-core -- harden::settings`
+
+
+#### M11.4: Provenance and credential hygiene
+
+- [x] **M11.4.1** Provenance and npmrc credential checks
+  - File: `crates/ripley-core/src/harden/provenance.rs`
+  - `pub fn check_trusted_publishing() -> HardenFinding`
+    - Check for OIDC configuration in CI files (.github/workflows/)
+    - Yellow if not configured (informational)
+  - `pub fn check_provenance(pm: &DetectedPm) -> HardenCategoryReport`
+  - File: `crates/ripley-core/src/harden/creds.rs`
+  - `pub fn check_npmrc_credential_hygiene(npmrc_path: &Path) -> Vec<HardenFinding>`
+    - Broad vs scoped tokens, expiry, project directory leaks
+  - `pub fn check_credential_hygiene(home: &Path) -> HardenCategoryReport`
+  - Tests: `test_npmrc_broad_token`, `test_npmrc_scoped_token`,
+    `test_npmrc_project_directory_leak`
+  - Verify: `cargo test -p ripley-core -- harden::provenance`,
+    `cargo test -p ripley-core -- harden::creds`
+
+
+#### M11.5: Harden CLI
+
+- [x] **M11.5.1** CLI command registration
+  - File: `crates/ripley-guard/src/commands/harden.rs` (new)
+  - `pub async fn cmd_harden(path: PathBuf, format: &str) -> Result<ExitCode>`
+    - Detect PMs in path, run all checks, output report
+    - Table output: traffic-light per category with fix commands
+      (see WORKFLOW.md §11 for layout)
+    - JSON output: serialize HardenReport
+    - Exit code: 0 if all green, 1 if any red/yellow, 2 on error
+  - File: `crates/ripley-guard/src/commands/mod.rs` — add `pub mod harden;`
+  - File: `crates/ripley-guard/src/main.rs` — add `Harden` variant:
+    `Harden { path: Option<PathBuf>, #[arg(long, default_value = "table")] format: String }`
+  - Snapshot tests: `insta::assert_json_snapshot!` for harden JSON output
+  - Verify: `cargo run -p ripley-guard -- harden`
+  - Verify: `cargo run -p ripley-guard -- harden --format json`
+
+
+#### M11 Gate
+
+- [x] `cargo build --workspace`
+- [x] `cargo test --workspace`
+- [x] `cargo clippy --workspace`
+- [x] `cargo fmt --all -- --check`
+- [x] `cargo test -p ripley-core -- harden`
+- [x] `cargo run -p ripley-guard -- harden`
+- [x] `cargo run -p ripley-guard -- harden --format json`
+- [x] Traffic-light output with per-PM recommendations
+- [x] Commit: `M11: PM hardening`
+
+
+---
+
+
+### M12: Fix and Exposure
+
+> Spec: WORKFLOW.md "12. Standalone fix"
+> Spec: WORKFLOW.md "13. Credential exposure assessment"
+> Spec: ROADMAP.md "Phase 3" → `ripley fix`, `ripley exposure`
+
+
+#### M12.1: `ripley fix <cve> [path]`
+
+- [x] **M12.1.1** CVE-targeted prompt generation
+  - File: `crates/ripley-core/src/prompt.rs` (extend)
+  - `pub fn generate_cve_fix_prompt(cve_id: &str, matches: &[Match]) -> String`
+    - Multi-project prompt: for each affected project, list package, version,
+      clean version, IOC files if available, test instructions
+    - Differences from existing `generate_remediation_prompt`: takes CVE as
+      entry point (not Match), may span multiple projects, includes IOC
+      profiles if the CVE has associated attack patterns
+  - Tests: `test_generate_cve_fix_prompt_single_project`,
+    `test_generate_cve_fix_prompt_multi_project`,
+    `test_generate_cve_fix_prompt_with_iocs`
+  - Verify: `cargo test -p ripley-core -- prompt`
+
+- [x] **M12.1.2** Fix CLI command
+  - File: `crates/ripley-guard/src/commands/fix.rs` (new)
+  - `pub async fn cmd_fix(cve_id: &str, path: Option<PathBuf>) -> Result<ExitCode>`
+    - Look up CVE in advisory DB (fetch from OSV if not cached)
+    - If path given, scan that project; if omitted, scan current directory
+    - Match CVE against installed packages
+    - Generate prompt via `generate_cve_fix_prompt`
+    - Detect harness, launch or print to stdout
+    - Exit code: 0 if harness launched, 1 if no affected packages, 2 on error
+  - File: `crates/ripley-guard/src/commands/mod.rs` — add `pub mod fix;`
+  - File: `crates/ripley-guard/src/main.rs` — add `Fix` variant:
+    `Fix { cve: String, path: Option<PathBuf> }`
+  - Tests: integration test with fixture lockfile + mock advisory
+  - Verify: `cargo build -p ripley-guard`
+  - Verify: `cargo test -p ripley-guard -- fix`
+
+
+#### M12.2: `ripley exposure <cve>`
+
+- [x] **M12.2.1** CVE-targeted exposure assessment
+  - File: `crates/ripley-core/src/forensic/exposure.rs` (new)
+  - Build on existing `forensic/credentials.rs` (ExposureReport, assess_exposure)
+  - `pub fn assess_cve_exposure(cve_id: &str, profiles: &IocProfileSet, home: &Path)
+      -> Result<CveExposureReport, ForensicError>`
+    - Look up IOC profile for CVE
+    - Extract targeted credential stores from profile
+    - Check which exist on this machine
+    - Generate rotation command for each at-risk credential
+    - Include dead man switch warning if applicable
+  - Types:
+    - `CveExposureReport` struct: `cve_id: String`, `attack_name: String`,
+      `at_risk: Vec<CredentialRisk>`, `clean: Vec<String>`,
+      `dead_man_switch: Option<String>`
+    - `CredentialRisk` struct: `path: PathBuf`, `exists: bool`,
+      `contains_secret: bool`, `rotation_command: String`, `priority: Severity`
+  - Tests: `test_assess_cve_exposure_with_existing_creds`,
+    `test_assess_cve_exposure_no_profile`, `test_dead_man_switch_warning`
+  - Verify: `cargo test -p ripley-core -- forensic::exposure`
+
+- [x] **M12.2.2** Exposure CLI command
+  - File: `crates/ripley-guard/src/commands/exposure.rs` (new)
+  - `pub async fn cmd_exposure(cve_id: &str, format: &str) -> Result<ExitCode>`
+    - Run assess_cve_exposure
+    - Table output: AT RISK / CLEAN per credential with rotation commands
+      (see WORKFLOW.md §13 for layout)
+    - JSON output: serialize CveExposureReport
+    - Exit code: 0 if all clean, 1 if any at risk, 2 on error
+  - File: `crates/ripley-guard/src/commands/mod.rs` — add `pub mod exposure;`
+  - File: `crates/ripley-guard/src/main.rs` — add `Exposure` variant:
+    `Exposure { cve: String, #[arg(long, default_value = "table")] format: String }`
+  - Snapshot tests
+  - Verify: `cargo run -p ripley-guard -- exposure CVE-2024-001 --format json`
+
+
+#### M12 Gate
+
+- [x] `cargo build --workspace`
+- [x] `cargo test --workspace`
+- [x] `cargo clippy --workspace`
+- [x] `cargo fmt --all -- --check`
+- [x] `cargo test -p ripley-guard -- fix`
+- [x] `cargo test -p ripley-core -- forensic::exposure`
+- [x] `ripley fix` generates prompt for known CVE
+- [x] `ripley exposure` produces credential assessment
+- [x] Commit: `M12: Fix and exposure`
+
+
+---
+
+
+### M13: Templates and Dashboard Views
+
+> Spec: ROADMAP.md "Phase 3" → remediation templates, network audit
+> Spec: UI.md "Audit Report View", "Posture & Hardening View"
+
+
+#### M13.1: Remediation templates
+
+- [x] **M13.1.1** Template framework and per-attack playbooks
+  - File: `crates/ripley-core/src/templates/mod.rs`
+  - Types:
+    - `RemediationTemplate` struct: `id: String`, `name: String`,
+      `attack_type: String`, `ioc_checks: Vec<String>`,
+      `credential_rotation: Vec<RotationStep>`,
+      `verification_steps: Vec<String>`
+    - `RotationStep` struct: `credential: String`, `command: String`,
+      `priority: Severity`
+  - Templates as TOML files compiled via `include_str!`:
+    - `templates/npm_worm.toml`
+    - `templates/pypi_pth_injection.toml`
+    - `templates/credential_exfil.toml`
+    - `templates/ide_config_poison.toml`
+  - `pub fn load_templates() -> Vec<RemediationTemplate>`
+  - `pub fn find_template(attack_type: &str) -> Option<&RemediationTemplate>`
+  - Register `pub mod templates;` in `crates/ripley-core/src/lib.rs`
+  - Tests: `test_load_templates_all_present`, `test_find_template_npm_worm`,
+    `test_template_has_required_fields`
+  - Verify: `cargo test -p ripley-core -- templates`
+
+- [x] **M13.1.2** Network C2 audit
+  - File: `crates/ripley-core/src/forensic/network.rs` (new)
+  - `pub fn collect_active_connections() -> Result<Vec<NetworkConnection>, ForensicError>`
+    - macOS/Linux: parse `lsof -i -n -P` or `ss -tunap`
+    - Windows: `netstat -ano`
+  - `pub fn check_c2_connections(connections: &[NetworkConnection],
+      c2_list: &C2Database) -> Vec<C2Finding>`
+    - Match against known C2 domains/IPs
+  - Types: `NetworkConnection`, `C2Finding`, `C2Database`
+  - `C2Database` loaded from bundled TOML + user-configurable additions
+  - Register in `crates/ripley-core/src/forensic/mod.rs`
+  - Tests: `test_parse_lsof_output`, `test_c2_match_found`,
+    `test_c2_no_match`
+  - Verify: `cargo test -p ripley-core -- forensic::network`
+
+
+#### M13.2: Dashboard views
+
+- [x] **M13.2.1** Audit report view
+  - File: `crates/ripley-app/src/views/audit.rs` (new)
+  - Render AuditReport as traffic-light dashboard:
+    - Per-category card with Green/Yellow/Red indicator
+    - Expandable findings list per category
+    - Summary bar at bottom
+  - Register in `crates/ripley-app/src/views/mod.rs`
+  - Register in app.rs view enum
+  - Verify: `cargo build -p ripley-app`
+
+- [x] **M13.2.2** Posture/harden view
+  - File: `crates/ripley-app/src/views/posture.rs` (new)
+  - Render HardenReport as dashboard:
+    - Detected PMs at top
+    - Per-category traffic-light cards
+    - Fix commands as copyable text
+  - Register in `crates/ripley-app/src/views/mod.rs`
+  - Register in app.rs view enum
+  - Verify: `cargo build -p ripley-app`
+
+
+#### M13 Gate
+
+- [x] `cargo build --workspace`
+- [x] `cargo test --workspace`
+- [x] `cargo clippy --workspace`
+- [x] `cargo fmt --all -- --check`
+- [x] `cargo build -p ripley-app`
+- [x] `cargo test -p ripley-core -- templates`
+- [x] `cargo test -p ripley-core -- forensic::network`
+- [x] Remediation templates load for each attack type
+- [x] Dashboard views build without errors
+- [x] Commit: `M13: Templates and dashboard`
+
+
+---
+
 
 #### Phase 3 Gate
-- [ ] All commands produce correct output with fixtures
-- [ ] Dashboard views render correctly
-- [ ] `ripley audit --format json` produces valid JSON
-- [ ] `ripley harden --format json` produces valid JSON
+
+**All must pass before starting Phase 4:**
+
+- [x] All M10-M13 gates passed
+- [x] `cargo build --workspace --release`
+- [x] `cargo test --workspace`
+- [x] `cargo clippy --workspace`
+- [x] `cargo deny check`
+- [x] `ripley audit` produces traffic-light output with 4 categories
+- [x] `ripley audit --format json` produces valid JSON
+- [x] `ripley harden` detects PMs and produces recommendations
+- [x] `ripley harden --format json` produces valid JSON
+- [x] `ripley fix <cve>` generates remediation prompt
+- [x] `ripley exposure <cve>` produces credential assessment
+- [x] No `unwrap()` or `expect()` in ripley-core
+- [x] All public functions have tests
+- [x] Snapshot tests for all command outputs
 - [ ] Commit: `Phase 3: Response depth`
+- [ ] Update CLAUDE.md "Current work" to Phase 4
 
 
 ---

@@ -182,10 +182,10 @@ pub fn parse_ss_output(output: &str) -> Vec<NetworkConnection> {
 }
 
 fn extract_process_name(info: &str) -> String {
-    if let Some(start) = info.find('"') {
-        if let Some(end) = info[start + 1..].find('"') {
-            return info[start + 1..start + 1 + end].to_string();
-        }
+    if let Some(start) = info.find('"')
+        && let Some(end) = info[start + 1..].find('"')
+    {
+        return info[start + 1..start + 1 + end].to_string();
     }
     "unknown".to_string()
 }
