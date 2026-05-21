@@ -1,0 +1,42 @@
+# Known C2 indicators for supply chain attacks
+# Sources: public threat intelligence, npm incident reports
+
+[[domains]]
+value = "epc.ms"
+description = "Known npm worm C2 domain (2026 tanstack incident)"
+severity = "critical"
+
+[[domains]]
+value = "pfrfrh.com"
+description = "Known supply chain exfiltration endpoint"
+severity = "critical"
+
+[[domains]]
+value = "npmpackagescanner.com"
+description = "Typosquat package C2 callback"
+severity = "high"
+
+[[domains]]
+value = "socket-npm.com"
+description = "Socket.dev impersonation C2"
+severity = "critical"
+
+[[domains]]
+value = "datacollector.services"
+description = "Generic credential exfil endpoint used in npm attacks"
+severity = "high"
+
+[[ip_ranges]]
+value = "185.62.56."
+description = "Hosting range associated with npm credential theft"
+severity = "high"
+
+[[ip_ranges]]
+value = "45.153.35."
+description = "Bulletproof hosting used by supply chain attackers"
+severity = "high"
+
+[[ip_ranges]]
+value = "194.163.44."
+description = "VPS range associated with PyPI malware C2"
+severity = "high"

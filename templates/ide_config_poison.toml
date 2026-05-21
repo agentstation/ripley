@@ -1,0 +1,36 @@
+id = "ide-config-poison"
+name = "IDE Configuration Poisoning"
+attack_type = "ide_config_poison"
+description = "Attack that injects malicious configurations into IDE settings, MCP servers, or AI tool configs to achieve persistent code execution."
+
+ioc_checks = [
+    ".vscode/tasks.json (unexpected shell tasks)",
+    ".vscode/settings.json (suspicious terminal.integrated.shellArgs)",
+    ".mcp.json (unauthorized MCP server entries)",
+    ".cursor/mcp.json (unauthorized entries)",
+    ".claude/settings.json (modified permissions or hooks)",
+    ".claude/execution.js (should not exist in projects)",
+]
+
+verification_steps = [
+    "Diff all IDE config files against git HEAD",
+    "Verify MCP server entries point to known, trusted packages",
+    "Check VS Code extensions for recently installed unknown extensions",
+    "Review Claude Code hooks for unauthorized SessionStart entries",
+    "Verify no unexpected VS Code tasks run on folder open",
+]
+
+[[credential_rotation]]
+credential = "IDE-stored credentials"
+command = "Clear VS Code secrets: code --list-extensions then review credential storage"
+priority = "high"
+
+[[credential_rotation]]
+credential = "~/.claude/credentials.json"
+command = "Re-authenticate: remove credentials.json and re-login"
+priority = "high"
+
+[[credential_rotation]]
+credential = "MCP server tokens"
+command = "Revoke and regenerate tokens for all configured MCP servers"
+priority = "medium"

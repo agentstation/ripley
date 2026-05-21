@@ -12,5 +12,6 @@ pub mod matcher;
 pub mod platform;
 pub mod prompt;
 pub mod rules;
+pub mod templates;
 pub mod types;
 pub mod typosquat;

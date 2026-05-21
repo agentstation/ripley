@@ -1,0 +1,34 @@
+id = "pypi-pth-injection"
+name = "PyPI .pth Injection"
+attack_type = "pypi_pth_injection"
+description = "Attack using Python .pth files in site-packages to execute arbitrary code on import, persisting across virtual environments."
+
+ioc_checks = [
+    "site-packages/*.pth (non-standard entries)",
+    "~/.local/lib/python*/site-packages/*.pth",
+    "~/.config/pip/pip.conf (modified index-url)",
+    "setup.py or setup.cfg with suspicious install_requires",
+]
+
+verification_steps = [
+    "List all .pth files in site-packages and verify each is from a known package",
+    "Check pip.conf for unauthorized index URLs",
+    "Review virtualenv for packages not in requirements.txt",
+    "Run `pip check` for dependency conflicts",
+    "Recreate virtualenv from pinned requirements",
+]
+
+[[credential_rotation]]
+credential = "~/.pypirc"
+command = "Remove tokens from ~/.pypirc and use `twine upload --repository-url` with env var"
+priority = "critical"
+
+[[credential_rotation]]
+credential = "~/.config/pip/pip.conf"
+command = "Review and reset index-url to https://pypi.org/simple/"
+priority = "high"
+
+[[credential_rotation]]
+credential = "~/.aws/credentials"
+command = "aws iam delete-access-key && aws iam create-access-key"
+priority = "medium"

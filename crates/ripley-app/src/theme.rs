@@ -61,6 +61,22 @@ impl Colors {
         0xff as f32 / 255.0,
     );
 
+    pub const STATUS_GREEN: Color = Color::from_rgb(
+        0x3f as f32 / 255.0,
+        0xb9 as f32 / 255.0,
+        0x50 as f32 / 255.0,
+    );
+    pub const STATUS_YELLOW: Color = Color::from_rgb(
+        0xd2 as f32 / 255.0,
+        0x99 as f32 / 255.0,
+        0x22 as f32 / 255.0,
+    );
+    pub const STATUS_RED: Color = Color::from_rgb(
+        0xf8 as f32 / 255.0,
+        0x51 as f32 / 255.0,
+        0x49 as f32 / 255.0,
+    );
+
     pub const SEVERITY_CRITICAL: Color = Color::from_rgb(
         0xf8 as f32 / 255.0,
         0x51 as f32 / 255.0,

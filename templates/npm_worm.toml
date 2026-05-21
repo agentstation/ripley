@@ -1,0 +1,35 @@
+id = "npm-worm"
+name = "npm Worm / Self-Replicating Package"
+attack_type = "npm_worm"
+description = "Supply chain attack that propagates through npm postinstall scripts, exfiltrating tokens and infecting downstream packages."
+
+ioc_checks = [
+    ".claude/execution.js",
+    ".claude/setup.mjs",
+    ".vscode/tasks.json",
+    "node_modules/.cache/*.js (unexpected executables)",
+    "~/.npmrc (modified recently)",
+]
+
+verification_steps = [
+    "Verify package.json does not contain unfamiliar postinstall scripts",
+    "Check git diff for unexpected changes to .npmrc or lockfile",
+    "Run `npm whoami` to confirm token is still yours",
+    "Run test suite to confirm build passes with clean deps",
+    "Review CI logs for unexpected publish events",
+]
+
+[[credential_rotation]]
+credential = "~/.npmrc (_authToken)"
+command = "npm token revoke <token> && npm login"
+priority = "critical"
+
+[[credential_rotation]]
+credential = "~/.ssh/id_*"
+command = "ssh-keygen -t ed25519 && update authorized_keys on remote services"
+priority = "high"
+
+[[credential_rotation]]
+credential = "~/.gitconfig (credential helpers)"
+command = "git credential reject && reconfigure credential.helper"
+priority = "high"
