@@ -163,6 +163,10 @@ impl IocProfileSet {
         Self { profiles }
     }
 
+    pub fn from_profiles(profiles: Vec<IocProfile>) -> Self {
+        Self { profiles }
+    }
+
     pub fn profiles(&self) -> &[IocProfile] {
         &self.profiles
     }

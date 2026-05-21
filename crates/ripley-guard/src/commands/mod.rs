@@ -1,5 +1,7 @@
 pub mod audit;
 pub mod config;
+pub mod exposure;
+pub mod fix;
 pub mod guard;
 pub mod harden;
 pub mod scan;

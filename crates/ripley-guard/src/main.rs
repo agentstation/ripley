@@ -78,6 +78,21 @@ enum Commands {
         #[arg(long)]
         fix: bool,
     },
+    /// Generate AI-powered fix for a specific CVE
+    Fix {
+        /// CVE, GHSA, or advisory ID to remediate
+        cve: String,
+        /// Path to scan (defaults to current directory)
+        path: Option<PathBuf>,
+    },
+    /// Assess credential exposure for a specific CVE
+    Exposure {
+        /// CVE, GHSA, or advisory ID to assess
+        cve: String,
+        /// Output format (table or json)
+        #[arg(long, default_value = "table")]
+        format: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -142,6 +157,16 @@ async fn main() -> ExitCode {
         Commands::Harden { path, format, fix } => {
             let target = path.unwrap_or_else(|| PathBuf::from("."));
             match commands::harden::cmd_harden(target, &format, fix).await {
+                Ok(code) => return code,
+                Err(e) => Err(e),
+            }
+        }
+        Commands::Fix { cve, path } => match commands::fix::cmd_fix(&cve, path).await {
+            Ok(code) => return code,
+            Err(e) => Err(e),
+        },
+        Commands::Exposure { cve, format } => {
+            match commands::exposure::cmd_exposure(&cve, &format).await {
                 Ok(code) => return code,
                 Err(e) => Err(e),
             }

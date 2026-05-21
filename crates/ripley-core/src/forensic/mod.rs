@@ -1,8 +1,10 @@
 pub mod credentials;
+pub mod exposure;
 pub mod ioc;
 pub mod persistence;
 
 pub use credentials::{CredentialFinding, ExposureReport};
+pub use exposure::{CveExposureReport, ExposureError};
 pub use ioc::{IocFinding, IocProfile, IocProfileSet};
 pub use persistence::{PersistenceCategory, PersistenceFinding};
 
