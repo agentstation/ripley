@@ -2295,8 +2295,8 @@ notifications, and installers.
 - [x] No `unwrap()` or `expect()` in ripley-core
 - [x] All public functions have tests
 - [x] Snapshot tests for all command outputs
-- [ ] Commit: `Phase 3: Response depth`
-- [ ] Update CLAUDE.md "Current work" to Phase 4
+- [x] Commit: `Phase 3: Response depth`
+- [x] Update CLAUDE.md "Current work" to Phase 4
 
 
 ---
