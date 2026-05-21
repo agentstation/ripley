@@ -135,12 +135,13 @@ impl AdvisoryDb {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::feed::AffectedRange;
+    use crate::feed::{AffectedRange, FeedSource};
     use crate::types::Severity;
 
     fn sample_advisory() -> Advisory {
         Advisory {
             id: "GHSA-test-1234".to_string(),
+            source: FeedSource::Osv,
             ecosystem: Ecosystem::Npm,
             package: "lodash".to_string(),
             affected_ranges: vec![AffectedRange {

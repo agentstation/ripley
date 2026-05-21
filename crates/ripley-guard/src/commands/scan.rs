@@ -9,6 +9,7 @@ use ripley_core::forensic::ioc::{self, IocProfileSet};
 use ripley_core::forensic::persistence;
 use ripley_core::lockfile::{self, InstalledPackage, LockfileWarning, RiskySpec};
 use ripley_core::matcher;
+use ripley_core::platform;
 
 use crate::output;
 
@@ -231,7 +232,7 @@ fn run_deep_scan(path: &std::path::Path) -> anyhow::Result<DeepScanReport> {
 
     let ioc_findings = ioc::scan_iocs(path, profiles);
 
-    let home = dirs::home_dir(path);
+    let home = platform::home_dir().unwrap_or_else(|| path.to_path_buf());
     let persistence_findings = persistence::audit_persistence(&home);
 
     let exposure = credentials::assess_exposure(profiles, &home);
@@ -241,14 +242,4 @@ fn run_deep_scan(path: &std::path::Path) -> anyhow::Result<DeepScanReport> {
         persistence_findings,
         exposure,
     })
-}
-
-mod dirs {
-    use std::path::{Path, PathBuf};
-
-    pub fn home_dir(fallback: &Path) -> PathBuf {
-        std::env::var("HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| fallback.to_path_buf())
-    }
 }

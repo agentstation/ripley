@@ -55,6 +55,8 @@ impl RuleSet {
             include_str!("../../../../rules/npm_postinstall.toml"),
             include_str!("../../../../rules/credential_exfil.toml"),
             include_str!("../../../../rules/persistence_write.toml"),
+            include_str!("../../../../rules/pypi_setup.toml"),
+            include_str!("../../../../rules/cargo_build.toml"),
         ];
 
         for source in sources {
@@ -228,6 +230,60 @@ patterns = []
         let ruleset =
             RuleSet::load_user_rules(Path::new("/nonexistent/path")).expect("should succeed");
         assert!(ruleset.rules().is_empty());
+    }
+
+    #[test]
+    fn test_pypi_rules_load() {
+        let ruleset = RuleSet::load_compiled().expect("load compiled rules");
+        let pypi_rules = ruleset.for_ecosystem(Ecosystem::PyPI);
+        assert!(
+            pypi_rules.len() >= 8,
+            "expected at least 8 PyPI rules, got {}",
+            pypi_rules.len()
+        );
+
+        let os_system = pypi_rules
+            .iter()
+            .find(|r| r.id == "PYPI001")
+            .expect("PYPI001 should exist");
+        assert_eq!(os_system.signal, "shell_spawning");
+        assert_eq!(os_system.weight, Severity::High);
+
+        for rule in &pypi_rules {
+            assert!(
+                rule.ecosystem == "pypi" || rule.ecosystem == "all",
+                "rule {} has ecosystem {}",
+                rule.id,
+                rule.ecosystem
+            );
+        }
+    }
+
+    #[test]
+    fn test_cargo_rules_load() {
+        let ruleset = RuleSet::load_compiled().expect("load compiled rules");
+        let cargo_rules = ruleset.for_ecosystem(Ecosystem::Cargo);
+        assert!(
+            cargo_rules.len() >= 7,
+            "expected at least 7 Cargo rules, got {}",
+            cargo_rules.len()
+        );
+
+        let cmd_exec = cargo_rules
+            .iter()
+            .find(|r| r.id == "CARGO001")
+            .expect("CARGO001 should exist");
+        assert_eq!(cmd_exec.signal, "shell_spawning");
+        assert_eq!(cmd_exec.weight, Severity::High);
+
+        for rule in &cargo_rules {
+            assert!(
+                rule.ecosystem == "cargo" || rule.ecosystem == "all",
+                "rule {} has ecosystem {}",
+                rule.id,
+                rule.ecosystem
+            );
+        }
     }
 
     #[test]

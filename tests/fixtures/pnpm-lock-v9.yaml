@@ -1,0 +1,138 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      express:
+        specifier: ^4.18.0
+        version: 4.18.2
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
+      react:
+        specifier: ^18.2.0
+        version: 18.2.0
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.2.0(react@18.2.0)
+      zod:
+        specifier: ^3.22.0
+        version: 3.22.4
+    devDependencies:
+      '@tanstack/react-query':
+        specifier: ^5.32.0
+        version: 5.32.1(react@18.2.0)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.4.5
+
+snapshots:
+
+  '@babel/core@7.24.5':
+    dependencies:
+      '@babel/generator': 7.24.5
+
+  '@babel/generator@7.24.5': {}
+
+  '@tanstack/react-query@5.32.1(react@18.2.0)':
+    dependencies:
+      react: 18.2.0
+
+  accepts@1.3.8: {}
+
+  body-parser@1.20.1: {}
+
+  cookie@0.5.0: {}
+
+  express@4.18.2:
+    dependencies:
+      accepts: 1.3.8
+      body-parser: 1.20.1
+      cookie: 0.5.0
+
+  lodash@4.17.21: {}
+
+  react@18.2.0: {}
+
+  react-dom@18.2.0(react@18.2.0):
+    dependencies:
+      react: 18.2.0
+      scheduler: 0.23.0
+
+  scheduler@0.23.0: {}
+
+  semver@7.6.0: {}
+
+  tslib@2.6.2: {}
+
+  typescript@5.4.5: {}
+
+  uuid@9.0.1: {}
+
+  zod@3.22.4: {}
+
+  sketchy-tarball@1.0.0: {}
+
+packages:
+
+  '@babel/core@7.24.5':
+    resolution: {integrity: sha512-abc123def456ghi789jkl012mno345pqr678stu901}
+    engines: {node: '>=6.9.0'}
+
+  '@babel/generator@7.24.5':
+    resolution: {integrity: sha512-def456ghi789jkl012mno345pqr678stu901vwx234}
+
+  '@tanstack/react-query@5.32.1':
+    resolution: {integrity: sha512-ghi789jkl012mno345pqr678stu901vwx234yz0abc}
+    peerDependencies:
+      react: ^18.0.0
+
+  accepts@1.3.8:
+    resolution: {integrity: sha512-mno345pqr678stu901vwx234yz0abc123def456ghi}
+
+  body-parser@1.20.1:
+    resolution: {integrity: sha512-pqr678stu901vwx234yz0abc123def456ghi789jkl}
+
+  cookie@0.5.0:
+    resolution: {integrity: sha512-stu901vwx234yz0abc123def456ghi789jkl012mno}
+
+  express@4.18.2:
+    resolution: {integrity: sha512-jkl012mno345pqr678stu901vwx234yz0abc123def}
+
+  lodash@4.17.21:
+    resolution: {integrity: sha512-vwx234yz0abc123def456ghi789jkl012mno345pqr}
+
+  react@18.2.0:
+    resolution: {integrity: sha512-yz0abc123def456ghi789jkl012mno345pqr678stu}
+
+  react-dom@18.2.0:
+    resolution: {integrity: sha512-123def456ghi789jkl012mno345pqr678stu901vwx}
+    peerDependencies:
+      react: ^18.0.0
+
+  scheduler@0.23.0:
+    resolution: {integrity: sha512-456ghi789jkl012mno345pqr678stu901vwx234yz0}
+
+  semver@7.6.0:
+    resolution: {integrity: sha512-789jkl012mno345pqr678stu901vwx234yz0abc123}
+
+  tslib@2.6.2:
+    resolution: {integrity: sha512-012mno345pqr678stu901vwx234yz0abc123def456}
+
+  typescript@5.4.5:
+    resolution: {integrity: sha512-345pqr678stu901vwx234yz0abc123def456ghi789}
+    hasBin: true
+
+  uuid@9.0.1:
+    resolution: {integrity: sha512-678stu901vwx234yz0abc123def456ghi789jkl012}
+
+  zod@3.22.4:
+    resolution: {integrity: sha512-901vwx234yz0abc123def456ghi789jkl012mno345}
+
+  sketchy-tarball@1.0.0:
+    resolution: {tarball: https://evil.example.com/pkg.tgz}

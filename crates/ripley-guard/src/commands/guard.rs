@@ -5,6 +5,55 @@ use colored::Colorize;
 
 use ripley_core::config;
 use ripley_core::dirs;
+use ripley_core::platform;
+
+struct ShimSpec {
+    pm_name: &'static str,
+    shim_binary: &'static str,
+    detect_command: &'static str,
+}
+
+const SHIMS: &[ShimSpec] = &[
+    ShimSpec {
+        pm_name: "npm",
+        shim_binary: "ripley-npm-shim",
+        detect_command: "npm",
+    },
+    ShimSpec {
+        pm_name: "pnpm",
+        shim_binary: "ripley-pnpm-shim",
+        detect_command: "pnpm",
+    },
+    ShimSpec {
+        pm_name: "yarn",
+        shim_binary: "ripley-yarn-shim",
+        detect_command: "yarn",
+    },
+    ShimSpec {
+        pm_name: "pip",
+        shim_binary: "ripley-pip-shim",
+        detect_command: "pip",
+    },
+    ShimSpec {
+        pm_name: "cargo",
+        shim_binary: "ripley-cargo-shim",
+        detect_command: "cargo",
+    },
+    ShimSpec {
+        pm_name: "go",
+        shim_binary: "ripley-go-shim",
+        detect_command: "go",
+    },
+    ShimSpec {
+        pm_name: "gem",
+        shim_binary: "ripley-gem-shim",
+        detect_command: "gem",
+    },
+];
+
+fn is_pm_installed(cmd: &str) -> bool {
+    platform::is_command_available(cmd)
+}
 
 pub fn cmd_install() -> anyhow::Result<()> {
     let data_dir = dirs::data_dir()?;
@@ -16,35 +65,59 @@ pub fn cmd_install() -> anyhow::Result<()> {
         .parent()
         .ok_or_else(|| anyhow::anyhow!("could not determine binary directory"))?;
 
-    let npm_shim_src = self_dir.join("ripley-npm-shim");
-    let script_shell_src = self_dir.join("ripley-script-shell");
-
-    let npm_shim_dst = bin_dir.join("npm");
-    let script_shell_dst = bin_dir.join("ripley-script-shell");
-
-    copy_binary(&npm_shim_src, &npm_shim_dst)?;
+    let script_shell_src = self_dir.join(binary_name("ripley-script-shell"));
+    let script_shell_dst = bin_dir.join(binary_name("ripley-script-shell"));
     copy_binary(&script_shell_src, &script_shell_dst)?;
 
-    let rc_path = detect_shell_rc()?;
-    let path_line = format!("export PATH=\"{}:$PATH\"", bin_dir.display());
-    let marker = "# ripley guard";
-    install_rc_line(&rc_path, &path_line, marker)?;
+    let mut installed_shims = Vec::new();
+
+    for spec in SHIMS {
+        if !is_pm_installed(spec.detect_command) {
+            continue;
+        }
+
+        let shim_src = self_dir.join(binary_name(spec.shim_binary));
+        let shim_dst = bin_dir.join(binary_name(spec.pm_name));
+
+        if let Err(e) = copy_binary(&shim_src, &shim_dst) {
+            eprintln!("  {} skipping {} shim: {e}", "⚠".yellow(), spec.pm_name);
+            continue;
+        }
+
+        #[cfg(target_os = "windows")]
+        if let Err(e) = write_cmd_wrapper(&bin_dir, spec.pm_name) {
+            eprintln!(
+                "  {} skipping {} .cmd wrapper: {e}",
+                "⚠".yellow(),
+                spec.pm_name
+            );
+        }
+
+        installed_shims.push(spec.pm_name);
+    }
+
+    install_path_entry(&bin_dir)?;
 
     let npmrc_path = home_dir()?.join(".npmrc");
-    let script_shell_line = format!("script-shell={}", script_shell_dst.display());
-    install_npmrc_setting(&npmrc_path, "script-shell", &script_shell_line)?;
+    if installed_shims.contains(&"npm")
+        || installed_shims.contains(&"pnpm")
+        || installed_shims.contains(&"yarn")
+    {
+        let script_shell_line = format!("script-shell={}", script_shell_dst.display());
+        install_npmrc_setting(&npmrc_path, "script-shell", &script_shell_line)?;
+    }
 
     println!("{}", "Guard installed successfully.".green());
     println!();
-    println!("  npm shim:       {}", npm_shim_dst.display());
+    for name in &installed_shims {
+        println!(
+            "  {name} shim:       {}",
+            bin_dir.join(binary_name(name)).display()
+        );
+    }
     println!("  script-shell:   {}", script_shell_dst.display());
-    println!("  shell RC:       {}", rc_path.display());
-    println!("  npmrc:          {}", npmrc_path.display());
     println!();
-    println!(
-        "Restart your shell or run: {}",
-        format!("source {}", rc_path.display()).dimmed()
-    );
+    println!("Restart your shell to activate the guard.");
 
     Ok(())
 }
@@ -53,20 +126,26 @@ pub fn cmd_uninstall() -> anyhow::Result<()> {
     let data_dir = dirs::data_dir()?;
     let bin_dir = data_dir.join("bin");
 
-    let npm_shim = bin_dir.join("npm");
-    let script_shell = bin_dir.join("ripley-script-shell");
-
-    if npm_shim.exists() {
-        std::fs::remove_file(&npm_shim)?;
+    for spec in SHIMS {
+        let shim = bin_dir.join(binary_name(spec.pm_name));
+        if shim.exists() {
+            std::fs::remove_file(&shim)?;
+        }
+        #[cfg(target_os = "windows")]
+        {
+            let cmd_wrapper = bin_dir.join(format!("{}.cmd", spec.pm_name));
+            if cmd_wrapper.exists() {
+                std::fs::remove_file(&cmd_wrapper)?;
+            }
+        }
     }
+
+    let script_shell = bin_dir.join(binary_name("ripley-script-shell"));
     if script_shell.exists() {
         std::fs::remove_file(&script_shell)?;
     }
 
-    if let Ok(rc_path) = detect_shell_rc() {
-        let marker = "# ripley guard";
-        remove_rc_line(&rc_path, marker)?;
-    }
+    uninstall_path_entry(&bin_dir)?;
 
     let npmrc_path = home_dir()?.join(".npmrc");
     if npmrc_path.exists() {
@@ -81,15 +160,7 @@ pub fn cmd_status() -> anyhow::Result<()> {
     let data_dir = dirs::data_dir()?;
     let bin_dir = data_dir.join("bin");
 
-    let npm_shim = bin_dir.join("npm");
-    let script_shell = bin_dir.join("ripley-script-shell");
-
-    let npm_status = if npm_shim.exists() {
-        "installed".green().to_string()
-    } else {
-        "not installed".yellow().to_string()
-    };
-
+    let script_shell = bin_dir.join(binary_name("ripley-script-shell"));
     let shell_status = if script_shell.exists() {
         "installed".green().to_string()
     } else {
@@ -115,7 +186,17 @@ pub fn cmd_status() -> anyhow::Result<()> {
 
     println!("Guard Status");
     println!("─────────────────────────────");
-    println!("  npm shim:         {npm_status}");
+    for spec in SHIMS {
+        let shim = bin_dir.join(binary_name(spec.pm_name));
+        let status = if shim.exists() {
+            "installed".green().to_string()
+        } else if is_pm_installed(spec.detect_command) {
+            "available".yellow().to_string()
+        } else {
+            "not found".dimmed().to_string()
+        };
+        println!("  {:<16} {status}", format!("{} shim:", spec.pm_name));
+    }
     println!("  script-shell:     {shell_status}");
     println!("  npmrc hook:       {npmrc_status}");
     println!("  trusted packages: {trust_count}");
@@ -233,34 +314,13 @@ fn copy_binary(src: &Path, dst: &Path) -> anyhow::Result<()> {
 }
 
 fn home_dir() -> anyhow::Result<PathBuf> {
-    std::env::var("HOME")
-        .map(PathBuf::from)
-        .map_err(|_| anyhow::anyhow!("could not determine home directory (HOME not set)"))
+    platform::home_dir().ok_or_else(|| anyhow::anyhow!("could not determine home directory"))
 }
 
 fn detect_shell_rc() -> anyhow::Result<PathBuf> {
     let home = home_dir()?;
-    let shell = std::env::var("SHELL").unwrap_or_default();
-
-    if shell.ends_with("zsh") {
-        return Ok(home.join(".zshrc"));
-    }
-    if shell.ends_with("bash") {
-        let bashrc = home.join(".bashrc");
-        if bashrc.exists() {
-            return Ok(bashrc);
-        }
-        return Ok(home.join(".profile"));
-    }
-    let zshrc = home.join(".zshrc");
-    if zshrc.exists() {
-        return Ok(zshrc);
-    }
-    let bashrc = home.join(".bashrc");
-    if bashrc.exists() {
-        return Ok(bashrc);
-    }
-    Ok(home.join(".profile"))
+    platform::detect_shell_rc(&home)
+        .ok_or_else(|| anyhow::anyhow!("could not determine shell RC file"))
 }
 
 fn install_rc_line(rc_path: &Path, line: &str, marker: &str) -> anyhow::Result<()> {
@@ -342,6 +402,63 @@ fn remove_npmrc_setting(path: &Path, key: &str) -> anyhow::Result<()> {
     };
 
     atomic_write(path, new_content.as_bytes())
+}
+
+fn binary_name(name: &str) -> String {
+    #[cfg(target_os = "windows")]
+    {
+        format!("{name}.exe")
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        name.to_string()
+    }
+}
+
+fn install_path_entry(bin_dir: &Path) -> anyhow::Result<()> {
+    #[cfg(unix)]
+    {
+        let rc_path = detect_shell_rc()?;
+        let path_line = format!("export PATH=\"{}:$PATH\"", bin_dir.display());
+        let marker = "# ripley guard";
+        install_rc_line(&rc_path, &path_line, marker)?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let bin_str = bin_dir.display().to_string();
+        let current_path = std::env::var("PATH").unwrap_or_default();
+        if !current_path.split(';').any(|p| p == bin_str) {
+            eprintln!(
+                "  Add {} to your PATH environment variable to activate guard shims.",
+                bin_dir.display()
+            );
+        }
+    }
+    Ok(())
+}
+
+fn uninstall_path_entry(bin_dir: &Path) -> anyhow::Result<()> {
+    #[cfg(unix)]
+    {
+        let _ = bin_dir;
+        if let Ok(rc_path) = detect_shell_rc() {
+            let marker = "# ripley guard";
+            remove_rc_line(&rc_path, marker)?;
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let _ = bin_dir;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn write_cmd_wrapper(bin_dir: &Path, pm_name: &str) -> anyhow::Result<()> {
+    let cmd_path = bin_dir.join(format!("{pm_name}.cmd"));
+    let exe_path = bin_dir.join(format!("{pm_name}.exe"));
+    let content = format!("@echo off\r\n\"{}\" %*\r\n", exe_path.display());
+    atomic_write(&cmd_path, content.as_bytes())
 }
 
 fn atomic_write(path: &Path, data: &[u8]) -> anyhow::Result<()> {

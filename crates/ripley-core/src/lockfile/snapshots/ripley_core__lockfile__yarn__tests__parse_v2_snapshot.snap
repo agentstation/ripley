@@ -1,0 +1,114 @@
+---
+source: crates/ripley-core/src/lockfile/yarn.rs
+expression: parsed
+---
+{
+  "packages": [
+    {
+      "name": "@babel/core",
+      "version": "7.24.5",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "@babel/generator",
+      "version": "7.24.5",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "@tanstack/query-core",
+      "version": "5.32.1",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "accepts",
+      "version": "1.3.8",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "cookie",
+      "version": "0.5.0",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "express",
+      "version": "4.18.2",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "lodash",
+      "version": "4.17.21",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "patched-pkg@patch:lodash",
+      "version": "4.17.21",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "react",
+      "version": "18.2.0",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "react-dom",
+      "version": "18.2.0",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "scheduler",
+      "version": "0.23.0",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "semver",
+      "version": "7.6.0",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "sketchy-lib",
+      "version": "1.0.0",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "tslib",
+      "version": "2.6.2",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "typescript",
+      "version": "5.4.5",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "uuid",
+      "version": "9.0.1",
+      "ecosystem": "npm"
+    },
+    {
+      "name": "zod",
+      "version": "3.22.4",
+      "ecosystem": "npm"
+    }
+  ],
+  "risky_specs": [
+    {
+      "package": "patched-pkg@patch:lodash",
+      "specifier": "patched-pkg@patch:lodash@npm%3A4.17.21#~/.yarn/patches/lodash-fix.patch::version=4.17.21&hash=abc123",
+      "reason": "uses patch protocol — modified from upstream"
+    }
+  ],
+  "warnings": [
+    {
+      "package": "sketchy-lib",
+      "field": "checksum",
+      "message": "missing checksum",
+      "severity": "medium"
+    },
+    {
+      "package": "patched-pkg@patch:lodash",
+      "field": "checksum",
+      "message": "missing checksum",
+      "severity": "medium"
+    }
+  ]
+}

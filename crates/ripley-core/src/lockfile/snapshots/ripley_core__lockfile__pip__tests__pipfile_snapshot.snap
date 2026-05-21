@@ -1,0 +1,106 @@
+---
+source: crates/ripley-core/src/lockfile/pip.rs
+expression: parsed
+---
+{
+  "packages": [
+    {
+      "name": "blinker",
+      "version": "1.7.0",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "certifi",
+      "version": "2024.2.2",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.3.2",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "click",
+      "version": "8.1.7",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "flask",
+      "version": "3.0.3",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "itsdangerous",
+      "version": "2.1.2",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "jinja2",
+      "version": "3.1.3",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "markupsafe",
+      "version": "2.1.5",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "mypy",
+      "version": "1.10.0",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "numpy",
+      "version": "1.26.4",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "pandas",
+      "version": "2.2.2",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "pydantic",
+      "version": "2.7.1",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "pytest",
+      "version": "8.2.0",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "requests",
+      "version": "2.31.0",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "urllib3",
+      "version": "2.2.1",
+      "ecosystem": "pypi"
+    },
+    {
+      "name": "werkzeug",
+      "version": "3.0.2",
+      "ecosystem": "pypi"
+    }
+  ],
+  "risky_specs": [
+    {
+      "package": "local-file-dep",
+      "specifier": "file:///tmp/local-file-dep-1.0.0.tar.gz",
+      "reason": "resolves from local file — not reproducible"
+    },
+    {
+      "package": "sketchy-editable",
+      "specifier": "https://github.com/example/sketchy-editable.git",
+      "reason": "resolves from git source — bypasses registry integrity"
+    },
+    {
+      "package": "sketchy-editable",
+      "specifier": "editable = true",
+      "reason": "editable install — not pinned to a specific version"
+    }
+  ],
+  "warnings": []
+}

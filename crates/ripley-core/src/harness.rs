@@ -1,4 +1,6 @@
-use std::process::{Child, Command};
+use std::process::Child;
+
+use crate::platform;
 
 #[derive(Debug, Clone)]
 pub enum Harness {
@@ -42,8 +44,9 @@ fn detect_harness_in_path(path_var: &str) -> Option<Harness> {
         ("opencode", Harness::OpenCode),
     ];
 
+    let sep = platform::path_var_separator();
     for (bin_name, harness) in &candidates {
-        for dir in path_var.split(':') {
+        for dir in path_var.split(sep) {
             let candidate = std::path::Path::new(dir).join(bin_name);
             if candidate.exists() {
                 return Some(harness.clone());
@@ -59,15 +62,11 @@ pub fn launch(
     prompt: &str,
     working_dir: &std::path::Path,
 ) -> Result<Child, std::io::Error> {
-    Command::new("open")
-        .arg("-a")
-        .arg("Terminal.app")
-        .arg("--args")
-        .arg(harness.name())
-        .arg(harness.prompt_flag())
-        .arg(prompt)
-        .current_dir(working_dir)
-        .spawn()
+    platform::launch_terminal(
+        harness.name(),
+        &[harness.prompt_flag(), prompt],
+        working_dir,
+    )
 }
 
 #[cfg(test)]

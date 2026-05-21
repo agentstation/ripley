@@ -1,0 +1,136 @@
+---
+source: crates/ripley-core/src/lockfile/gem.rs
+expression: parsed
+---
+{
+  "packages": [
+    {
+      "name": "actioncable",
+      "version": "7.1.3",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "actionpack",
+      "version": "7.1.3",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "actionview",
+      "version": "7.1.3",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "activesupport",
+      "version": "7.1.3",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "builder",
+      "version": "3.2.4",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "concurrent-ruby",
+      "version": "1.2.3",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "erubi",
+      "version": "1.12.0",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "i18n",
+      "version": "1.14.4",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "local-gem",
+      "version": "0.1.0",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "minitest",
+      "version": "5.22.3",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "nio4r",
+      "version": "2.7.1",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "puma",
+      "version": "6.4.2",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "rack",
+      "version": "3.0.10",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "rails",
+      "version": "7.1.3",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "rake",
+      "version": "13.2.1",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "rspec",
+      "version": "3.13.0",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "rspec-core",
+      "version": "3.13.0",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "rspec-expectations",
+      "version": "3.13.0",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "rspec-mocks",
+      "version": "3.13.0",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "sketchy-gem",
+      "version": "1.0.0",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "tzinfo",
+      "version": "2.0.6",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "websocket-driver",
+      "version": "0.7.6",
+      "ecosystem": "gem"
+    },
+    {
+      "name": "websocket-extensions",
+      "version": "0.1.5",
+      "ecosystem": "gem"
+    }
+  ],
+  "risky_specs": [
+    {
+      "package": "sketchy-gem",
+      "specifier": "https://github.com/example/sketchy-gem.git",
+      "reason": "resolves from git source — bypasses registry integrity"
+    },
+    {
+      "package": "local-gem",
+      "specifier": "../local-gem",
+      "reason": "resolves from local path — not reproducible"
+    }
+  ],
+  "warnings": []
+}

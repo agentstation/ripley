@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use super::{Advisory, AffectedRange, FeedError};
+use super::{Advisory, AffectedRange, FeedError, FeedSource};
 use crate::types::{Ecosystem, Severity};
 
 const OSV_QUERY_URL: &str = "https://api.osv.dev/v1/query";
@@ -111,6 +111,7 @@ impl OsvClient {
     pub fn new(cache_dir: PathBuf) -> Result<Self, FeedError> {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
+            .user_agent("ripley-supply-chain-guard")
             .build()?;
         std::fs::create_dir_all(cache_dir.join("feeds")).map_err(FeedError::Io)?;
         Ok(Self { client, cache_dir })
@@ -278,6 +279,7 @@ fn map_vuln(vuln: OsvVuln, ecosystem: Ecosystem, package: &str) -> Advisory {
 
     Advisory {
         id: vuln.id,
+        source: FeedSource::Osv,
         ecosystem,
         package: package.to_string(),
         affected_ranges,

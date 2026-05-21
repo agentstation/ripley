@@ -1,0 +1,129 @@
+# Detection rules for Python setup.py / build scripts.
+# Targets malicious code in sdist install hooks: setup.py, setup.cfg, __init__.py.
+
+[[rules]]
+id = "PYPI001"
+name = "os-system-call"
+description = "os.system() or subprocess calls in setup script"
+ecosystem = "pypi"
+signal = "shell_spawning"
+weight = "high"
+patterns = [
+    'os\.system\(',
+    'os\.popen\(',
+    'subprocess\.Popen',
+    'subprocess\.call\(',
+    'subprocess\.run\(',
+    'subprocess\.check_output',
+    'commands\.getoutput',
+]
+
+[[rules]]
+id = "PYPI002"
+name = "dynamic-execution"
+description = "Dynamic code execution (eval, exec, compile)"
+ecosystem = "pypi"
+signal = "code_generation"
+weight = "high"
+patterns = [
+    '\bexec\(',
+    '\beval\(',
+    '\bcompile\(',
+    '__import__\(',
+    'importlib\.import_module',
+]
+
+[[rules]]
+id = "PYPI003"
+name = "base64-decoding"
+description = "Base64 decoding often used to hide payloads"
+ecosystem = "pypi"
+signal = "encoding_obfuscation"
+weight = "high"
+patterns = [
+    'base64\.b64decode',
+    'base64\.decodebytes',
+    'codecs\.decode\(.+rot',
+    'binascii\.unhexlify',
+    'codecs\.decode\(.+hex',
+]
+
+[[rules]]
+id = "PYPI004"
+name = "network-call"
+description = "Network calls in setup script"
+ecosystem = "pypi"
+signal = "network_call"
+weight = "high"
+patterns = [
+    'urllib\.request\.urlopen',
+    'urllib2\.urlopen',
+    'requests\.get\(',
+    'requests\.post\(',
+    'httpx\.',
+    'socket\.connect',
+    'http\.client\.HTTP',
+]
+
+[[rules]]
+id = "PYPI005"
+name = "pth-file-creation"
+description = "Creating .pth files for code injection at import time"
+ecosystem = "pypi"
+signal = "persistence_write"
+weight = "critical"
+patterns = [
+    '\.pth\b',
+    'site-packages.*\.pth',
+    'sitecustomize\.py',
+    'usercustomize\.py',
+]
+
+[[rules]]
+id = "PYPI006"
+name = "distutils-override"
+description = "Overriding distutils/setuptools commands for code execution"
+ecosystem = "pypi"
+signal = "code_generation"
+weight = "high"
+patterns = [
+    'distutils\.command',
+    'cmdclass\s*=',
+    'setuptools\.command',
+    'class\s+\w+\(install\)',
+    'class\s+\w+\(develop\)',
+    'class\s+\w+\(egg_info\)',
+]
+
+[[rules]]
+id = "PYPI007"
+name = "credential-harvesting"
+description = "Accessing credential files or environment secrets"
+ecosystem = "pypi"
+signal = "credential_exfil"
+weight = "critical"
+patterns = [
+    'os\.environ\b',
+    'os\.getenv\(',
+    'expanduser\(',
+    'Path\.home\(',
+    '\.aws/credentials',
+    '\.ssh/',
+    '\.netrc',
+]
+
+[[rules]]
+id = "PYPI008"
+name = "binary-download-execute"
+description = "Downloading and executing binaries from setup"
+ecosystem = "pypi"
+signal = "binary_execution"
+weight = "critical"
+patterns = [
+    'curl.*\|.*sh',
+    'wget.*\|.*sh',
+    'os\.chmod\(',
+    'stat\.S_IEXEC',
+    'ctypes\.CDLL',
+    'ctypes\.windll',
+]

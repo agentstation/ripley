@@ -1,4 +1,10 @@
+pub mod cargo_lock;
+pub mod gem;
+pub mod go;
 pub mod npm;
+pub mod pip;
+pub mod pnpm;
+pub mod yarn;
 
 use std::path::{Path, PathBuf};
 
@@ -61,11 +67,31 @@ pub fn parse_lockfile(path: &Path) -> Result<ParsedLockfile, LockfileError> {
 
     match filename {
         "package-lock.json" => npm::parse_package_lock(&content),
+        "yarn.lock" => yarn::parse_yarn_lock(&content),
+        "pnpm-lock.yaml" => pnpm::parse_pnpm_lock(&content),
+        "Pipfile.lock" => pip::parse_pipfile_lock(&content),
+        "poetry.lock" => pip::parse_poetry_lock(&content),
+        "Cargo.lock" => cargo_lock::parse_cargo_lock(&content),
+        "go.sum" => {
+            let mod_path = path.with_file_name("go.mod");
+            let mod_content = std::fs::read_to_string(&mod_path).ok();
+            go::parse_go_sum_with_mod(&content, mod_content.as_deref())
+        }
+        "Gemfile.lock" => gem::parse_gemfile_lock(&content),
         _ => Err(LockfileError::Unsupported(filename.to_string())),
     }
 }
 
-const KNOWN_LOCKFILES: &[&str] = &["package-lock.json"];
+const KNOWN_LOCKFILES: &[&str] = &[
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "Pipfile.lock",
+    "poetry.lock",
+    "Cargo.lock",
+    "go.sum",
+    "Gemfile.lock",
+];
 const MAX_WALK_DEPTH: usize = 10;
 
 pub fn find_lockfiles(dir: &Path) -> Vec<PathBuf> {

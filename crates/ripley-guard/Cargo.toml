@@ -14,6 +14,30 @@ name = "ripley-npm-shim"
 path = "src/bin/ripley-npm-shim.rs"
 
 [[bin]]
+name = "ripley-pnpm-shim"
+path = "src/bin/ripley-pnpm-shim.rs"
+
+[[bin]]
+name = "ripley-yarn-shim"
+path = "src/bin/ripley-yarn-shim.rs"
+
+[[bin]]
+name = "ripley-pip-shim"
+path = "src/bin/ripley-pip-shim.rs"
+
+[[bin]]
+name = "ripley-cargo-shim"
+path = "src/bin/ripley-cargo-shim.rs"
+
+[[bin]]
+name = "ripley-go-shim"
+path = "src/bin/ripley-go-shim.rs"
+
+[[bin]]
+name = "ripley-gem-shim"
+path = "src/bin/ripley-gem-shim.rs"
+
+[[bin]]
 name = "ripley-script-shell"
 path = "src/bin/ripley-script-shell.rs"
 

@@ -1,0 +1,75 @@
+---
+source: crates/ripley-core/src/lockfile/go.rs
+expression: parsed
+---
+{
+  "packages": [
+    {
+      "name": "github.com/gin-gonic/gin",
+      "version": "1.9.1",
+      "ecosystem": "go"
+    },
+    {
+      "name": "github.com/go-playground/validator/v10",
+      "version": "10.19.0",
+      "ecosystem": "go"
+    },
+    {
+      "name": "github.com/gorilla/mux",
+      "version": "1.8.1",
+      "ecosystem": "go"
+    },
+    {
+      "name": "github.com/json-iterator/go",
+      "version": "1.1.12",
+      "ecosystem": "go"
+    },
+    {
+      "name": "github.com/sirupsen/logrus",
+      "version": "1.9.3",
+      "ecosystem": "go"
+    },
+    {
+      "name": "github.com/spf13/cobra",
+      "version": "1.8.0",
+      "ecosystem": "go"
+    },
+    {
+      "name": "github.com/spf13/viper",
+      "version": "1.18.2",
+      "ecosystem": "go"
+    },
+    {
+      "name": "github.com/stretchr/testify",
+      "version": "1.9.0",
+      "ecosystem": "go"
+    },
+    {
+      "name": "golang.org/x/crypto",
+      "version": "0.22.0",
+      "ecosystem": "go"
+    },
+    {
+      "name": "golang.org/x/net",
+      "version": "0.24.0",
+      "ecosystem": "go"
+    },
+    {
+      "name": "golang.org/x/text",
+      "version": "0.14.0",
+      "ecosystem": "go"
+    },
+    {
+      "name": "google.golang.org/protobuf",
+      "version": "1.33.0",
+      "ecosystem": "go"
+    },
+    {
+      "name": "gopkg.in/yaml.v3",
+      "version": "3.0.1",
+      "ecosystem": "go"
+    }
+  ],
+  "risky_specs": [],
+  "warnings": []
+}

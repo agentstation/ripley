@@ -1,0 +1,111 @@
+# Detection rules for Cargo build.rs scripts.
+# Targets malicious code in build scripts executed during `cargo build`.
+
+[[rules]]
+id = "CARGO001"
+name = "command-execution"
+description = "Running external commands from build.rs"
+ecosystem = "cargo"
+signal = "shell_spawning"
+weight = "high"
+patterns = [
+    'Command::new\(',
+    'process::Command',
+    'std::process::exit',
+]
+
+[[rules]]
+id = "CARGO002"
+name = "network-call"
+description = "Network calls from build.rs"
+ecosystem = "cargo"
+signal = "network_call"
+weight = "high"
+patterns = [
+    'reqwest::',
+    'ureq::',
+    'hyper::',
+    'std::net::TcpStream',
+    'std::net::UdpSocket',
+    'curl::',
+    'attohttpc::',
+]
+
+[[rules]]
+id = "CARGO003"
+name = "scope-escape"
+description = "File writes outside OUT_DIR"
+ecosystem = "cargo"
+signal = "scope_escape"
+weight = "high"
+patterns = [
+    'home_dir\(\)',
+    'home::home_dir',
+    'dirs::home_dir',
+    'env::var\("HOME"\)',
+    'env::var\("USERPROFILE"\)',
+    '\.config/',
+    '\.local/',
+    '\.cargo/registry',
+]
+
+[[rules]]
+id = "CARGO004"
+name = "env-harvesting"
+description = "Bulk environment variable access from build.rs"
+ecosystem = "cargo"
+signal = "env_harvesting"
+weight = "medium"
+patterns = [
+    'env::vars\(\)',
+    'env::vars_os\(\)',
+    'std::env::vars',
+]
+
+[[rules]]
+id = "CARGO005"
+name = "binary-download"
+description = "Downloading binaries in build script"
+ecosystem = "cargo"
+signal = "binary_execution"
+weight = "critical"
+patterns = [
+    'curl.*\|.*sh',
+    'wget.*\|.*sh',
+    'reqwest.*download',
+    'fs::set_permissions',
+    'PermissionsExt',
+    'set_mode\(0o7',
+]
+
+[[rules]]
+id = "CARGO006"
+name = "encoding-obfuscation"
+description = "Encoding or obfuscation in build.rs"
+ecosystem = "cargo"
+signal = "encoding_obfuscation"
+weight = "high"
+patterns = [
+    'base64::decode',
+    'base64::engine',
+    'from_utf8_unchecked',
+    'include_bytes!.*\.bin',
+]
+
+[[rules]]
+id = "CARGO007"
+name = "credential-access"
+description = "Accessing credential files from build.rs"
+ecosystem = "cargo"
+signal = "credential_exfil"
+weight = "critical"
+patterns = [
+    '\.ssh/',
+    '\.aws/credentials',
+    '\.npmrc',
+    '\.cargo/credentials',
+    '\.docker/config\.json',
+    'GH_TOKEN',
+    'GITHUB_TOKEN',
+    'CARGO_REGISTRY_TOKEN',
+]

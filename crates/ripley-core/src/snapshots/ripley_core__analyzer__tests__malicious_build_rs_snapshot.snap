@@ -1,0 +1,133 @@
+---
+source: crates/ripley-core/src/analyzer.rs
+expression: result
+---
+{
+  "risk_level": "critical",
+  "matched_rules": [
+    {
+      "rule_id": "CARGO001",
+      "rule_name": "command-execution",
+      "matched_line": 2,
+      "matched_text": "use std::process::Command;"
+    },
+    {
+      "rule_id": "CARGO003",
+      "rule_name": "scope-escape",
+      "matched_line": 5,
+      "matched_text": "let home = env::var(\"HOME\").unwrap();"
+    },
+    {
+      "rule_id": "CRED005",
+      "rule_name": "cloud-token-read",
+      "matched_line": 6,
+      "matched_text": "let token = env::var(\"GITHUB_TOKEN\").unwrap_or_default();"
+    },
+    {
+      "rule_id": "CARGO007",
+      "rule_name": "credential-access",
+      "matched_line": 6,
+      "matched_text": "let token = env::var(\"GITHUB_TOKEN\").unwrap_or_default();"
+    },
+    {
+      "rule_id": "CARGO001",
+      "rule_name": "command-execution",
+      "matched_line": 9,
+      "matched_text": "Command::new(\"curl\")"
+    },
+    {
+      "rule_id": "CRED001",
+      "rule_name": "ssh-key-read",
+      "matched_line": 15,
+      "matched_text": "let ssh_key = std::fs::read_to_string(format!(\"{}/.ssh/id_rsa\", home));"
+    },
+    {
+      "rule_id": "CARGO007",
+      "rule_name": "credential-access",
+      "matched_line": 15,
+      "matched_text": "let ssh_key = std::fs::read_to_string(format!(\"{}/.ssh/id_rsa\", home));"
+    },
+    {
+      "rule_id": "CARGO007",
+      "rule_name": "credential-access",
+      "matched_line": 16,
+      "matched_text": "let cargo_creds = std::fs::read_to_string(format!(\"{}/.cargo/credentials\", home));"
+    },
+    {
+      "rule_id": "CARGO002",
+      "rule_name": "network-call",
+      "matched_line": 19,
+      "matched_text": "let client = reqwest::blocking::Client::new();"
+    },
+    {
+      "rule_id": "CARGO004",
+      "rule_name": "env-harvesting",
+      "matched_line": 26,
+      "matched_text": "for (key, value) in env::vars() {"
+    },
+    {
+      "rule_id": "CARGO005",
+      "rule_name": "binary-download",
+      "matched_line": 31,
+      "matched_text": "use std::os::unix::fs::PermissionsExt;"
+    },
+    {
+      "rule_id": "CARGO005",
+      "rule_name": "binary-download",
+      "matched_line": 32,
+      "matched_text": "std::fs::set_permissions(\"/tmp/payload\", std::fs::Permissions::from_mode(0o755)).unwrap();"
+    }
+  ],
+  "highlighted_lines": [
+    {
+      "line_number": 2,
+      "text": "use std::process::Command;",
+      "severity": "high"
+    },
+    {
+      "line_number": 5,
+      "text": "let home = env::var(\"HOME\").unwrap();",
+      "severity": "high"
+    },
+    {
+      "line_number": 6,
+      "text": "let token = env::var(\"GITHUB_TOKEN\").unwrap_or_default();",
+      "severity": "critical"
+    },
+    {
+      "line_number": 9,
+      "text": "Command::new(\"curl\")",
+      "severity": "high"
+    },
+    {
+      "line_number": 15,
+      "text": "let ssh_key = std::fs::read_to_string(format!(\"{}/.ssh/id_rsa\", home));",
+      "severity": "critical"
+    },
+    {
+      "line_number": 16,
+      "text": "let cargo_creds = std::fs::read_to_string(format!(\"{}/.cargo/credentials\", home));",
+      "severity": "critical"
+    },
+    {
+      "line_number": 19,
+      "text": "let client = reqwest::blocking::Client::new();",
+      "severity": "high"
+    },
+    {
+      "line_number": 26,
+      "text": "for (key, value) in env::vars() {",
+      "severity": "medium"
+    },
+    {
+      "line_number": 31,
+      "text": "use std::os::unix::fs::PermissionsExt;",
+      "severity": "critical"
+    },
+    {
+      "line_number": 32,
+      "text": "std::fs::set_permissions(\"/tmp/payload\", std::fs::Permissions::from_mode(0o755)).unwrap();",
+      "severity": "critical"
+    }
+  ]
+}

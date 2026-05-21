@@ -58,12 +58,13 @@ pub fn find_matches(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::feed::AffectedRange;
+    use crate::feed::{AffectedRange, FeedSource};
     use crate::types::{Ecosystem, Severity};
 
     fn advisory(package: &str, introduced: &str, fixed: Option<&str>) -> Advisory {
         Advisory {
             id: format!("GHSA-test-{package}"),
+            source: FeedSource::Osv,
             ecosystem: Ecosystem::Npm,
             package: package.to_string(),
             affected_ranges: vec![AffectedRange {
@@ -117,6 +118,7 @@ mod tests {
     fn test_multiple_ranges() {
         let adv = Advisory {
             id: "GHSA-multi".to_string(),
+            source: FeedSource::Osv,
             ecosystem: Ecosystem::Npm,
             package: "multi-pkg".to_string(),
             affected_ranges: vec![
