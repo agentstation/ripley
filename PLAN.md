@@ -365,10 +365,10 @@ discard partial work.
 
 ```
 Phase:     4 --- Active Detection
-Milestone: M15
-Task:      M14.3
+Milestone: M16
+Task:      M15.5
 Status:    completed
-Last gate: M14
+Last gate: M15
 ```
 
 Update this section after each task completes. Format:
@@ -2547,7 +2547,7 @@ unified daemon with event-driven architecture.
 > Spec: ROADMAP.md "ripley monitor — background daemon"
 > Spec: WORKFLOW.md "7. Active containment" — `ripley monitor`
 
-- [ ] **M15.1** — Extend `WatchEvent` and daemon loop
+- [x] **M15.1** — Extend `WatchEvent` and daemon loop
 
   Extend the existing `commands/watch.rs` daemon to support monitor
   events alongside the existing advisory/lockfile events.
@@ -2571,7 +2571,7 @@ unified daemon with event-driven architecture.
   cargo clippy --workspace
   ```
 
-- [ ] **M15.2** — Process scanner loop
+- [x] **M15.2** — Process scanner loop
 
   A tokio task that periodically scans active connections.
 
@@ -2597,7 +2597,7 @@ unified daemon with event-driven architecture.
   cargo clippy --workspace
   ```
 
-- [ ] **M15.3** — Persistence watcher loop
+- [x] **M15.3** — Persistence watcher loop
 
   A tokio task that watches persistence paths for filesystem events.
 
@@ -2621,7 +2621,7 @@ unified daemon with event-driven architecture.
   cargo clippy --workspace
   ```
 
-- [ ] **M15.4** — `ripley monitor` CLI command
+- [x] **M15.4** — `ripley monitor` CLI command
 
   Wire the monitor as a new CLI subcommand.
 
@@ -2654,7 +2654,7 @@ unified daemon with event-driven architecture.
   cargo clippy --workspace
   ```
 
-- [ ] **M15.5** — Guard log integration + integration tests
+- [x] **M15.5** — Guard log integration + integration tests
 
   Monitor alerts are logged to `guard.jsonl` for forensic review.
 

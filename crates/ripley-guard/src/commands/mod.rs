@@ -1,9 +1,11 @@
 pub mod audit;
 pub mod config;
+pub mod contain;
 pub mod exposure;
 pub mod fix;
 pub mod guard;
 pub mod harden;
+pub mod monitor;
 pub mod scan;
 pub mod status;
 pub mod watch;

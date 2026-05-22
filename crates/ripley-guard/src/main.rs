@@ -96,6 +96,23 @@ enum Commands {
         #[arg(long, default_value = "table")]
         format: String,
     },
+    /// Start real-time monitoring for active compromise
+    Monitor {
+        /// Fork to background and log to file
+        #[arg(long)]
+        daemon: bool,
+        /// Output format (table or json)
+        #[arg(long, default_value = "table")]
+        format: String,
+    },
+    /// Kill a suspicious process and snapshot its state
+    Contain {
+        /// Process ID or package name to contain
+        target: String,
+        /// Output format (table or json)
+        #[arg(long, default_value = "table")]
+        format: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -172,6 +189,15 @@ async fn main() -> ExitCode {
         }
         Commands::Exposure { cve, format } => {
             match commands::exposure::cmd_exposure(&cve, &format).await {
+                Ok(code) => return code,
+                Err(e) => Err(e),
+            }
+        }
+        Commands::Monitor { daemon, format } => {
+            commands::monitor::cmd_monitor(daemon, &format).await
+        }
+        Commands::Contain { target, format } => {
+            match commands::contain::cmd_contain(&target, &format).await {
                 Ok(code) => return code,
                 Err(e) => Err(e),
             }
