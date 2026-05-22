@@ -365,10 +365,10 @@ discard partial work.
 
 ```
 Phase:     4 --- Active Detection
-Milestone: M16
-Task:      M15.5
+Milestone: M17
+Task:      M16.4
 Status:    completed
-Last gate: M15
+Last gate: M16
 ```
 
 Update this section after each task completes. Format:
@@ -2712,7 +2712,7 @@ network connections, environment, process tree) for forensic analysis.
 > Spec: ROADMAP.md "ripley contain <pid|pkg>"
 > Spec: WORKFLOW.md "7. Active containment" — containment action
 
-- [ ] **M16.1** — Process snapshot (core library)
+- [x] **M16.1** — Process snapshot (core library)
 
   Capture a process's forensic state before killing it.
 
@@ -2740,7 +2740,7 @@ network connections, environment, process tree) for forensic analysis.
   cargo clippy --workspace
   ```
 
-- [ ] **M16.2** — Process kill + snapshot save
+- [x] **M16.2** — Process kill + snapshot save
 
   **Files:**
   - `crates/ripley-core/src/monitor/contain.rs`:
@@ -2765,7 +2765,7 @@ network connections, environment, process tree) for forensic analysis.
   cargo clippy --workspace
   ```
 
-- [ ] **M16.3** — `ripley contain` CLI command
+- [x] **M16.3** — `ripley contain` CLI command
 
   **Files:**
   - `crates/ripley-guard/src/commands/contain.rs` — new file:
@@ -2793,7 +2793,7 @@ network connections, environment, process tree) for forensic analysis.
   cargo clippy --workspace
   ```
 
-- [ ] **M16.4** — IPC: Contain request from app
+- [x] **M16.4** — IPC: Contain request from app
 
   Extend the IPC protocol so the tray app can request containment.
 

@@ -8,6 +8,7 @@ pub enum Request {
     Scan { path: PathBuf, deep: bool },
     GetAlerts,
     GuardPrompt(GuardPromptData),
+    Contain { pid: u32 },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,7 +26,16 @@ pub enum Response {
     ScanResult(ScanResultData),
     Alerts(Vec<AlertData>),
     GuardDecision(GuardDecision),
+    ContainResult(ContainResultData),
     Error(String),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContainResultData {
+    pub pid: u32,
+    pub killed: bool,
+    pub snapshot_path: PathBuf,
+    pub process_name: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -114,5 +124,26 @@ mod tests {
             parsed,
             Response::GuardDecision(GuardDecision::Block)
         ));
+    }
+
+    #[test]
+    fn test_contain_request_roundtrip() {
+        let req = Request::Contain { pid: 1234 };
+        let json = serde_json::to_string(&req).expect("serialize");
+        let parsed: Request = serde_json::from_str(&json).expect("deserialize");
+        assert!(matches!(parsed, Request::Contain { pid: 1234 }));
+    }
+
+    #[test]
+    fn test_contain_result_roundtrip() {
+        let resp = Response::ContainResult(ContainResultData {
+            pid: 1234,
+            killed: true,
+            snapshot_path: PathBuf::from("/data/snapshots/1234_1700000000.json"),
+            process_name: "node".into(),
+        });
+        let json = serde_json::to_string(&resp).expect("serialize");
+        let parsed: Response = serde_json::from_str(&json).expect("deserialize");
+        assert!(matches!(parsed, Response::ContainResult(_)));
     }
 }

@@ -1,6 +1,8 @@
+pub mod contain;
 pub mod filesystem;
 pub mod process;
 
+pub use contain::{ContainResult, ProcessSnapshot, collect_process_snapshot, contain_process};
 pub use filesystem::{
     FsEventKind, evaluate_fs_event, is_lockfile_edit, is_mcp_config, is_persistence_path,
     persistence_watch_paths,
