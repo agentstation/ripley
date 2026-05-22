@@ -37,8 +37,8 @@ cargo run -p ripley-guard -- guard status
 
 ## Current work
 
-**Phase 4: Active Detection.** Phases 1-3 complete (M1-M13). Now implementing M14+:
-real-time monitoring, runtime containment, behavioral analysis, sandboxing.
+**Phase 5: Advanced Analysis.** Phases 1-4 complete (M1-M18, 426 tests). Next:
+sandboxed script execution, behavioral analysis, community rule sharing, CI/CD integration.
 
 See PLAN.md for detailed task breakdown and ROADMAP.md for deliverable descriptions.
 

@@ -1,8 +1,11 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
+use iced::futures::SinkExt;
 use iced::widget::{Rule, button, column, container, row, scrollable, text};
-use iced::{Element, Length, Task as IcedTask, Theme};
+use iced::{Element, Length, Subscription, Task as IcedTask, Theme};
+
+use ripley_core::monitor::process::ProcessAlert;
 
 use crate::theme::Colors;
 use crate::views;
@@ -28,7 +31,6 @@ pub struct GuardLogEntry {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct MonitorAlertEntry {
     pub timestamp: u64,
     pub severity: String,
@@ -81,6 +83,8 @@ pub enum Message {
     NavigateTo(View),
     #[allow(dead_code)]
     ScanNow,
+    MonitorAlertReceived(ProcessAlert),
+    ToggleMonitor,
     ToggleSection(String),
     RunDeepScan,
     ExportReport,
@@ -128,6 +132,29 @@ impl RipleyApp {
             Message::NavigateTo(view) => {
                 self.current_view = view;
             }
+            Message::MonitorAlertReceived(alert) => {
+                crate::notifier::notify_monitor_alert(&alert);
+                let conn_detail = match &alert.connection {
+                    Some(c) => format!("{}:{} ({})", c.remote_addr, c.remote_port, c.protocol),
+                    None => String::new(),
+                };
+                let entry = MonitorAlertEntry {
+                    timestamp: alert.timestamp,
+                    severity: format!("{:?}", alert.severity).to_lowercase(),
+                    process: alert
+                        .connection
+                        .as_ref()
+                        .map(|c| c.process.clone())
+                        .unwrap_or_default(),
+                    pid: alert.connection.as_ref().map(|c| c.pid).unwrap_or(0),
+                    reason: format!("{}", alert.reason),
+                    detail: conn_detail,
+                };
+                self.monitor_alerts.insert(0, entry);
+            }
+            Message::ToggleMonitor => {
+                self.config.monitor.enabled = !self.config.monitor.enabled;
+            }
             Message::ToggleSection(section) => {
                 if !self.expanded_sections.remove(&section) {
                     self.expanded_sections.insert(section);
@@ -140,6 +167,34 @@ impl RipleyApp {
             | Message::Noop => {}
         }
         IcedTask::none()
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
+        if !self.config.monitor.enabled {
+            return Subscription::none();
+        }
+
+        Subscription::run(|| {
+            iced::stream::channel(32, |mut output| async move {
+                loop {
+                    let resp =
+                        ripley_ipc::client::send_request(&ripley_ipc::Request::SubscribeAlerts)
+                            .await;
+                    if let Ok(ripley_ipc::Response::MonitorAlert(data)) = resp {
+                        let alert = ProcessAlert {
+                            connection: None,
+                            reason: ripley_core::monitor::process::AlertReason::C2Connection {
+                                indicator: data.detail.clone(),
+                            },
+                            severity: parse_severity(&data.severity),
+                            timestamp: data.timestamp,
+                        };
+                        let _ = output.send(Message::MonitorAlertReceived(alert)).await;
+                    }
+                    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                }
+            })
+        })
     }
 
     fn view(&self) -> Element<'_, Message> {
@@ -224,8 +279,18 @@ fn nav_button(label: &str, msg: Message, is_active: bool) -> Element<'_, Message
         .into()
 }
 
+fn parse_severity(s: &str) -> ripley_core::types::Severity {
+    match s.to_lowercase().as_str() {
+        "critical" => ripley_core::types::Severity::Critical,
+        "high" => ripley_core::types::Severity::High,
+        "medium" => ripley_core::types::Severity::Medium,
+        _ => ripley_core::types::Severity::Low,
+    }
+}
+
 pub fn run() -> anyhow::Result<()> {
     iced::application(RipleyApp::title, RipleyApp::update, RipleyApp::view)
+        .subscription(RipleyApp::subscription)
         .window_size((900.0, 640.0))
         .run_with(RipleyApp::new)?;
     Ok(())

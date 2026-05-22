@@ -19,17 +19,12 @@ pub fn notify_match(m: &Match) {
     send_notification(&summary, &body, severity);
 }
 
-#[allow(dead_code)]
 pub fn notify_monitor_alert(alert: &ProcessAlert) {
     let label = severity_to_label(alert.severity);
     let summary = format!("{label}: {}", alert.reason);
-    let body = if alert.connection.pid > 0 {
-        format!(
-            "{} (PID {})",
-            alert.connection.process, alert.connection.pid
-        )
-    } else {
-        format!("{}", alert.reason)
+    let body = match &alert.connection {
+        Some(c) => format!("{} (PID {})", c.process, c.pid),
+        None => format!("{}", alert.reason),
     };
 
     send_notification(&summary, &body, alert.severity);

@@ -48,14 +48,14 @@ fn test_monitor_config_defaults_disabled() {
 #[test]
 fn test_process_alert_serializes_to_json() {
     let alert = ProcessAlert {
-        connection: ripley_core::forensic::network::NetworkConnection {
+        connection: Some(ripley_core::forensic::network::NetworkConnection {
             process: "node".to_string(),
             pid: 12345,
             protocol: "TCP".to_string(),
             remote_addr: "evil.example.com".to_string(),
             remote_port: 443,
             state: "ESTABLISHED".to_string(),
-        },
+        }),
         reason: AlertReason::C2Connection {
             indicator: "evil.example.com".to_string(),
         },

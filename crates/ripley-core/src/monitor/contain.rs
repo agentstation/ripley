@@ -238,11 +238,14 @@ pub fn contain_process(pid: u32, data_dir: &Path) -> Result<ContainResult, std::
     })
 }
 
+// Shells out to `kill -9` rather than using libc::kill directly because the
+// project prohibits `unsafe` without a documented, measured reason.
 fn kill_process(pid: u32) -> bool {
     #[cfg(unix)]
     {
         let result = std::process::Command::new("kill")
             .args(["-9", &pid.to_string()])
+            .stderr(std::process::Stdio::null())
             .status();
         matches!(result, Ok(status) if status.success())
     }

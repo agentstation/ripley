@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 
 use super::process::{AlertReason, ProcessAlert};
-use crate::forensic::network::NetworkConnection;
 use crate::platform;
 use crate::types::Severity;
 
@@ -58,18 +57,9 @@ pub fn evaluate_fs_event(path: &Path, kind: FsEventKind) -> Option<ProcessAlert>
         .unwrap_or_default()
         .as_secs();
 
-    let dummy_connection = NetworkConnection {
-        process: String::new(),
-        pid: 0,
-        protocol: String::new(),
-        remote_addr: String::new(),
-        remote_port: 0,
-        state: String::new(),
-    };
-
     if is_mcp_config(path) {
         return Some(ProcessAlert {
-            connection: dummy_connection,
+            connection: None,
             reason: AlertReason::McpConfigChange {
                 path: path.to_path_buf(),
             },
@@ -80,7 +70,7 @@ pub fn evaluate_fs_event(path: &Path, kind: FsEventKind) -> Option<ProcessAlert>
 
     if is_lockfile_edit(path) {
         return Some(ProcessAlert {
-            connection: dummy_connection,
+            connection: None,
             reason: AlertReason::LockfileEdit {
                 path: path.to_path_buf(),
             },
@@ -91,7 +81,7 @@ pub fn evaluate_fs_event(path: &Path, kind: FsEventKind) -> Option<ProcessAlert>
 
     if is_persistence_path(path) {
         return Some(ProcessAlert {
-            connection: dummy_connection,
+            connection: None,
             reason: AlertReason::PersistenceWrite {
                 path: path.to_path_buf(),
             },

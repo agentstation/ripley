@@ -62,16 +62,8 @@ impl MonitorLogEntry {
             timestamp: alert.timestamp,
             event_type,
             severity: Some(alert.severity),
-            process: if alert.connection.pid > 0 {
-                Some(alert.connection.process.clone())
-            } else {
-                None
-            },
-            pid: if alert.connection.pid > 0 {
-                Some(alert.connection.pid)
-            } else {
-                None
-            },
+            process: alert.connection.as_ref().map(|c| c.process.clone()),
+            pid: alert.connection.as_ref().map(|c| c.pid),
             path,
             detail: format!("{}", alert.reason),
         }
@@ -105,14 +97,14 @@ mod tests {
     #[test]
     fn test_monitor_log_entry_from_alert() {
         let alert = ProcessAlert {
-            connection: NetworkConnection {
+            connection: Some(NetworkConnection {
                 process: "node".to_string(),
                 pid: 1234,
                 protocol: "TCP".to_string(),
                 remote_addr: "evil.example.com".to_string(),
                 remote_port: 443,
                 state: "ESTABLISHED".to_string(),
-            },
+            }),
             reason: AlertReason::C2Connection {
                 indicator: "evil.example.com".to_string(),
             },
@@ -131,14 +123,7 @@ mod tests {
     #[test]
     fn test_monitor_log_entry_persistence() {
         let alert = ProcessAlert {
-            connection: NetworkConnection {
-                process: String::new(),
-                pid: 0,
-                protocol: String::new(),
-                remote_addr: String::new(),
-                remote_port: 0,
-                state: String::new(),
-            },
+            connection: None,
             reason: AlertReason::PersistenceWrite {
                 path: PathBuf::from("/tmp/evil.plist"),
             },

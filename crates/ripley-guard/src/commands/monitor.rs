@@ -146,13 +146,9 @@ fn print_alert(alert: &ProcessAlert, json: bool) {
             Severity::Low => "○",
         };
         let time = format_utc_time(alert.timestamp);
-        let process_info = if alert.connection.pid > 0 {
-            format!(
-                "{} (PID {})",
-                alert.connection.process, alert.connection.pid
-            )
-        } else {
-            String::new()
+        let process_info = match &alert.connection {
+            Some(c) => format!("{} (PID {})", c.process, c.pid),
+            None => String::new(),
         };
 
         eprintln!(
@@ -208,12 +204,13 @@ async fn run_process_scanner(
                 match alerts {
                     Ok(Ok(alerts)) => {
                         for alert in alerts {
-                            let key = format!(
-                                "{}:{}:{}",
-                                alert.connection.process,
-                                alert.connection.remote_addr,
-                                alert.connection.remote_port
-                            );
+                            let key = match &alert.connection {
+                                Some(c) => format!(
+                                    "{}:{}:{}",
+                                    c.process, c.remote_addr, c.remote_port
+                                ),
+                                None => format!("{}", alert.reason),
+                            };
                             if seen.contains_key(&key) {
                                 continue;
                             }

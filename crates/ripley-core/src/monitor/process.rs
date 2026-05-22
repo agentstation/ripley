@@ -10,7 +10,7 @@ use crate::types::Severity;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ProcessAlert {
-    pub connection: NetworkConnection,
+    pub connection: Option<NetworkConnection>,
     pub reason: AlertReason,
     pub severity: Severity,
     pub timestamp: u64,
@@ -77,16 +77,18 @@ pub fn evaluate_connections(
             reason: AlertReason::C2Connection {
                 indicator: f.matched_indicator,
             },
-            connection: f.connection,
+            connection: Some(f.connection),
             timestamp: now,
         })
         .collect();
 
     for conn in &dev_connections {
         let already_flagged = alerts.iter().any(|a| {
-            a.connection.pid == conn.pid
-                && a.connection.remote_addr == conn.remote_addr
-                && a.connection.remote_port == conn.remote_port
+            a.connection.as_ref().is_some_and(|c| {
+                c.pid == conn.pid
+                    && c.remote_addr == conn.remote_addr
+                    && c.remote_port == conn.remote_port
+            })
         });
         if already_flagged {
             continue;
@@ -94,7 +96,7 @@ pub fn evaluate_connections(
 
         if conn.state == "ESTABLISHED" && is_suspicious_port(conn.remote_port) {
             alerts.push(ProcessAlert {
-                connection: conn.clone(),
+                connection: Some(conn.clone()),
                 reason: AlertReason::SuspiciousOutbound,
                 severity: Severity::Medium,
                 timestamp: now,

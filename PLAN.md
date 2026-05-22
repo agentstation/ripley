@@ -364,10 +364,10 @@ discard partial work.
 ## Plan State
 
 ```
-Phase:     4 --- Active Detection
-Milestone: Phase 4 Gate
-Task:      Phase 4 Gate
-Status:    completed
+Phase:     5 --- Advanced Analysis
+Milestone: Phase 5
+Task:      (not started)
+Status:    pending
 Last gate: Phase 4
 ```
 
@@ -3091,9 +3091,9 @@ Phase 4 Gate.
 - [x] Guard log entries are valid JSON with monitor event types
 - [x] No `unwrap()` or `expect()` in ripley-core production code
 - [x] All public functions have tests
-- [ ] No `#[allow(dead_code)]` remaining on Phase 4 scaffolding
-- [ ] Commit: `Phase 4: Active detection`
-- [ ] Update CLAUDE.md "Current work" to Phase 5
+- [x] No `#[allow(dead_code)]` remaining on Phase 4 scaffolding
+- [x] Commit: `Phase 4: Active detection`
+- [x] Update CLAUDE.md "Current work" to Phase 5
 
 
 ---

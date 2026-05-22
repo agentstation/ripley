@@ -74,7 +74,21 @@ pub async fn cmd_watch(daemon: bool) -> Result<()> {
                             watching: Vec::new(),
                         })
                     }
-                    _ => ripley_ipc::Response::Error("not implemented".into()),
+                    ripley_ipc::Request::Scan { .. } => {
+                        ripley_ipc::Response::Error("scan via IPC not yet implemented".into())
+                    }
+                    ripley_ipc::Request::GetAlerts => {
+                        ripley_ipc::Response::Error("get_alerts via IPC not yet implemented".into())
+                    }
+                    ripley_ipc::Request::GuardPrompt(_) => ripley_ipc::Response::Error(
+                        "guard_prompt via IPC not yet implemented".into(),
+                    ),
+                    ripley_ipc::Request::Contain { .. } => {
+                        ripley_ipc::Response::Error("contain via IPC not yet implemented".into())
+                    }
+                    ripley_ipc::Request::SubscribeAlerts => ripley_ipc::Response::Error(
+                        "subscribe_alerts via IPC not yet implemented".into(),
+                    ),
                 }
             },
             ipc_cancel,
