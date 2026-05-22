@@ -28,6 +28,17 @@ pub struct GuardLogEntry {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct MonitorAlertEntry {
+    pub timestamp: u64,
+    pub severity: String,
+    pub process: String,
+    pub pid: u32,
+    pub reason: String,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct DeepScanEntry {
     pub vuln_count: usize,
     pub ioc_findings: Vec<DeepScanFinding>,
@@ -59,6 +70,7 @@ pub enum View {
     Alerts,
     Guard,
     DeepScan,
+    Monitor,
     Audit,
     Posture,
     Settings,
@@ -81,6 +93,7 @@ pub struct RipleyApp {
     alerts: Vec<AlertEntry>,
     guard_log: Vec<GuardLogEntry>,
     deep_scan: Option<DeepScanEntry>,
+    monitor_alerts: Vec<MonitorAlertEntry>,
     audit_report: Option<ripley_core::audit::AuditReport>,
     harden_report: Option<ripley_core::harden::HardenReport>,
     expanded_sections: BTreeSet<String>,
@@ -96,6 +109,7 @@ impl RipleyApp {
                 alerts: Vec::new(),
                 guard_log: Vec::new(),
                 deep_scan: None,
+                monitor_alerts: Vec::new(),
                 audit_report: None,
                 harden_report: None,
                 expanded_sections: BTreeSet::new(),
@@ -134,6 +148,9 @@ impl RipleyApp {
             View::Alerts => views::alerts::view(&self.alerts),
             View::Guard => views::guard_log::view(&self.guard_log),
             View::DeepScan => views::deep_scan::view(&self.deep_scan, &self.expanded_sections),
+            View::Monitor => {
+                views::monitor::view(self.config.monitor.enabled, &self.monitor_alerts)
+            }
             View::Audit => views::audit::view(&self.audit_report),
             View::Posture => views::posture::view(&self.harden_report),
             View::Settings => views::settings::view(&self.config),
@@ -155,6 +172,7 @@ impl RipleyApp {
         let is_alerts = matches!(self.current_view, View::Alerts);
         let is_guard = matches!(self.current_view, View::Guard);
         let is_deep_scan = matches!(self.current_view, View::DeepScan);
+        let is_monitor = matches!(self.current_view, View::Monitor);
         let is_audit = matches!(self.current_view, View::Audit);
         let is_posture = matches!(self.current_view, View::Posture);
         let is_settings = matches!(self.current_view, View::Settings);
@@ -170,6 +188,7 @@ impl RipleyApp {
                     Message::NavigateTo(View::DeepScan),
                     is_deep_scan
                 ),
+                nav_button("Monitor", Message::NavigateTo(View::Monitor), is_monitor),
                 nav_button("Audit", Message::NavigateTo(View::Audit), is_audit),
                 nav_button("Posture", Message::NavigateTo(View::Posture), is_posture),
                 nav_button("Settings", Message::NavigateTo(View::Settings), is_settings),

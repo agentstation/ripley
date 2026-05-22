@@ -365,10 +365,10 @@ discard partial work.
 
 ```
 Phase:     4 --- Active Detection
-Milestone: M18
-Task:      M17.3
+Milestone: Phase 4 Gate
+Task:      M18.4
 Status:    completed
-Last gate: M17
+Last gate: M18
 ```
 
 Update this section after each task completes. Format:
@@ -2957,7 +2957,7 @@ contain action).
 > Spec: UI.md "Monitor" sidebar item
 > Spec: DESIGN.md for styling
 
-- [ ] **M18.1** — Monitor view in dashboard
+- [x] **M18.1** — Monitor view in dashboard
 
   **Files:**
   - `crates/ripley-app/src/views/monitor.rs` — new file:
@@ -2986,7 +2986,7 @@ contain action).
   cargo clippy --workspace
   ```
 
-- [ ] **M18.2** — Tray menu: monitor status
+- [x] **M18.2** — Tray menu: monitor status
 
   **Files:**
   - `crates/ripley-app/src/tray.rs`:
@@ -3006,7 +3006,7 @@ contain action).
   cargo clippy --workspace
   ```
 
-- [ ] **M18.3** — App event loop: wire monitor events
+- [x] **M18.3** — App event loop: wire monitor events
 
   **Files:**
   - `crates/ripley-app/src/events.rs`:
@@ -3032,7 +3032,7 @@ contain action).
   cargo clippy --workspace
   ```
 
-- [ ] **M18.4** — Settings view: monitor section
+- [x] **M18.4** — Settings view: monitor section
 
   **Files:**
   - `crates/ripley-app/src/views/settings.rs`:

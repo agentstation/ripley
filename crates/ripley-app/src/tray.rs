@@ -6,6 +6,7 @@ use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
 pub enum TrayAction {
     ShowDashboard,
     ScanNow,
+    ToggleMonitor,
     Quit,
 }
 
@@ -13,6 +14,7 @@ pub struct RipleyTray {
     _tray: tray_icon::TrayIcon,
     show_id: MenuId,
     scan_id: MenuId,
+    monitor_id: MenuId,
     quit_id: MenuId,
 }
 
@@ -22,14 +24,17 @@ impl RipleyTray {
 
         let show_item = MenuItem::new("Show Dashboard", true, None);
         let scan_item = MenuItem::new("Scan Now...", true, None);
+        let monitor_item = MenuItem::new("Monitor: Off", true, None);
         let quit_item = MenuItem::new("Quit Ripley", true, None);
 
         let show_id = show_item.id().clone();
         let scan_id = scan_item.id().clone();
+        let monitor_id = monitor_item.id().clone();
         let quit_id = quit_item.id().clone();
 
         menu.append(&show_item)?;
         menu.append(&scan_item)?;
+        menu.append(&monitor_item)?;
         menu.append(&PredefinedMenuItem::separator())?;
         menu.append(&quit_item)?;
 
@@ -45,6 +50,7 @@ impl RipleyTray {
             _tray: tray,
             show_id,
             scan_id,
+            monitor_id,
             quit_id,
         })
     }
@@ -54,6 +60,8 @@ impl RipleyTray {
             Some(TrayAction::ShowDashboard)
         } else if *event.id() == self.scan_id {
             Some(TrayAction::ScanNow)
+        } else if *event.id() == self.monitor_id {
+            Some(TrayAction::ToggleMonitor)
         } else if *event.id() == self.quit_id {
             Some(TrayAction::Quit)
         } else {

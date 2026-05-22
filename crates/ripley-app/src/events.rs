@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use ripley_core::feed::Advisory;
 use ripley_core::lockfile::InstalledPackage;
 use ripley_core::matcher::Match;
+use ripley_core::monitor::ContainResult;
+use ripley_core::monitor::process::ProcessAlert;
 use ripley_ipc::{Request, Response};
 use tokio::sync::oneshot;
 
@@ -15,6 +17,8 @@ pub enum AppEvent {
         packages: Vec<InstalledPackage>,
     },
     MatchFound(Match),
+    MonitorAlert(ProcessAlert),
+    ContainResult(ContainResult),
     UserAction(Action),
     IpcRequest(Request, oneshot::Sender<Response>),
 }
@@ -26,4 +30,5 @@ pub enum Action {
     Fix(String),
     Dismiss(String),
     Contain(String),
+    ToggleMonitor,
 }
