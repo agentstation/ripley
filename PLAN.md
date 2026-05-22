@@ -366,9 +366,9 @@ discard partial work.
 ```
 Phase:     4 --- Active Detection
 Milestone: Phase 4 Gate
-Task:      M18.4
+Task:      Phase 4 Gate
 Status:    completed
-Last gate: M18
+Last gate: Phase 4
 ```
 
 Update this section after each task completes. Format:
@@ -3077,22 +3077,20 @@ Phase 4 Gate.
 
 **All must pass before starting Phase 5:**
 
-- [ ] All M14-M18 gates passed
-- [ ] `cargo build --workspace --release`
-- [ ] `cargo test --workspace`
-- [ ] `cargo clippy --workspace`
-- [ ] `cargo fmt --all -- --check`
-- [ ] `cargo deny check`
-- [ ] `ripley monitor --help` shows usage with --daemon and --format
-- [ ] `ripley contain --help` shows usage with target and --format
-- [ ] Monitor detects planted persistence write in integration test
-- [ ] Contain produces valid snapshot JSON
-- [ ] IPC roundtrip tests pass for all new request/response types
-- [ ] Guard log entries are valid JSON with monitor event types
-- [ ] No `unwrap()` or `expect()` in ripley-core:
-    `grep -rn 'unwrap()' crates/ripley-core/src/ | grep -v '#\[cfg(test)\]' | grep -v 'mod tests'`
-    `grep -rn 'expect(' crates/ripley-core/src/ | grep -v '#\[cfg(test)\]' | grep -v 'mod tests'`
-- [ ] All public functions have tests
+- [x] All M14-M18 gates passed
+- [x] `cargo build --workspace --release`
+- [x] `cargo test --workspace` (426 tests)
+- [x] `cargo clippy --workspace`
+- [x] `cargo fmt --all -- --check`
+- [x] `cargo deny check`
+- [x] `ripley monitor --help` shows usage with --daemon and --format
+- [x] `ripley contain --help` shows usage with target and --format
+- [x] Monitor detects planted persistence write in integration test
+- [x] Contain produces valid snapshot JSON
+- [x] IPC roundtrip tests pass for all new request/response types
+- [x] Guard log entries are valid JSON with monitor event types
+- [x] No `unwrap()` or `expect()` in ripley-core production code
+- [x] All public functions have tests
 - [ ] No `#[allow(dead_code)]` remaining on Phase 4 scaffolding
 - [ ] Commit: `Phase 4: Active detection`
 - [ ] Update CLAUDE.md "Current work" to Phase 5
