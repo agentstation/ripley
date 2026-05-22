@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use iced::futures::SinkExt;
-use iced::widget::{Rule, button, column, container, row, scrollable, text};
+use iced::widget::{Rule, button, column, container, row, text};
 use iced::{Element, Length, Subscription, Task as IcedTask, Theme};
 
 use ripley_core::monitor::process::ProcessAlert;
@@ -211,7 +211,7 @@ impl RipleyApp {
             View::Settings => views::settings::view(&self.config),
         };
 
-        let main_content = container(scrollable(content))
+        let main_content = container(content)
             .width(Length::Fill)
             .height(Length::Fill)
             .style(|_theme: &Theme| container::Style {

@@ -1,5 +1,5 @@
 use iced::Element;
-use iced::widget::{button, column, container, text};
+use iced::widget::{button, column, container, scrollable, text};
 
 use crate::app::{Message, MonitorAlertEntry};
 use crate::theme::Colors;
@@ -77,7 +77,7 @@ pub fn view(enabled: bool, alerts: &[MonitorAlertEntry]) -> Element<'_, Message>
         })
         .collect();
 
-    column(rows).spacing(1).into()
+    scrollable(column(rows).spacing(1)).into()
 }
 
 fn format_timestamp(ts: u64) -> String {

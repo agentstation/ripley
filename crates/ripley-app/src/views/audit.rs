@@ -1,4 +1,4 @@
-use iced::widget::{column, container, row, text};
+use iced::widget::{column, container, row, scrollable, text};
 use iced::{Element, Length};
 
 use ripley_core::audit::{AuditReport, TrafficLight};
@@ -88,5 +88,5 @@ pub fn view(report: &Option<AuditReport>) -> Element<'_, Message> {
         }
     }
 
-    container(content).padding(16).width(Length::Fill).into()
+    scrollable(container(content).padding(16).width(Length::Fill)).into()
 }

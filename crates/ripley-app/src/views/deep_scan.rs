@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use iced::widget::{Space, button, column, container, row, text};
+use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Element, Length, Theme};
 
 use crate::app::{CredentialEntry, DeepScanEntry, DeepScanFinding, Message};
@@ -60,7 +60,7 @@ pub fn view<'a>(
     sections.push(Space::with_height(8).into());
     sections.push(action_buttons());
 
-    column(sections).spacing(8).into()
+    scrollable(column(sections).spacing(8)).into()
 }
 
 fn empty_state<'a>() -> Element<'a, Message> {

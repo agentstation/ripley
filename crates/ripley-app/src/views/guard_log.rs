@@ -1,5 +1,5 @@
 use iced::Element;
-use iced::widget::{column, container, text};
+use iced::widget::{column, container, scrollable, text};
 
 use crate::app::Message;
 use crate::theme::Colors;
@@ -41,5 +41,5 @@ pub fn view(entries: &[crate::app::GuardLogEntry]) -> Element<'_, Message> {
         })
         .collect();
 
-    column(rows).spacing(1).into()
+    scrollable(column(rows).spacing(1)).into()
 }
