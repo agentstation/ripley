@@ -365,10 +365,10 @@ discard partial work.
 
 ```
 Phase:     4 --- Active Detection
-Milestone: M17
-Task:      M16.4
+Milestone: M18
+Task:      M17.3
 Status:    completed
-Last gate: M16
+Last gate: M17
 ```
 
 Update this section after each task completes. Format:
@@ -2848,7 +2848,7 @@ alerts from the monitor daemon.
 > Spec: ROADMAP.md "Real-time high-priority notifications"
 > Spec: WORKFLOW.md "7. Active containment" — notification flow
 
-- [ ] **M17.1** — Monitor notification system
+- [x] **M17.1** — Monitor notification system
 
   **Files:**
   - `crates/ripley-guard/src/commands/monitor.rs` (or a dedicated
@@ -2875,7 +2875,7 @@ alerts from the monitor daemon.
   cargo clippy --workspace
   ```
 
-- [ ] **M17.2** — IPC: Alert streaming
+- [x] **M17.2** — IPC: Alert streaming
 
   Allow the tray app to subscribe to real-time alerts from the daemon.
 
@@ -2902,7 +2902,7 @@ alerts from the monitor daemon.
   cargo clippy --workspace
   ```
 
-- [ ] **M17.3** — Guard log: structured monitor events
+- [x] **M17.3** — Guard log: structured monitor events
 
   Ensure all monitor events are logged in a structured, queryable format.
 

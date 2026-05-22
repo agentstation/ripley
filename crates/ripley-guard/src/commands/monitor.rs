@@ -10,7 +10,9 @@ use tokio_util::sync::CancellationToken;
 use ripley_core::config::{self, Config};
 use ripley_core::forensic::network::C2Database;
 use ripley_core::monitor::process::ProcessAlert;
-use ripley_core::monitor::{self, FsEventKind};
+use ripley_core::monitor::{
+    self, FsEventKind, MonitorEventType, MonitorLogEntry, format_log_entry,
+};
 use ripley_core::types::Severity;
 
 #[derive(Debug)]
@@ -82,13 +84,9 @@ pub async fn cmd_monitor(daemon: bool, format: &str) -> Result<()> {
     let guard_log_path = data_dir.join("guard.jsonl");
     let is_json = format == "json";
 
-    log_monitor_event_raw(
+    log_entry(
         &guard_log_path,
-        "monitor_started",
-        None,
-        None,
-        None,
-        "Monitor daemon started",
+        &MonitorLogEntry::lifecycle(MonitorEventType::MonitorStarted, "Monitor daemon started"),
     );
 
     if !is_json {
@@ -98,13 +96,9 @@ pub async fn cmd_monitor(daemon: bool, format: &str) -> Result<()> {
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
-                log_monitor_event_raw(
+                log_entry(
                     &guard_log_path,
-                    "monitor_stopped",
-                    None,
-                    None,
-                    None,
-                    "Monitor daemon stopped",
+                    &MonitorLogEntry::lifecycle(MonitorEventType::MonitorStopped, "Monitor daemon stopped"),
                 );
                 if !is_json {
                     eprintln!("ripley: monitor shutting down");
@@ -115,7 +109,7 @@ pub async fn cmd_monitor(daemon: bool, format: &str) -> Result<()> {
                 match event {
                     MonitorEvent::ProcessAlert(alert) | MonitorEvent::FsAlert(alert) => {
                         print_alert(&alert, is_json);
-                        log_alert(&guard_log_path, &alert);
+                        log_entry(&guard_log_path, &MonitorLogEntry::from_alert(&alert));
                     }
                 }
             }
@@ -167,48 +161,8 @@ fn chrono_time_str(timestamp: u64) -> String {
     format!("{hours:02}:{mins:02}:{s:02}")
 }
 
-fn log_alert(guard_log_path: &std::path::Path, alert: &ProcessAlert) {
-    log_monitor_event_raw(
-        guard_log_path,
-        "monitor_alert",
-        Some(&format!("{}", alert.severity)),
-        if alert.connection.pid > 0 {
-            Some(&alert.connection.process)
-        } else {
-            None
-        },
-        if alert.connection.pid > 0 {
-            Some(alert.connection.pid)
-        } else {
-            None
-        },
-        &format!("{}", alert.reason),
-    );
-}
-
-fn log_monitor_event_raw(
-    path: &std::path::Path,
-    event_type: &str,
-    severity: Option<&str>,
-    process: Option<&str>,
-    pid: Option<u32>,
-    detail: &str,
-) {
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
-    let entry = serde_json::json!({
-        "timestamp": timestamp,
-        "event_type": event_type,
-        "severity": severity,
-        "process": process,
-        "pid": pid,
-        "detail": detail,
-    });
-
-    if let Ok(line) = serde_json::to_string(&entry) {
+fn log_entry(path: &std::path::Path, entry: &MonitorLogEntry) {
+    if let Ok(line) = format_log_entry(entry) {
         use std::io::Write;
         if let Ok(mut file) = std::fs::OpenOptions::new()
             .create(true)

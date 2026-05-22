@@ -9,6 +9,7 @@ pub enum Request {
     GetAlerts,
     GuardPrompt(GuardPromptData),
     Contain { pid: u32 },
+    SubscribeAlerts,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,6 +28,7 @@ pub enum Response {
     Alerts(Vec<AlertData>),
     GuardDecision(GuardDecision),
     ContainResult(ContainResultData),
+    MonitorAlert(MonitorAlertData),
     Error(String),
 }
 
@@ -36,6 +38,16 @@ pub struct ContainResultData {
     pub killed: bool,
     pub snapshot_path: PathBuf,
     pub process_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MonitorAlertData {
+    pub timestamp: u64,
+    pub severity: String,
+    pub process: String,
+    pub pid: u32,
+    pub reason: String,
+    pub detail: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,5 +157,28 @@ mod tests {
         let json = serde_json::to_string(&resp).expect("serialize");
         let parsed: Response = serde_json::from_str(&json).expect("deserialize");
         assert!(matches!(parsed, Response::ContainResult(_)));
+    }
+
+    #[test]
+    fn test_subscribe_alerts_roundtrip() {
+        let req = Request::SubscribeAlerts;
+        let json = serde_json::to_string(&req).expect("serialize");
+        let parsed: Request = serde_json::from_str(&json).expect("deserialize");
+        assert!(matches!(parsed, Request::SubscribeAlerts));
+    }
+
+    #[test]
+    fn test_monitor_alert_roundtrip() {
+        let resp = Response::MonitorAlert(MonitorAlertData {
+            timestamp: 1700000000,
+            severity: "critical".into(),
+            process: "node".into(),
+            pid: 1234,
+            reason: "C2Connection".into(),
+            detail: "C2 connection to evil.example.com".into(),
+        });
+        let json = serde_json::to_string(&resp).expect("serialize");
+        let parsed: Response = serde_json::from_str(&json).expect("deserialize");
+        assert!(matches!(parsed, Response::MonitorAlert(_)));
     }
 }
