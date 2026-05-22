@@ -1,0 +1,35 @@
+[[rules]]
+id = "SC2026-001"
+name = "npm postinstall data exfiltration"
+description = "Detects postinstall scripts that collect environment variables and exfiltrate via HTTP"
+ecosystem = "npm"
+signal = "exfiltration"
+weight = "critical"
+patterns = [
+    "process\\.env.*https?://",
+    "Buffer\\.from.*\\.toString\\(.*base64.*\\).*fetch",
+    "child_process.*curl.*-d.*env",
+]
+author = "ripley-community"
+confidence = 95
+source_attack = "credential-exfiltration"
+updated_at = "2026-05-01"
+min_ripley_version = "0.5.0"
+
+[[rules]]
+id = "SC2026-002"
+name = "base64 encoded payload delivery"
+description = "Detects scripts that decode and execute base64-encoded payloads at install time"
+ecosystem = "all"
+signal = "payload_delivery"
+weight = "high"
+patterns = [
+    "atob\\(.*\\)|Buffer\\.from\\(.*base64.*\\)",
+    "base64\\s+-d.*\\|\\s*(sh|bash|python)",
+    "echo\\s+[A-Za-z0-9+/=]{40,}.*\\|.*base64",
+]
+author = "ripley-community"
+confidence = 85
+source_attack = "obfuscated-execution"
+updated_at = "2026-05-01"
+min_ripley_version = "0.5.0"

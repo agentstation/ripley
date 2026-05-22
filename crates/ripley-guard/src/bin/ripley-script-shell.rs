@@ -19,21 +19,15 @@ fn main() -> ExitCode {
         }
     };
 
-    let rules = match RuleSet::load_compiled() {
-        Ok(r) => {
-            let config_dir = ripley_core::dirs::config_dir().ok();
-            if let Some(dir) = config_dir {
-                let user_rules_dir = dir.join("rules");
-                match RuleSet::load_user_rules(&user_rules_dir) {
-                    Ok(user) => RuleSet::merge(r, user),
-                    Err(_) => r,
-                }
-            } else {
-                r
-            }
-        }
-        Err(_) => {
-            return delegate_to_sh(&args);
+    let rules = {
+        let config_dir = ripley_core::dirs::config_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let data_dir = ripley_core::dirs::data_dir().unwrap_or_else(|_| PathBuf::from("."));
+        match RuleSet::load_all(&config_dir, &data_dir) {
+            Ok(r) => r,
+            Err(_) => match RuleSet::load_compiled() {
+                Ok(r) => r,
+                Err(_) => return delegate_to_sh(&args),
+            },
         }
     };
 

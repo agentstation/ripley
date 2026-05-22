@@ -365,10 +365,10 @@ discard partial work.
 
 ```
 Phase:     5 --- Advanced Analysis
-Milestone: M23 --- Community Rule Sharing
-Task:      (not started)
-Status:    pending
-Last gate: M22
+Milestone: Phase 5 Gate
+Task:      (verification)
+Status:    in-progress
+Last gate: M23
 ```
 
 Update this section after each task completes. Format:
@@ -3409,7 +3409,7 @@ Phase 4 Gate.
 
 **Trust model:** Community rules untrusted by default — they flag but cannot block in strict mode unless the user promotes a source to trusted.
 
-- [ ] **M23.1** — Extended rule metadata
+- [x] **M23.1** — Extended rule metadata
 
   File `crates/ripley-core/src/rules/mod.rs`:
   - Add optional fields to `Rule`: `author: Option<String>`, `confidence: Option<u8>`, `source_attack: Option<String>`, `updated_at: Option<String>`, `min_ripley_version: Option<String>`, `source: RuleSource`
@@ -3420,7 +3420,7 @@ Phase 4 Gate.
 
   Verify: `cargo test -p ripley-core -- rules && cargo clippy --workspace`
 
-- [ ] **M23.2** — Rule source registry and index
+- [x] **M23.2** — Rule source registry and index
 
   New file `crates/ripley-core/src/rules/registry.rs`:
   - `struct RuleSourceEntry { name, url, trust_level, last_fetched, rule_count }`
@@ -3434,7 +3434,7 @@ Phase 4 Gate.
 
   Verify: `cargo test -p ripley-core -- rules::registry && cargo clippy --workspace`
 
-- [ ] **M23.3** — Rule fetcher
+- [x] **M23.3** — Rule fetcher
 
   New file `crates/ripley-core/src/rules/fetcher.rs`:
   - `async fn fetch_rules(source, data_dir) -> Result<Vec<Rule>>` — GET index.toml, GET each rule file, store in `{data_dir}/rules/community/{name}/`
@@ -3452,7 +3452,7 @@ Phase 4 Gate.
 
   Verify: `cargo test -p ripley-core -- rules::fetcher && cargo clippy --workspace`
 
-- [ ] **M23.4** — `ripley rule` CLI commands
+- [x] **M23.4** — `ripley rule` CLI commands
 
   File `crates/ripley-guard/src/main.rs`:
   - Add `Rule { command: RuleCommands }` to Commands enum
@@ -3465,7 +3465,7 @@ Phase 4 Gate.
 
   Verify: `cargo build -p ripley-guard && cargo run -p ripley-guard -- rule --help && cargo run -p ripley-guard -- rule list`
 
-- [ ] **M23.5** — Three-tier loading integration + tests
+- [x] **M23.5** — Three-tier loading integration + tests
 
   Files:
   - `crates/ripley-guard/src/bin/ripley-script-shell.rs`: replace load_compiled+load_user with `RuleSet::load_all`
@@ -3480,7 +3480,7 @@ Phase 4 Gate.
 
   Verify: `cargo test --workspace`
 
-- [ ] **M23.6** — Example community rule repository
+- [x] **M23.6** — Example community rule repository
 
   New files:
   - `docs/community-rules-example/index.toml` — example index
@@ -3492,14 +3492,14 @@ Phase 4 Gate.
   Verify: `cargo test --workspace`
 
 #### M23 Gate
-- [ ] Three-tier rule loading: compiled + community + user, correct precedence
-- [ ] `ripley rule add` fetches rules from HTTP source
-- [ ] `ripley rule list` shows sources with metadata
-- [ ] Community rules from untrusted sources flag but do not block
-- [ ] Trusted community rules can block like compiled rules
-- [ ] `ripley rule search` finds rules by keyword
-- [ ] Example community rule repository parses correctly
-- [ ] `cargo test --workspace && cargo clippy --workspace && cargo fmt --all -- --check`
+- [x] Three-tier rule loading: compiled + community + user, correct precedence
+- [x] `ripley rule add` fetches rules from HTTP source
+- [x] `ripley rule list` shows sources with metadata
+- [x] Community rules from untrusted sources flag but do not block
+- [x] Trusted community rules can block like compiled rules
+- [x] `ripley rule search` finds rules by keyword
+- [x] Example community rule repository parses correctly
+- [x] `cargo test --workspace && cargo clippy --workspace && cargo fmt --all -- --check`
 
 
 ---

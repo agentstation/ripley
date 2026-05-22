@@ -1,6 +1,9 @@
+pub mod fetcher;
+pub mod registry;
+
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing;
 
 use crate::types::{Ecosystem, Severity};
@@ -26,7 +29,7 @@ pub enum RuleError {
     },
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Rule {
     pub id: String,
     pub name: String,
@@ -35,6 +38,42 @@ pub struct Rule {
     pub signal: String,
     pub weight: Severity,
     pub patterns: Vec<String>,
+    #[serde(default)]
+    pub author: Option<String>,
+    #[serde(default)]
+    pub confidence: Option<u8>,
+    #[serde(default)]
+    pub source_attack: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
+    #[serde(default)]
+    pub min_ripley_version: Option<String>,
+    #[serde(default)]
+    pub source: RuleSource,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum RuleSource {
+    #[default]
+    Compiled,
+    User,
+    Community {
+        source_name: String,
+    },
+}
+
+impl Rule {
+    pub fn is_community(&self) -> bool {
+        matches!(self.source, RuleSource::Community { .. })
+    }
+
+    pub fn is_trusted(&self, trusted_sources: &[String]) -> bool {
+        match &self.source {
+            RuleSource::Compiled | RuleSource::User => true,
+            RuleSource::Community { source_name } => trusted_sources.contains(source_name),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -132,6 +171,99 @@ impl RuleSet {
 
     pub fn rules(&self) -> &[Rule] {
         &self.rules
+    }
+
+    pub fn load_community_rules(data_dir: &Path) -> Result<Self, RuleError> {
+        let community_dir = data_dir.join("rules").join("community");
+        let mut rules = Vec::new();
+
+        let sources = match std::fs::read_dir(&community_dir) {
+            Ok(e) => e,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Self { rules });
+            }
+            Err(e) => {
+                return Err(RuleError::ReadDir {
+                    path: community_dir,
+                    source: e,
+                });
+            }
+        };
+
+        for source_entry in sources {
+            let source_entry = match source_entry {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+            let source_path = source_entry.path();
+            if !source_path.is_dir() {
+                continue;
+            }
+            let source_name = source_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("unknown")
+                .to_string();
+
+            let entries = match std::fs::read_dir(&source_path) {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+
+            for entry in entries {
+                let entry = match entry {
+                    Ok(e) => e,
+                    Err(_) => continue,
+                };
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+                    continue;
+                }
+
+                let content = match std::fs::read_to_string(&path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        tracing::warn!("could not read community rule {}: {e}", path.display());
+                        continue;
+                    }
+                };
+
+                match parse_rule_content(&content) {
+                    Ok(mut parsed_rules) => {
+                        for rule in &mut parsed_rules {
+                            rule.source = RuleSource::Community {
+                                source_name: source_name.clone(),
+                            };
+                        }
+                        rules.extend(parsed_rules);
+                    }
+                    Err(e) => {
+                        tracing::warn!("could not parse community rule {}: {e}", path.display());
+                    }
+                }
+            }
+        }
+
+        Ok(Self { rules })
+    }
+
+    pub fn load_all(config_dir: &Path, data_dir: &Path) -> Result<Self, RuleError> {
+        let mut compiled = Self::load_compiled()?;
+        for rule in &mut compiled.rules {
+            rule.source = RuleSource::Compiled;
+        }
+
+        let community = Self::load_community_rules(data_dir)?;
+
+        let user_rules_dir = config_dir.join("rules");
+        let mut user = Self::load_user_rules(&user_rules_dir)?;
+        for rule in &mut user.rules {
+            rule.source = RuleSource::User;
+        }
+
+        // Three-tier merge: compiled < community < user
+        let merged = Self::merge(compiled, community);
+        Ok(Self::merge(merged, user))
     }
 }
 
@@ -289,31 +421,116 @@ patterns = []
     #[test]
     fn test_merge_appends_new_rules() {
         let base = RuleSet {
-            rules: vec![Rule {
-                id: "BASE001".to_string(),
-                name: "base".to_string(),
-                description: "base rule".to_string(),
-                ecosystem: "npm".to_string(),
-                signal: "test".to_string(),
-                weight: Severity::Low,
-                patterns: vec![],
-            }],
+            rules: vec![test_rule("BASE001", "base", Severity::Low)],
         };
         let user = RuleSet {
-            rules: vec![Rule {
-                id: "USER001".to_string(),
-                name: "user".to_string(),
-                description: "user rule".to_string(),
-                ecosystem: "npm".to_string(),
-                signal: "test".to_string(),
-                weight: Severity::High,
-                patterns: vec![],
-            }],
+            rules: vec![test_rule("USER001", "user", Severity::High)],
         };
 
         let merged = RuleSet::merge(base, user);
         assert_eq!(merged.rules().len(), 2);
         assert!(merged.rules().iter().any(|r| r.id == "BASE001"));
         assert!(merged.rules().iter().any(|r| r.id == "USER001"));
+    }
+
+    #[test]
+    fn test_rule_existing_parse_unchanged() {
+        let rules = RuleSet::load_compiled().expect("load");
+        for rule in rules.rules() {
+            assert!(!rule.id.is_empty());
+            assert_eq!(rule.source, RuleSource::Compiled);
+        }
+    }
+
+    #[test]
+    fn test_rule_full_metadata_parses() {
+        let content = r#"
+[[rules]]
+id = "FULL001"
+name = "full rule"
+description = "a fully specified rule"
+ecosystem = "npm"
+signal = "network"
+weight = "high"
+patterns = ["curl\\s+"]
+author = "test-author"
+confidence = 90
+source_attack = "exfiltration"
+updated_at = "2026-01-01"
+min_ripley_version = "0.5.0"
+"#;
+        let parsed = parse_rule_content(content).expect("parse");
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].author.as_deref(), Some("test-author"));
+        assert_eq!(parsed[0].confidence, Some(90));
+    }
+
+    #[test]
+    fn test_is_community() {
+        let mut rule = test_rule("TEST001", "test", Severity::Low);
+        assert!(!rule.is_community());
+
+        rule.source = RuleSource::Community {
+            source_name: "test-src".to_string(),
+        };
+        assert!(rule.is_community());
+    }
+
+    #[test]
+    fn test_is_trusted() {
+        let mut rule = test_rule("TEST001", "test", Severity::Low);
+        assert!(rule.is_trusted(&[]));
+
+        rule.source = RuleSource::User;
+        assert!(rule.is_trusted(&[]));
+
+        rule.source = RuleSource::Community {
+            source_name: "my-src".to_string(),
+        };
+        assert!(!rule.is_trusted(&[]));
+        assert!(rule.is_trusted(&["my-src".to_string()]));
+        assert!(!rule.is_trusted(&["other-src".to_string()]));
+    }
+
+    #[test]
+    fn test_load_community_rules_empty() {
+        let tmpdir = tempfile::tempdir().expect("tmpdir");
+        let rules = RuleSet::load_community_rules(tmpdir.path()).expect("load");
+        assert!(rules.rules().is_empty());
+    }
+
+    #[test]
+    fn test_load_all_three_tier() {
+        let tmpdir = tempfile::tempdir().expect("tmpdir");
+        let config_dir = tmpdir.path().join("config");
+        let data_dir = tmpdir.path().join("data");
+        std::fs::create_dir_all(config_dir.join("rules")).expect("mkdir");
+
+        let rules = RuleSet::load_all(&config_dir, &data_dir).expect("load");
+        assert!(!rules.rules().is_empty());
+        assert!(
+            rules
+                .rules()
+                .iter()
+                .all(|r| r.source == RuleSource::Compiled)
+        );
+    }
+
+    fn test_rule(id: &str, name: &str, weight: Severity) -> Rule {
+        Rule {
+            id: id.to_string(),
+            name: name.to_string(),
+            description: format!("{name} rule"),
+            ecosystem: "npm".to_string(),
+            signal: "test".to_string(),
+            weight,
+            patterns: vec![],
+            author: None,
+            confidence: None,
+            source_attack: None,
+            updated_at: None,
+            min_ripley_version: None,
+            source: RuleSource::Compiled,
+        }
     }
 }

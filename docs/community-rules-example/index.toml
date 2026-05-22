@@ -1,0 +1,19 @@
+version = 1
+
+[[rules]]
+file = "supply_chain_2026.toml"
+id = "SC2026-001"
+name = "npm postinstall data exfiltration"
+ecosystem = "npm"
+weight = "critical"
+author = "ripley-community"
+updated_at = "2026-05-01"
+
+[[rules]]
+file = "supply_chain_2026.toml"
+id = "SC2026-002"
+name = "base64 encoded payload delivery"
+ecosystem = "all"
+weight = "high"
+author = "ripley-community"
+updated_at = "2026-05-01"

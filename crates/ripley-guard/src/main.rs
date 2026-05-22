@@ -119,6 +119,49 @@ enum Commands {
         #[arg(long, default_value = "table")]
         format: String,
     },
+    /// Manage community detection rule sources
+    Rule {
+        #[command(subcommand)]
+        command: RuleCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum RuleCommands {
+    /// Add a rule source
+    Add {
+        /// Source name
+        name: String,
+        /// Source URL (base URL containing index.toml)
+        url: String,
+    },
+    /// Remove a rule source
+    Remove {
+        /// Source name to remove
+        name: String,
+    },
+    /// Fetch/update rules from a source (or all sources)
+    Update {
+        /// Source name (omit to update all)
+        name: Option<String>,
+    },
+    /// List configured rule sources
+    List,
+    /// Trust a rule source (allows blocking in strict mode)
+    Trust {
+        /// Source name to trust
+        name: String,
+    },
+    /// Untrust a rule source
+    Untrust {
+        /// Source name to untrust
+        name: String,
+    },
+    /// Search rules by keyword
+    Search {
+        /// Search query
+        query: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -212,6 +255,7 @@ async fn main() -> ExitCode {
                 Err(e) => Err(e),
             }
         }
+        Commands::Rule { command } => commands::rule::cmd_rule(command).await,
     };
 
     match result {
