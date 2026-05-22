@@ -35,6 +35,7 @@ pub enum ConfigError {
 pub struct Config {
     pub general: GeneralConfig,
     pub monitoring: MonitoringConfig,
+    pub monitor: MonitorConfig,
     pub guard: GuardConfig,
     pub posture: PostureConfig,
     pub audit: AuditConfig,
@@ -65,6 +66,30 @@ impl Default for GeneralConfig {
 #[serde(default)]
 pub struct MonitoringConfig {
     pub project_roots: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MonitorConfig {
+    pub enabled: bool,
+    pub watch_processes: bool,
+    pub watch_persistence: bool,
+    pub watch_lockfiles: bool,
+    pub c2_domains: Vec<String>,
+    pub c2_ips: Vec<String>,
+}
+
+impl Default for MonitorConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            watch_processes: true,
+            watch_persistence: true,
+            watch_lockfiles: true,
+            c2_domains: Vec::new(),
+            c2_ips: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -196,6 +221,7 @@ impl Default for LoggingConfig {
 struct ConfigOverlay {
     general: GeneralOverlay,
     monitoring: MonitoringOverlay,
+    monitor: MonitorOverlay,
     guard: GuardOverlay,
     posture: PostureOverlay,
     feeds: FeedsOverlay,
@@ -215,6 +241,17 @@ struct GeneralOverlay {
 #[serde(default)]
 struct MonitoringOverlay {
     project_roots: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default)]
+struct MonitorOverlay {
+    enabled: Option<bool>,
+    watch_processes: Option<bool>,
+    watch_persistence: Option<bool>,
+    watch_lockfiles: Option<bool>,
+    c2_domains: Option<Vec<String>>,
+    c2_ips: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -275,6 +312,25 @@ fn apply_overlay(base: &mut Config, overlay: &ConfigOverlay) {
 
     if let Some(ref roots) = overlay.monitoring.project_roots {
         base.monitoring.project_roots.extend(roots.iter().cloned());
+    }
+
+    if let Some(v) = overlay.monitor.enabled {
+        base.monitor.enabled = v;
+    }
+    if let Some(v) = overlay.monitor.watch_processes {
+        base.monitor.watch_processes = v;
+    }
+    if let Some(v) = overlay.monitor.watch_persistence {
+        base.monitor.watch_persistence = v;
+    }
+    if let Some(v) = overlay.monitor.watch_lockfiles {
+        base.monitor.watch_lockfiles = v;
+    }
+    if let Some(ref v) = overlay.monitor.c2_domains {
+        base.monitor.c2_domains.extend(v.iter().cloned());
+    }
+    if let Some(ref v) = overlay.monitor.c2_ips {
+        base.monitor.c2_ips.extend(v.iter().cloned());
     }
 
     if let Some(v) = overlay.guard.mode {
@@ -378,6 +434,18 @@ fn apply_env_overrides(config: &mut Config) {
     {
         config.guard.mode = mode;
     }
+    if let Ok(val) = std::env::var("RIPLEY_MONITOR_ENABLED") {
+        config.monitor.enabled = val == "1" || val.eq_ignore_ascii_case("true");
+    }
+    if let Ok(val) = std::env::var("RIPLEY_MONITOR_WATCH_PROCESSES") {
+        config.monitor.watch_processes = val == "1" || val.eq_ignore_ascii_case("true");
+    }
+    if let Ok(val) = std::env::var("RIPLEY_MONITOR_WATCH_PERSISTENCE") {
+        config.monitor.watch_persistence = val == "1" || val.eq_ignore_ascii_case("true");
+    }
+    if let Ok(val) = std::env::var("RIPLEY_MONITOR_WATCH_LOCKFILES") {
+        config.monitor.watch_lockfiles = val == "1" || val.eq_ignore_ascii_case("true");
+    }
     if let Ok(val) = std::env::var("RIPLEY_SOCKET_API_KEY") {
         config.feeds.socket_api_key = Some(val);
     }
@@ -454,6 +522,71 @@ mod tests {
             config.posture.allowed_registries,
             vec!["https://registry.npmjs.org"]
         );
+    }
+
+    #[test]
+    fn test_default_monitor_config() {
+        let config = Config::default();
+        assert!(!config.monitor.enabled);
+        assert!(config.monitor.watch_processes);
+        assert!(config.monitor.watch_persistence);
+        assert!(config.monitor.watch_lockfiles);
+        assert!(config.monitor.c2_domains.is_empty());
+        assert!(config.monitor.c2_ips.is_empty());
+    }
+
+    #[test]
+    fn test_monitor_config_roundtrip_toml() {
+        let mut config = Config::default();
+        config.monitor.enabled = true;
+        config.monitor.watch_processes = false;
+        config.monitor.c2_domains = vec!["evil.com".to_string()];
+        config.monitor.c2_ips = vec!["192.168.1.1".to_string()];
+
+        let toml_str = toml::to_string_pretty(&config).expect("serialize");
+        let parsed: Config = toml::from_str(&toml_str).expect("parse");
+        assert!(parsed.monitor.enabled);
+        assert!(!parsed.monitor.watch_processes);
+        assert!(parsed.monitor.watch_persistence);
+        assert_eq!(parsed.monitor.c2_domains, vec!["evil.com"]);
+        assert_eq!(parsed.monitor.c2_ips, vec!["192.168.1.1"]);
+    }
+
+    #[test]
+    fn test_monitor_overlay_merge() {
+        let mut config = Config::default();
+        let overlay_toml = r#"
+[monitor]
+enabled = true
+watch_lockfiles = false
+c2_domains = ["bad.example.com"]
+"#;
+        let overlay: ConfigOverlay = toml::from_str(overlay_toml).expect("parse");
+        apply_overlay(&mut config, &overlay);
+
+        assert!(config.monitor.enabled);
+        assert!(config.monitor.watch_processes);
+        assert!(config.monitor.watch_persistence);
+        assert!(!config.monitor.watch_lockfiles);
+        assert_eq!(config.monitor.c2_domains, vec!["bad.example.com"]);
+        assert!(config.monitor.c2_ips.is_empty());
+    }
+
+    #[test]
+    fn test_monitor_overlay_c2_lists_extend() {
+        let mut config = Config::default();
+        config.monitor.c2_domains = vec!["existing.com".to_string()];
+
+        let overlay_toml = r#"
+[monitor]
+c2_domains = ["new.com"]
+c2_ips = ["10.0.0.1"]
+"#;
+        let overlay: ConfigOverlay = toml::from_str(overlay_toml).expect("parse");
+        apply_overlay(&mut config, &overlay);
+
+        assert_eq!(config.monitor.c2_domains, vec!["existing.com", "new.com"]);
+        assert_eq!(config.monitor.c2_ips, vec!["10.0.0.1"]);
     }
 
     #[test]

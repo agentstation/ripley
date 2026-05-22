@@ -9,6 +9,7 @@ pub mod harden;
 pub mod harness;
 pub mod lockfile;
 pub mod matcher;
+pub mod monitor;
 pub mod platform;
 pub mod prompt;
 pub mod rules;

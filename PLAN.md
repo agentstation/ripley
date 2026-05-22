@@ -9,8 +9,8 @@ tasks complete.
 ## /goal
 
 ```
-Implement Ripley Phase 3: Response Depth. Execute milestones M10
-through M13, pass every gate, and commit. PLAN.md is the control plane.
+Implement Ripley Phase 4: Active Detection. Execute milestones M14
+through M18, pass every gate, and commit. PLAN.md is the control plane.
 
 ════════════════════════════════════════════════════════════════
  PROJECT CONTEXT
@@ -23,27 +23,45 @@ anyhow), ripley-ipc (IPC layer), ripley-app (iced tray app).
 Phase 1 complete: npm lockfile parser, npm guard shims, macOS tray
 app, remediation pipeline, forensic scan.
 
-Phase 2 complete: 7 lockfile parsers (npm, yarn, pnpm, pip, cargo,
-go, gem), 7 guard shims, detection rules (pypi, cargo), feed
-integration (GHSA, Socket.dev), platform abstraction (macOS, Linux,
-Windows), CI matrix. 183+ tests, M6-M9 gates passed.
+Phase 2 complete: 7 lockfile parsers, 7 guard shims, detection rules,
+feed integration, platform abstraction. 183+ tests.
 
-Phase 3 adds structured remediation — four new CLI commands:
-  M10: `ripley audit`   — environment security audit
-  M11: `ripley harden`  — PM-specific hardening recommendations
-  M12: `ripley fix` + `ripley exposure` — CVE-targeted remediation
-  M13: Templates + dashboard views — playbooks, audit/posture UI
+Phase 3 complete: `ripley audit` (environment security), `ripley harden`
+(PM hardening), `ripley fix` (CVE remediation), `ripley exposure`
+(credential assessment), templates, dashboard audit/posture views.
+363 tests, M10-M13 gates passed.
+
+Phase 4 adds real-time active detection — two new CLI commands + daemon:
+  M14: Monitor config + process scanner (core library)
+  M15: `ripley monitor` daemon (process + filesystem + advisory)
+  M16: `ripley contain <pid|pkg>` (kill + forensic snapshot)
+  M17: Notifications + IPC extensions (alerts, streaming)
+  M18: Monitor dashboard view + tray integration
+
+Building blocks already in place:
+  commands/watch.rs     — daemon loop, advisory poller, lockfile watcher,
+                          IPC server (Status), CancellationToken, events
+  ripley-ipc/           — Request/Response, StatusData, Unix socket
+  forensic/network.rs   — C2Database, connection parsers (3 platforms),
+                          check_c2_connections()
+  forensic/persistence.rs — persistence path scanner, PersistenceCategory
+  app/events.rs         — AppEvent + Action enums (scaffolding)
+  app/watcher.rs        — lockfile FS watcher (scaffolding)
+  app/notifier.rs       — desktop notification via notify_rust
+  app/tray.rs           — system tray menu (scaffolding)
+  config.rs             — MonitoringConfig (needs [monitor] fields)
 
 Spec documents (read before implementing):
   CLAUDE.md       — conventions, build commands, scope guardrails
-  ARCHITECTURE.md — component design, module structure
-  ROADMAP.md      — Phase 3 spec (§"Phase 3: Response Depth")
-  SETTINGS.md     — config schema ([audit] section, CLI flags)
-  WORKFLOW.md     — workflow streams (§10 audit, §11 harden,
-                    §12 fix, §13 exposure)
+  ARCHITECTURE.md — "Process and network monitoring", "Filesystem
+                    anomaly detection", "Real-time alerting"
+  ROADMAP.md      — Phase 4 spec (§"Phase 4: Active Detection")
+  SETTINGS.md     — [monitor] config section spec
+  UI.md           — Monitor sidebar item, disabled until enabled
+  WORKFLOW.md     — §7 "Active containment"
 
 ════════════════════════════════════════════════════════════════
- EXECUTION LOOP — repeat until Phase 3 Gate passes
+ EXECUTION LOOP — repeat until Phase 4 Gate passes
 ════════════════════════════════════════════════════════════════
 
 1. READ STATE
@@ -55,18 +73,19 @@ Spec documents (read before implementing):
    Do not guess field names, formats, or API shapes when a spec exists.
 
 3. IMPLEMENT the task.
-   - Read existing code first. Match patterns: audit checks use the
-     collect/evaluate pattern. collect_*() runs system commands (I/O,
-     platform-specific). evaluate_*(output) is pure and testable.
-   - TrafficLight enum (Green/Yellow/Red) for all findings.
-   - Write every test listed in the task description.
+   - Read existing code first. Extend existing patterns:
+     - collect_*() / evaluate_*() for system checks.
+     - TrafficLight for findings, Severity for alerts.
+     - Existing daemon loop in watch.rs — extend, don't rewrite.
+     - IPC protocol in ripley-ipc — add variants, don't break existing.
+   - async code uses tokio: spawn, spawn_blocking, channels, select!,
+     CancellationToken. Platform I/O goes in spawn_blocking.
    - No `unwrap()` or `expect()` in ripley-core — return Result.
    - No `unsafe`. No new crates unless justified.
    - Test fixtures in `tests/fixtures/` at workspace root.
-   - `--format json|table` on all new commands.
-   - Exit codes: 0=clean/green, 1=findings/red, 2=error.
-   - Snapshot test every command output: `insta::assert_json_snapshot!`.
-   - Platform-specific code: `cfg(target_os)`, never hardcode paths.
+   - `--format json|table` on new commands.
+   - Exit codes: 0=clean, 1=findings/alerts, 2=error.
+   - Platform-specific code: `cfg(target_os)`, use platform.rs helpers.
 
 4. VERIFY — every task, no exceptions.
    - Run the task's specific verify command (listed in the task).
@@ -86,57 +105,84 @@ Spec documents (read before implementing):
 After all tasks in a milestone are checked, run that milestone's gate.
 Every command must pass. Fix failures and re-run until clean.
 
-── M10 GATE (Environment Audit) ───────────────────────────────
+── M14 GATE (Monitor Core Library) ────────────────────────────
 
   cargo build --workspace
   cargo test --workspace
   cargo clippy --workspace
   cargo fmt --all -- --check
-  cargo test -p ripley-core -- audit
-  cargo run -p ripley-guard -- audit
-  cargo run -p ripley-guard -- audit --format json
+  cargo test -p ripley-core -- monitor
+  cargo test -p ripley-core -- config
 
-  VERIFY: audit produces traffic-light output with 4 categories.
-  VERIFY: --format json produces valid JSON with all findings.
-  VERIFY: --fix generates prompt and detects harness.
-  VERIFY: insta snapshots for audit JSON output.
+  VERIFY: MonitorConfig fields match SETTINGS.md spec.
+  VERIFY: evaluate_connections filters and flags correctly.
+  VERIFY: evaluate_fs_event maps persistence/lockfile/MCP paths.
 
-  Pass → commit `M10: Environment audit`, update Plan State to M11.
+  Pass → commit `M14: Monitor config and process scanner`,
+  update Plan State to M15.
 
-── M11 GATE (PM Hardening) ────────────────────────────────────
-
-  cargo build --workspace
-  cargo test --workspace
-  cargo clippy --workspace
-  cargo fmt --all -- --check
-  cargo test -p ripley-core -- harden
-  cargo run -p ripley-guard -- harden
-  cargo run -p ripley-guard -- harden --format json
-
-  VERIFY: harden detects installed PMs and produces recommendations.
-  VERIFY: traffic-light output per category with fix commands.
-  VERIFY: --format json produces valid JSON.
-
-  Pass → commit `M11: PM hardening`, update Plan State to M12.
-
-── M12 GATE (Fix + Exposure) ──────────────────────────────────
+── M15 GATE (Monitor Daemon) ──────────────────────────────────
 
   cargo build --workspace
   cargo test --workspace
   cargo clippy --workspace
   cargo fmt --all -- --check
-  cargo test -p ripley-guard -- fix
-  cargo test -p ripley-core -- forensic::exposure
+  cargo run -p ripley-guard -- monitor --help
+  cargo test -p ripley-core -- monitor
+  cargo test -- monitor_integration
 
-  VERIFY: `ripley fix <cve>` generates prompt for affected projects.
-  VERIFY: `ripley exposure <cve>` produces credential assessment.
-  VERIFY: both commands support --format json.
+  VERIFY: ripley monitor --help shows usage with --daemon, --format.
+  VERIFY: Monitor detects planted persistence write in test.
+  VERIFY: Alerts appear in guard.jsonl.
+  VERIFY: Clean shutdown with Ctrl-C.
 
-  Pass → commit `M12: Fix and exposure`, update Plan State to M13.
+  Pass → commit `M15: Monitor daemon`, update Plan State to M16.
 
-── M13 GATE (Templates + Dashboard) ───────────────────────────
+── M16 GATE (Contain Command) ─────────────────────────────────
 
   cargo build --workspace
+  cargo test --workspace
+  cargo clippy --workspace
+  cargo fmt --all -- --check
+  cargo run -p ripley-guard -- contain --help
+  cargo test -p ripley-core -- monitor::contain
+  cargo test -p ripley-ipc
+
+  VERIFY: ripley contain --help shows usage with target, --format.
+  VERIFY: Snapshot serializes to valid JSON.
+  VERIFY: IPC Contain request/response roundtrips.
+
+  Pass → commit `M16: Contain command`, update Plan State to M17.
+
+── M17 GATE (Notifications + IPC) ─────────────────────────────
+
+  cargo build --workspace
+  cargo test --workspace
+  cargo clippy --workspace
+  cargo fmt --all -- --check
+  cargo test -p ripley-ipc
+  cargo test -p ripley-core -- monitor
+
+  VERIFY: Notification formatting for each alert type.
+  VERIFY: IPC alert roundtrips work.
+  VERIFY: Guard log entries are valid JSON with all fields.
+
+  Pass → commit `M17: Notifications and IPC`, update Plan State to M18.
+
+── M18 GATE (Dashboard + Tray) ────────────────────────────────
+
+  cargo build --workspace
+  cargo test --workspace
+  cargo clippy --workspace
+  cargo fmt --all -- --check
+  cargo build -p ripley-app
+
+  VERIFY: ripley-app builds without warnings.
+  VERIFY: Monitor view, tray, settings, events all wired.
+  VERIFY: No #[allow(dead_code)] on Phase 4 scaffolding.
+
+  Pass → commit `M18: Monitor dashboard and tray`, update Plan State
+  to Phase 4 Gate.
   cargo test --workspace
   cargo clippy --workspace
   cargo fmt --all -- --check
@@ -180,42 +226,52 @@ When the Phase 3 Gate passes:
  DEPENDENCY GRAPH
 ════════════════════════════════════════════════════════════════
 
-M10.F  Audit types ──► M10.1-M10.4  Checks ──► M10.5  CLI
-  │                                                  │
-  └──────────────────────────────────────────── M10 Gate
-                                                     │
-M11.1  Harden types + PM detect ◄───────────────────┘
+M14.1  MonitorConfig ──► M14.2  Process scanner ──► M14.3  FS monitor
+  │                         │                            │
+  └─────────────────────────┴────────────────────── M14 Gate
+                                                        │
+M15.1  Extend WatchEvent ◄─────────────────────────────┘
   │
-M11.2-M11.4  Checks ──► M11.5  CLI ──► M11 Gate
-                                            │
-M12.1  ripley fix ──► M12.2  ripley exposure ──► M12 Gate
-                                                     │
-M13.1  Templates ──► M13.2  Network C2 ──► M13.3 Dashboard
-  │                                                  │
-  └──────────────────────────────────────────── M13 Gate
-                                                     │
-                                              Phase 3 Gate
+M15.2  Process loop ──► M15.3  Persistence loop ──► M15.4  CLI
+  │                                                      │
+  └──────────────────── M15.5  Integration ─────── M15 Gate
+                                                        │
+M16.1  Snapshot ──► M16.2  Kill + save ──► M16.3  CLI ──► M16.4  IPC
+  │                                                            │
+  └──────────────────────────────────────────────────── M16 Gate
+                                                            │
+M17.1  Notifications ──► M17.2  IPC streaming ──► M17.3  Log
+  │                                                      │
+  └──────────────────────────────────────────────── M17 Gate
+                                                        │
+M18.1  Monitor view ──► M18.2  Tray ──► M18.3  Events ──► M18.4  Settings
+  │                                                              │
+  └──────────────────────────────────────────────────────── M18 Gate
+                                                                │
+                                                         Phase 4 Gate
 
-M10 tasks should be done in order (framework first, then checks,
-then CLI). M10.1-M10.4 checks can be done in any order.
-M11 starts after M10 Gate (shares TrafficLight types).
-M12 can start after M11 Gate. fix and exposure are independent.
-M13 starts after M12 Gate.
+M14 tasks must be done in order (config first, then process, then FS).
+M14.2 and M14.3 are independent of each other but both need M14.1.
+M15 starts after M14 Gate (uses core monitor types).
+M16 starts after M15 Gate (uses daemon infrastructure).
+M17 starts after M16 Gate (uses contain types for notifications).
+M18 starts after M17 Gate (uses IPC extensions for dashboard).
 
 ════════════════════════════════════════════════════════════════
  COMMIT STRATEGY
 ════════════════════════════════════════════════════════════════
 
-Commit at each milestone gate — 4 milestone commits + 1 final:
-  M10 Gate → `M10: Environment audit`
-  M11 Gate → `M11: PM hardening`
-  M12 Gate → `M12: Fix and exposure`
-  M13 Gate → `M13: Templates and dashboard`
-  Phase 3 Gate → `Phase 3: Response depth`
+Commit at each milestone gate — 5 milestone commits + 1 final:
+  M14 Gate → `M14: Monitor config and process scanner`
+  M15 Gate → `M15: Monitor daemon`
+  M16 Gate → `M16: Contain command`
+  M17 Gate → `M17: Notifications and IPC`
+  M18 Gate → `M18: Monitor dashboard and tray`
+  Phase 4 Gate → `Phase 4: Active detection`
 
 Within a milestone, commit after completing a logical group of tasks
 if the session is long and you want to checkpoint progress. Use
-descriptive messages: `M10: Add machine security checks` etc.
+descriptive messages: `M14: Add monitor config section` etc.
 
 ════════════════════════════════════════════════════════════════
  RECOVERY AFTER COMPACTION
@@ -239,43 +295,50 @@ what commands to run. Read the task, read the specs it references, go.
 ════════════════════════════════════════════════════════════════
 
 SCOPE
-- Phase 3 only. Do not implement ripley monitor, ripley contain,
-  sandboxing, behavioral analysis, or community rule sharing.
-- Use trait/enum extension points where Phase 4+ will need them.
+- Phase 4 only. Do not implement sandboxed script execution,
+  behavioral analysis engine, community rule sharing, CI/CD
+  integrations, SARIF output, or any Phase 5+ features.
+- Use trait/enum extension points where Phase 5+ will need them.
 
 CODE QUALITY
 - No unwrap() or expect() in ripley-core — always return Result.
 - No unsafe unless measured and documented (there should be none).
 - Every public function in ripley-core gets at least one unit test.
-- insta snapshot tests for all command outputs and check results.
-- cargo deny check must pass at every milestone gate.
+- insta snapshot tests for command outputs.
+- cargo deny check must pass at every phase gate.
 
 PATTERNS
-- Audit checks use collect/evaluate pattern:
-  collect_*() runs system commands (I/O, cfg(target_os)).
-  evaluate_*(output: &str) -> AuditFinding is pure and testable.
-  Tests call evaluate_* with mock command output.
-- Traffic-light output: TrafficLight::Green/Yellow/Red per finding.
-  CategoryReport aggregates findings into per-category score.
-  AuditReport / HardenReport aggregate categories into summary.
+- Monitor checks use collect/evaluate pattern:
+  collect_*() runs system commands (I/O, cfg(target_os), spawn_blocking).
+  evaluate_*(...) is pure and testable.
+  Tests call evaluate_* with mock data.
+- Severity enum for alert priorities (Critical/High/Medium/Low).
+- TrafficLight for status indicators (Green/Yellow/Red).
+- Async daemon code: tokio spawn/select!/CancellationToken.
+  Platform I/O in spawn_blocking. Channels for event passing.
+- Extend existing watch.rs daemon — don't rewrite from scratch.
+- Extend existing IPC protocol — add variants, keep backward compat.
 - New CLI commands follow existing scan.rs shape: async fn cmd_*,
   --format json|table, exit codes 0/1/2.
-- Prompt generation: extend prompt.rs for audit and fix prompts.
-- Harness launch: reuse harness.rs detect_harness + launch_harness.
 
 DEPENDENCIES
-- No new crates expected. System checks use std::process::Command.
+- No new crates expected for M14-M17. System checks use
+  std::process::Command. `notify` crate already in workspace for
+  filesystem watching. `notify_rust` for desktop notifications.
+- M18 (dashboard) uses existing `iced`, `tray-icon`, `muda` deps.
 - All deps must already be in [workspace.dependencies].
 
 PLATFORM
 - cfg(target_os) for platform-specific system checks.
 - Never hardcode macOS commands in shared code.
 - Use platform.rs helpers for paths, shells, home dir.
+- Process monitoring: lsof (macOS), /proc+ss (Linux), netstat (Windows).
+  Windows contain is a stub (Phase 5).
 
 FIXTURES
 - Test fixtures in tests/fixtures/ at workspace root.
-- Audit check tests use mock command output strings.
-- Harden check tests use mock config file content.
+- Monitor tests use mock connection data and mock FS events.
+- Contain tests use mock lsof/ps/pgrep output.
 ```
 
 
@@ -302,10 +365,10 @@ discard partial work.
 
 ```
 Phase:     4 --- Active Detection
-Milestone: —
-Task:      —
-Status:    Phase 3 complete
-Last gate: Phase 3
+Milestone: M15
+Task:      M14.3
+Status:    completed
+Last gate: M14
 ```
 
 Update this section after each task completes. Format:
@@ -2304,25 +2367,735 @@ notifications, and installers.
 
 ## Phase 4: Active Detection
 
-**Goal:** Real-time monitoring for active compromise.
+**Goal:** Ripley monitors the developer's machine in real time for signs
+of active compromise: unexpected network connections, unauthorized writes
+to sensitive paths, and C2 communication. When detected, containment is
+one click away.
 
 > Spec: ROADMAP.md "Phase 4: Active Detection"
+> Spec: WORKFLOW.md "7. Active containment"
+> Spec: SETTINGS.md "[monitor]"
+> Spec: UI.md "Monitor View"
+> Spec: ARCHITECTURE.md "Process and network monitoring"
 
-- [ ] `ripley monitor` daemon --- Spec: WORKFLOW.md "7. Active containment"
-  - [ ] Process monitoring (outbound connections from Node/Python/Ruby/Go)
-  - [ ] Filesystem monitoring (persistence paths, lockfile edits, .claude/, .vscode/)
-  - [ ] C2 domain/IP matching
-  - [ ] MCP config change detection
-- [ ] `ripley contain <pid|pkg>` --- kill + snapshot state
-- [ ] Real-time notifications: Contain/View/Investigate
-- [ ] Monitor dashboard view --- Spec: UI.md "Monitor View"
-- [ ] `[monitor]` config section --- Spec: SETTINGS.md "[monitor]"
+**Building blocks already in place:**
+- `commands/watch.rs` — daemon loop with advisory poller, lockfile FS
+  watcher, IPC server (Status only), CancellationToken shutdown, event
+  channel (`WatchEvent::NewAdvisories`, `WatchEvent::LockfileChanged`)
+- `ripley-ipc/protocol.rs` — `Request`/`Response` enums, `StatusData`,
+  Unix socket path, serde roundtrip
+- `ripley-ipc/server.rs` — async socket server with request handler
+- `forensic/network.rs` — `C2Database`, `NetworkConnection`,
+  `C2Finding`, `collect_active_connections()`, `check_c2_connections()`,
+  parsers (lsof/ss/netstat) — all 3 platforms
+- `forensic/persistence.rs` — `PersistenceFinding`, `PersistenceCategory`,
+  persistence path scanner for all platforms
+- `app/events.rs` — `AppEvent` + `Action` enums (scaffolding, not wired)
+- `app/watcher.rs` — lockfile FS watcher (scaffolding, not wired)
+- `app/notifier.rs` — desktop notification via `notify_rust`
+- `app/tray.rs` — system tray menu (Show Dashboard, Scan Now, Quit)
+- `config.rs` — `MonitoringConfig { project_roots }` (needs [monitor]
+  fields)
+
+
+### M14: Monitor Config + Process Scanner (core library)
+
+**Goal:** `[monitor]` config section and a reusable process monitor that
+detects suspicious outbound connections from developer tool processes.
+
+> Spec: SETTINGS.md "[monitor]" table
+> Spec: ARCHITECTURE.md "Process and network monitoring"
+
+- [x] **M14.1** — `[monitor]` config section
+
+  **Files:**
+  - `crates/ripley-core/src/config.rs` — expand `MonitoringConfig` (or
+    add `MonitorConfig` alongside it) with fields from SETTINGS.md:
+    `enabled: bool`, `watch_processes: bool`, `watch_persistence: bool`,
+    `watch_lockfiles: bool`, `c2_domains: Vec<String>`,
+    `c2_ips: Vec<String>`.
+  - Add `ConfigOverlay` fields and `apply_overlay` merge for the new
+    monitor fields.
+  - Add env var overrides: `RIPLEY_MONITOR_ENABLED`, etc.
+  - Add `Config { monitor: MonitorConfig }` field on the resolved config.
+
+  **Tests:**
+  - Default values match SETTINGS.md (enabled=false, watches=true).
+  - TOML round-trip: serialize → deserialize → values match.
+  - Overlay merge: project-level overrides user-level.
+  - Env vars override file config.
+
+  **Verify:**
+  ```
+  cargo test -p ripley-core -- config
+  cargo clippy --workspace
+  ```
+
+- [x] **M14.2** — Process scanner: collect + evaluate
+
+  Build a reusable process monitor in `ripley-core` that wraps the
+  existing `forensic/network.rs` connection parser and adds process
+  filtering (Node/Python/Ruby/Go/Bun/Deno).
+
+  **Files:**
+  - `crates/ripley-core/src/monitor/mod.rs` — new module, exports.
+  - `crates/ripley-core/src/monitor/process.rs`:
+    - `struct ProcessAlert { connection: NetworkConnection, reason: AlertReason, severity: Severity, timestamp: u64 }`
+    - `enum AlertReason { C2Connection { indicator: String }, SuspiciousOutbound, PersistenceWrite { path: PathBuf }, LockfileEdit { path: PathBuf }, McpConfigChange { path: PathBuf }, UnknownBinary { path: PathBuf } }`
+    - `fn scan_processes(config: &MonitorConfig, c2_db: &C2Database) -> Result<Vec<ProcessAlert>>`:
+      calls `collect_active_connections()`, filters to developer-tool
+      processes (node, python, ruby, go, bun, deno — match by process
+      name), runs `check_c2_connections()` with merged C2 list
+      (compiled-in + config c2_domains/c2_ips), returns alerts.
+    - `fn evaluate_connections(connections: &[NetworkConnection], config: &MonitorConfig, c2_db: &C2Database) -> Vec<ProcessAlert>`:
+      Pure function. Filters connections to watched processes, checks
+      against C2 database. Testable without I/O.
+    - `fn is_developer_process(name: &str) -> bool`: matches node,
+      python, python3, ruby, go, bun, deno, pip, npm, yarn, pnpm, cargo.
+    - `fn merge_c2_database(compiled: &C2Database, config: &MonitorConfig) -> C2Database`:
+      Merges compiled-in C2 list with user-configured c2_domains/c2_ips.
+  - `crates/ripley-core/src/lib.rs` — add `pub mod monitor;`
+
+  **Tests:**
+  - `is_developer_process`: true for "node", "python3", "ruby", "go",
+    "bun"; false for "systemd", "sshd", "finder".
+  - `evaluate_connections` with mock connections: filters non-dev
+    processes, flags C2 matches, returns correct severity.
+  - `merge_c2_database`: compiled + config entries are all present.
+  - `evaluate_connections` with empty connection list → empty alerts.
+  - `evaluate_connections` with connection to known C2 → alert with
+    `AlertReason::C2Connection`.
+
+  **Verify:**
+  ```
+  cargo test -p ripley-core -- monitor::process
+  cargo clippy --workspace
+  ```
+
+- [x] **M14.3** — Filesystem monitor: persistence path watcher
+
+  Watch for writes to persistence paths and MCP configs. Reuses
+  `forensic/persistence.rs` knowledge of persistence paths.
+
+  **Files:**
+  - `crates/ripley-core/src/monitor/filesystem.rs`:
+    - `fn persistence_watch_paths() -> Vec<PathBuf>`: returns all paths
+      that should be watched — LaunchAgents, systemd, cron, shell RCs,
+      `.claude/`, `.vscode/`, `.mcp.json`, `.cursor/mcp.json`. Uses
+      `cfg(target_os)` and `platform.rs` for paths.
+    - `fn evaluate_fs_event(path: &Path, kind: FsEventKind) -> Option<ProcessAlert>`:
+      Pure function. Given a changed path and event kind, returns an
+      alert if the path matches a persistence pattern. Maps to
+      appropriate `AlertReason` variant.
+    - `enum FsEventKind { Created, Modified, Deleted }`
+    - `fn is_lockfile_edit(path: &Path) -> bool`: checks if the path
+      is any known lockfile (package-lock.json, yarn.lock, pnpm-lock.yaml,
+      Cargo.lock, go.sum, Gemfile.lock, requirements.txt).
+    - `fn is_persistence_path(path: &Path) -> bool`: checks against
+      known persistence paths per platform.
+    - `fn is_mcp_config(path: &Path) -> bool`: checks .mcp.json,
+      .cursor/mcp.json, .claude/settings.json.
+
+  **Tests:**
+  - `persistence_watch_paths` returns platform-appropriate paths (macOS:
+    includes LaunchAgents; Linux: includes systemd).
+  - `evaluate_fs_event` for persistence path write → alert.
+  - `evaluate_fs_event` for lockfile edit → alert with
+    `AlertReason::LockfileEdit`.
+  - `evaluate_fs_event` for MCP config change → alert with
+    `AlertReason::McpConfigChange`.
+  - `evaluate_fs_event` for unrelated path → None.
+  - `is_lockfile_edit` true/false cases.
+  - `is_persistence_path` true/false cases per platform.
+  - `is_mcp_config` true/false cases.
+
+  **Verify:**
+  ```
+  cargo test -p ripley-core -- monitor::filesystem
+  cargo clippy --workspace
+  ```
+
+#### M14 Gate (Monitor Core Library)
+
+```
+cargo build --workspace
+cargo test --workspace
+cargo clippy --workspace
+cargo fmt --all -- --check
+cargo test -p ripley-core -- monitor
+cargo test -p ripley-core -- config
+```
+
+VERIFY: `MonitorConfig` fields match SETTINGS.md spec.
+VERIFY: `evaluate_connections` filters and flags correctly in tests.
+VERIFY: `evaluate_fs_event` maps persistence/lockfile/MCP paths.
+VERIFY: All new public functions have tests.
+
+Pass → commit `M14: Monitor config and process scanner`, update Plan
+State to M15.
+
+
+---
+
+
+### M15: Monitor Daemon (`ripley monitor` CLI)
+
+**Goal:** A long-running `ripley monitor` command that combines process
+scanning, filesystem watching, and the existing advisory poller into a
+unified daemon with event-driven architecture.
+
+> Spec: ROADMAP.md "ripley monitor — background daemon"
+> Spec: WORKFLOW.md "7. Active containment" — `ripley monitor`
+
+- [ ] **M15.1** — Extend `WatchEvent` and daemon loop
+
+  Extend the existing `commands/watch.rs` daemon to support monitor
+  events alongside the existing advisory/lockfile events.
+
+  **Files:**
+  - `crates/ripley-guard/src/commands/watch.rs`:
+    - Add `WatchEvent::MonitorAlert(ProcessAlert)` variant.
+    - Add `WatchEvent::PersistenceAlert(ProcessAlert)` variant.
+    - In `cmd_watch`: if `config.monitor.enabled`, spawn the process
+      scanner loop and persistence watcher alongside existing poller
+      and lockfile watcher.
+    - Handle new event types in the main event loop: log, notify,
+      append to guard.jsonl.
+
+  **Tests:**
+  - (Integration-level — tested via M15.3)
+
+  **Verify:**
+  ```
+  cargo build -p ripley-guard
+  cargo clippy --workspace
+  ```
+
+- [ ] **M15.2** — Process scanner loop
+
+  A tokio task that periodically scans active connections.
+
+  **Files:**
+  - `crates/ripley-guard/src/commands/watch.rs` (or extract to
+    `crates/ripley-guard/src/commands/monitor.rs` if watch.rs grows
+    too large):
+    - `async fn run_process_scanner(config: Config, c2_db: C2Database, tx: Sender<WatchEvent>, cancel: CancellationToken)`:
+      Loop: sleep for scan interval (default 30s, configurable), call
+      `scan_processes`, send alerts via channel. Use `spawn_blocking`
+      for the sync `collect_active_connections` call.
+    - Dedup: track seen connections (process+remote_addr+remote_port)
+      to avoid re-alerting for persistent connections. Clear after
+      configurable TTL (e.g. 5 minutes).
+
+  **Tests:**
+  - Dedup logic: same connection twice → one alert.
+  - Different connections → separate alerts.
+
+  **Verify:**
+  ```
+  cargo build -p ripley-guard
+  cargo clippy --workspace
+  ```
+
+- [ ] **M15.3** — Persistence watcher loop
+
+  A tokio task that watches persistence paths for filesystem events.
+
+  **Files:**
+  - `crates/ripley-guard/src/commands/watch.rs` (or `monitor.rs`):
+    - `async fn run_persistence_watcher(config: Config, tx: Sender<WatchEvent>, cancel: CancellationToken)`:
+      Use `notify` crate to watch paths from
+      `persistence_watch_paths()`. On event, call `evaluate_fs_event`,
+      send alerts. Debounce rapid events (100ms window).
+    - If `config.monitor.watch_lockfiles`: also watch project roots
+      for lockfile changes outside of explicit install (reuse existing
+      lockfile watcher, but fire `PersistenceAlert` instead of
+      `LockfileChanged` when the daemon is in monitor mode).
+
+  **Tests:**
+  - (Integration test in M15.5)
+
+  **Verify:**
+  ```
+  cargo build -p ripley-guard
+  cargo clippy --workspace
+  ```
+
+- [ ] **M15.4** — `ripley monitor` CLI command
+
+  Wire the monitor as a new CLI subcommand.
+
+  **Files:**
+  - `crates/ripley-guard/src/commands/monitor.rs` — new file:
+    - `pub async fn cmd_monitor(daemon: bool) -> Result<()>`:
+      Load config, check `config.monitor.enabled` (error if false with
+      helpful message about enabling in config.toml), load C2 database,
+      set up event channel, spawn: process scanner loop, persistence
+      watcher, existing advisory poller, IPC server. Main loop handles
+      all events.
+    - `--daemon` flag: background mode with file logging (same as
+      `watch --daemon`).
+    - Alert output format: timestamp, severity icon, process name,
+      reason, detail. Example:
+      `[14:23:05] ● HIGH  node (PID 12345) → 185.x.x.x:443 (known C2)`
+    - `--format json`: JSON Lines output, one alert per line.
+  - `crates/ripley-guard/src/commands/mod.rs` — add `pub mod monitor;`
+  - `crates/ripley-guard/src/main.rs` — add `Monitor` subcommand to
+    clap enum with `--daemon` and `--format` flags. Route to
+    `cmd_monitor`.
+
+  **Tests:**
+  - Verify `Monitor` subcommand parses with clap.
+
+  **Verify:**
+  ```
+  cargo build -p ripley-guard
+  cargo run -p ripley-guard -- monitor --help
+  cargo clippy --workspace
+  ```
+
+- [ ] **M15.5** — Guard log integration + integration tests
+
+  Monitor alerts are logged to `guard.jsonl` for forensic review.
+
+  **Files:**
+  - `crates/ripley-guard/src/commands/monitor.rs` (or watch.rs):
+    - On each alert: append JSON line to `guard.jsonl` with fields:
+      `timestamp`, `event_type: "monitor_alert"`, `severity`, `process`,
+      `pid`, `reason`, `detail`.
+  - `tests/monitor_integration.rs` — new integration test:
+    - Start monitor with a test config pointing at a temp dir.
+    - Write a file to a persistence path in the temp dir.
+    - Assert that a `PersistenceAlert` appears in guard.jsonl.
+    - (Process scanner test: can only test evaluate path since
+      `collect_active_connections` needs real system state.)
+
+  **Tests:**
+  - Integration: persistence path write → alert in guard.jsonl.
+  - Integration: monitor starts and stops cleanly with CancellationToken.
+
+  **Verify:**
+  ```
+  cargo test --workspace
+  cargo clippy --workspace
+  cargo fmt --all -- --check
+  ```
+
+#### M15 Gate (Monitor Daemon)
+
+```
+cargo build --workspace
+cargo test --workspace
+cargo clippy --workspace
+cargo fmt --all -- --check
+cargo run -p ripley-guard -- monitor --help
+cargo test -p ripley-core -- monitor
+cargo test -- monitor_integration
+```
+
+VERIFY: `ripley monitor --help` shows usage with --daemon and --format.
+VERIFY: Monitor starts, detects planted persistence write in test.
+VERIFY: Alerts appear in guard.jsonl.
+VERIFY: Clean shutdown with Ctrl-C.
+
+Pass → commit `M15: Monitor daemon`, update Plan State to M16.
+
+
+---
+
+
+### M16: Contain Command (`ripley contain`)
+
+**Goal:** Kill a suspicious process, snapshot its state (open files,
+network connections, environment, process tree) for forensic analysis.
+
+> Spec: ROADMAP.md "ripley contain <pid|pkg>"
+> Spec: WORKFLOW.md "7. Active containment" — containment action
+
+- [ ] **M16.1** — Process snapshot (core library)
+
+  Capture a process's forensic state before killing it.
+
+  **Files:**
+  - `crates/ripley-core/src/monitor/contain.rs`:
+    - `struct ProcessSnapshot { pid: u32, name: String, cmdline: String, open_files: Vec<String>, network_connections: Vec<NetworkConnection>, env_vars: Vec<(String, String)>, children: Vec<u32>, timestamp: u64 }`
+    - `fn collect_process_snapshot(pid: u32) -> Result<ProcessSnapshot>`:
+      Platform-specific. macOS: `lsof -p`, `ps -p`, `pgrep -P`.
+      Linux: read `/proc/{pid}/cmdline`, `/proc/{pid}/fd`,
+      `/proc/{pid}/environ`, `/proc/{pid}/net/tcp`. Windows: stub that
+      returns error (Phase 5).
+    - `fn evaluate_snapshot_output(lsof_output: &str, ps_output: &str, pgrep_output: &str) -> ProcessSnapshot`:
+      Pure parser, testable.
+    - Uses `cfg(target_os)` for platform dispatch.
+
+  **Tests:**
+  - `evaluate_snapshot_output` with mock lsof/ps/pgrep output.
+  - Parse open files list from lsof output.
+  - Parse child PIDs from pgrep output.
+  - Parse env vars from /proc format.
+
+  **Verify:**
+  ```
+  cargo test -p ripley-core -- monitor::contain
+  cargo clippy --workspace
+  ```
+
+- [ ] **M16.2** — Process kill + snapshot save
+
+  **Files:**
+  - `crates/ripley-core/src/monitor/contain.rs`:
+    - `fn contain_process(pid: u32, data_dir: &Path) -> Result<ContainResult>`:
+      1. `collect_process_snapshot(pid)` — capture state first.
+      2. Save snapshot as JSON to `{data_dir}/snapshots/{pid}_{timestamp}.json`.
+      3. Kill process: `kill(pid, SIGKILL)` on Unix, stub on Windows.
+      4. Return `ContainResult { snapshot_path, killed: bool }`.
+    - `struct ContainResult { snapshot_path: PathBuf, killed: bool, snapshot: ProcessSnapshot }`
+    - Snapshot directory creation: atomic mkdir.
+  - File writes: temp file + rename for atomicity.
+
+  **Tests:**
+  - Snapshot serializes to valid JSON.
+  - Snapshot file path uses `{pid}_{timestamp}.json` format.
+  - `ContainResult` fields are populated correctly.
+  - (Cannot test actual kill in unit tests — tested in integration.)
+
+  **Verify:**
+  ```
+  cargo test -p ripley-core -- monitor::contain
+  cargo clippy --workspace
+  ```
+
+- [ ] **M16.3** — `ripley contain` CLI command
+
+  **Files:**
+  - `crates/ripley-guard/src/commands/contain.rs` — new file:
+    - `pub async fn cmd_contain(target: &str, format: &str) -> Result<()>`:
+      Parse target as PID (u32) or package name (string). If PID:
+      contain directly. If package name: find PID by matching process
+      names against package manager processes (heuristic: search for
+      processes whose cmdline contains the package name).
+    - Table output: snapshot summary (PID, name, connections, open files
+      count, children count), "Process killed" confirmation.
+    - JSON output: full `ContainResult` serialized.
+    - Exit codes: 0=contained, 1=process not found, 2=error.
+  - `crates/ripley-guard/src/commands/mod.rs` — add `pub mod contain;`
+  - `crates/ripley-guard/src/main.rs` — add `Contain` subcommand with
+    `target: String`, `--format` flag. Route to `cmd_contain`.
+
+  **Tests:**
+  - Verify `Contain` subcommand parses with clap.
+  - Target parsing: "12345" → PID, "evil-pkg" → package name.
+
+  **Verify:**
+  ```
+  cargo build -p ripley-guard
+  cargo run -p ripley-guard -- contain --help
+  cargo clippy --workspace
+  ```
+
+- [ ] **M16.4** — IPC: Contain request from app
+
+  Extend the IPC protocol so the tray app can request containment.
+
+  **Files:**
+  - `crates/ripley-ipc/src/protocol.rs`:
+    - Add `Request::Contain { pid: u32 }` variant.
+    - Add `Response::ContainResult(ContainResultData)` variant.
+    - `struct ContainResultData { pid: u32, killed: bool, snapshot_path: String }`
+  - `crates/ripley-guard/src/commands/monitor.rs` (IPC handler):
+    - Handle `Request::Contain` in the IPC server: call
+      `contain_process`, return result.
+
+  **Tests:**
+  - `Request::Contain` roundtrip (serialize/deserialize).
+  - `Response::ContainResult` roundtrip.
+
+  **Verify:**
+  ```
+  cargo test -p ripley-ipc
+  cargo clippy --workspace
+  ```
+
+#### M16 Gate (Contain Command)
+
+```
+cargo build --workspace
+cargo test --workspace
+cargo clippy --workspace
+cargo fmt --all -- --check
+cargo run -p ripley-guard -- contain --help
+cargo test -p ripley-core -- monitor::contain
+cargo test -p ripley-ipc
+```
+
+VERIFY: `ripley contain --help` shows usage with target and --format.
+VERIFY: Snapshot serializes to valid JSON.
+VERIFY: IPC Contain request/response roundtrips.
+VERIFY: All new public functions have tests.
+
+Pass → commit `M16: Contain command`, update Plan State to M17.
+
+
+---
+
+
+### M17: Real-time Notifications + IPC Extensions
+
+**Goal:** High-priority desktop notifications with actionable buttons
+(View, Contain, Investigate). IPC extensions for the tray app to receive
+alerts from the monitor daemon.
+
+> Spec: ROADMAP.md "Real-time high-priority notifications"
+> Spec: WORKFLOW.md "7. Active containment" — notification flow
+
+- [ ] **M17.1** — Monitor notification system
+
+  **Files:**
+  - `crates/ripley-guard/src/commands/monitor.rs` (or a dedicated
+    `crates/ripley-guard/src/notify.rs`):
+    - `fn notify_monitor_alert(alert: &ProcessAlert)`:
+      Fire desktop notification via `notify_rust` with:
+      - Title: severity + alert type (e.g., "HIGH: Suspicious connection")
+      - Body: process name, PID, reason detail
+      - Actions (if platform supports): "View", "Contain"
+    - Severity determines urgency: Critical/High → urgent notification
+      (if platform supports), Medium/Low → normal.
+  - `crates/ripley-app/src/notifier.rs` — extend to handle monitor
+    alerts (not just vulnerability matches):
+    - `fn notify_monitor_alert(alert: &ProcessAlert)` — parallel to
+      existing `notify_match`.
+
+  **Tests:**
+  - Notification message formatting for each `AlertReason` variant.
+  - Severity to urgency mapping.
+
+  **Verify:**
+  ```
+  cargo build --workspace
+  cargo clippy --workspace
+  ```
+
+- [ ] **M17.2** — IPC: Alert streaming
+
+  Allow the tray app to subscribe to real-time alerts from the daemon.
+
+  **Files:**
+  - `crates/ripley-ipc/src/protocol.rs`:
+    - Add `Request::SubscribeAlerts` variant.
+    - Add `Response::MonitorAlert(MonitorAlertData)` variant.
+    - `struct MonitorAlertData { timestamp: u64, severity: String, process: String, pid: u32, reason: String, detail: String }`
+  - `crates/ripley-guard/src/commands/monitor.rs` (IPC handler):
+    - Track subscribed clients. On each alert, broadcast to all
+      subscribers.
+  - `crates/ripley-ipc/src/client.rs` — add
+    `async fn subscribe_alerts(&self) -> Result<Receiver<MonitorAlertData>>`:
+    Send `SubscribeAlerts`, receive stream of `MonitorAlert` responses.
+
+  **Tests:**
+  - `Request::SubscribeAlerts` roundtrip.
+  - `Response::MonitorAlert` roundtrip.
+  - `MonitorAlertData` serialization.
+
+  **Verify:**
+  ```
+  cargo test -p ripley-ipc
+  cargo clippy --workspace
+  ```
+
+- [ ] **M17.3** — Guard log: structured monitor events
+
+  Ensure all monitor events are logged in a structured, queryable format.
+
+  **Files:**
+  - `crates/ripley-core/src/monitor/mod.rs`:
+    - `struct MonitorLogEntry { timestamp: u64, event_type: MonitorEventType, severity: Severity, process: Option<String>, pid: Option<u32>, path: Option<PathBuf>, detail: String }`
+    - `enum MonitorEventType { ProcessAlert, PersistenceAlert, LockfileAlert, McpConfigAlert, ContainAction, MonitorStarted, MonitorStopped }`
+    - `fn format_log_entry(entry: &MonitorLogEntry) -> String`:
+      JSON serialization for guard.jsonl.
+  - `crates/ripley-guard/src/commands/monitor.rs`:
+    - Use `MonitorLogEntry` for all guard.jsonl writes.
+    - Log `MonitorStarted` on startup, `MonitorStopped` on shutdown.
+
+  **Tests:**
+  - `MonitorLogEntry` serialization includes all fields.
+  - Each `MonitorEventType` variant serializes correctly.
+  - `format_log_entry` produces valid JSON.
+
+  **Verify:**
+  ```
+  cargo test -p ripley-core -- monitor
+  cargo clippy --workspace
+  ```
+
+#### M17 Gate (Notifications + IPC)
+
+```
+cargo build --workspace
+cargo test --workspace
+cargo clippy --workspace
+cargo fmt --all -- --check
+cargo test -p ripley-ipc
+cargo test -p ripley-core -- monitor
+```
+
+VERIFY: Notification formatting is correct for each alert type.
+VERIFY: IPC alert roundtrips work.
+VERIFY: Guard log entries are valid JSON with all fields.
+
+Pass → commit `M17: Notifications and IPC`, update Plan State to M18.
+
+
+---
+
+
+### M18: Monitor Dashboard View + Tray Integration
+
+**Goal:** Wire the monitor into the iced dashboard (Monitor sidebar
+item, live alert list) and the tray app menu (status indicator, quick
+contain action).
+
+> Spec: UI.md "Monitor" sidebar item
+> Spec: DESIGN.md for styling
+
+- [ ] **M18.1** — Monitor view in dashboard
+
+  **Files:**
+  - `crates/ripley-app/src/views/monitor.rs` — new file:
+    - Sidebar item: "Monitor" with a dot indicator (green=clean,
+      yellow=alerts, red=critical alert, grey=disabled).
+    - If `monitor.enabled = false`: disabled state with tooltip
+      "Enable monitoring in Settings > Monitor".
+    - If enabled: list of recent alerts (from IPC subscription),
+      each row showing: timestamp, severity badge, process name,
+      reason summary.
+    - Each alert row has actions: [View Details] [Contain].
+    - Empty state: "Monitoring active. No suspicious activity detected."
+      with a green shield icon.
+  - `crates/ripley-app/src/views/mod.rs` — add `pub mod monitor;`
+  - `crates/ripley-app/src/app.rs` — wire Monitor view into sidebar
+    navigation and app state.
+
+  **Tests:**
+  - Monitor view renders in disabled state when config says disabled.
+  - Monitor view renders empty state when enabled with no alerts.
+  - (UI rendering tests are limited — focus on state logic.)
+
+  **Verify:**
+  ```
+  cargo build -p ripley-app
+  cargo clippy --workspace
+  ```
+
+- [ ] **M18.2** — Tray menu: monitor status
+
+  **Files:**
+  - `crates/ripley-app/src/tray.rs`:
+    - Add "Monitor" menu item with status indicator.
+    - If monitoring enabled and running: "Monitor: Active ●"
+    - If monitoring disabled: "Monitor: Off" (greyed).
+    - Add "Contain..." menu item (enabled only when alerts exist).
+    - Add `TrayAction::ToggleMonitor` and `TrayAction::Contain(u32)`.
+
+  **Tests:**
+  - `TrayAction` enum has new variants.
+  - `handle_event` routes new menu items correctly.
+
+  **Verify:**
+  ```
+  cargo build -p ripley-app
+  cargo clippy --workspace
+  ```
+
+- [ ] **M18.3** — App event loop: wire monitor events
+
+  **Files:**
+  - `crates/ripley-app/src/events.rs`:
+    - Add `AppEvent::MonitorAlert(ProcessAlert)` variant.
+    - Add `AppEvent::ContainResult(ContainResult)` variant.
+    - Add `Action::ToggleMonitor` variant.
+  - `crates/ripley-app/src/app.rs`:
+    - Handle `AppEvent::MonitorAlert`: update alert list, fire
+      notification via `notifier.rs`, update tray icon color.
+    - Handle `Action::Contain`: send IPC `Request::Contain`, handle
+      response, show notification with snapshot path.
+    - Handle `Action::ToggleMonitor`: send IPC request to toggle
+      monitor, update UI state.
+
+  **Tests:**
+  - `AppEvent::MonitorAlert` and `AppEvent::ContainResult` variants
+    exist and are constructible.
+  - (Event handling tested via integration — complex async + UI.)
+
+  **Verify:**
+  ```
+  cargo build -p ripley-app
+  cargo clippy --workspace
+  ```
+
+- [ ] **M18.4** — Settings view: monitor section
+
+  **Files:**
+  - `crates/ripley-app/src/views/settings.rs`:
+    - Add "Monitor" section with toggles for: `enabled`,
+      `watch_processes`, `watch_persistence`, `watch_lockfiles`.
+    - Changes write to config.toml (atomic write).
+    - When `enabled` toggled on: show note "Restart monitor to apply."
+
+  **Tests:**
+  - (UI widget tests are limited — verify compilation and state logic.)
+
+  **Verify:**
+  ```
+  cargo build -p ripley-app
+  cargo clippy --workspace
+  ```
+
+#### M18 Gate (Dashboard + Tray)
+
+```
+cargo build --workspace
+cargo test --workspace
+cargo clippy --workspace
+cargo fmt --all -- --check
+cargo build -p ripley-app
+```
+
+VERIFY: `ripley-app` builds without warnings.
+VERIFY: Monitor view, tray menu, settings section, event handlers
+  all compile and wire together.
+VERIFY: Dead code warnings from Phase 3 app scaffolding are resolved
+  (remove `#[allow(dead_code)]` annotations now that code is wired up).
+
+Pass → commit `M18: Monitor dashboard and tray`, update Plan State to
+Phase 4 Gate.
+
+
+---
+
 
 #### Phase 4 Gate
-- [ ] Monitor detects planted IOC write in test
-- [ ] Contain kills target process and saves snapshot
-- [ ] Dashboard monitor view renders correctly
+
+**All must pass before starting Phase 5:**
+
+- [ ] All M14-M18 gates passed
+- [ ] `cargo build --workspace --release`
+- [ ] `cargo test --workspace`
+- [ ] `cargo clippy --workspace`
+- [ ] `cargo fmt --all -- --check`
+- [ ] `cargo deny check`
+- [ ] `ripley monitor --help` shows usage with --daemon and --format
+- [ ] `ripley contain --help` shows usage with target and --format
+- [ ] Monitor detects planted persistence write in integration test
+- [ ] Contain produces valid snapshot JSON
+- [ ] IPC roundtrip tests pass for all new request/response types
+- [ ] Guard log entries are valid JSON with monitor event types
+- [ ] No `unwrap()` or `expect()` in ripley-core:
+    `grep -rn 'unwrap()' crates/ripley-core/src/ | grep -v '#\[cfg(test)\]' | grep -v 'mod tests'`
+    `grep -rn 'expect(' crates/ripley-core/src/ | grep -v '#\[cfg(test)\]' | grep -v 'mod tests'`
+- [ ] All public functions have tests
+- [ ] No `#[allow(dead_code)]` remaining on Phase 4 scaffolding
 - [ ] Commit: `Phase 4: Active detection`
+- [ ] Update CLAUDE.md "Current work" to Phase 5
 
 
 ---
