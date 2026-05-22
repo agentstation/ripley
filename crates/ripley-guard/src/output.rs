@@ -1,5 +1,6 @@
 use colored::Colorize;
 
+use ripley_core::behavioral::BehavioralReport;
 use ripley_core::lockfile::{LockfileWarning, RiskySpec};
 use ripley_core::matcher::Match;
 use ripley_core::types::Severity;
@@ -265,5 +266,38 @@ pub fn print_deep_json(
         },
     });
     println!("{}", serde_json::to_string_pretty(&output)?);
+    Ok(())
+}
+
+#[allow(dead_code)]
+pub fn print_behavioral_table(report: &BehavioralReport) {
+    println!();
+    println!(
+        "  {} behavioral analysis for {}/{}",
+        "▸".bold(),
+        report.package,
+        report.version
+    );
+    println!("  {} risk score: {:.2}", "▸".bold(), report.risk_score);
+
+    if report.anomalies.is_empty() {
+        println!("  {} no anomalies detected", "✓".green());
+    } else {
+        for anomaly in &report.anomalies {
+            let severity = severity_colored(&Some(anomaly.severity));
+            println!(
+                "  {} [{severity}] {:?}: {}",
+                "⚠".yellow(),
+                anomaly.kind,
+                anomaly.description
+            );
+        }
+    }
+    println!();
+}
+
+#[allow(dead_code)]
+pub fn print_behavioral_json(report: &BehavioralReport) -> anyhow::Result<()> {
+    println!("{}", serde_json::to_string_pretty(report)?);
     Ok(())
 }

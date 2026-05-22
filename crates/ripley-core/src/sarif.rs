@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::analyzer::AnalysisResult;
+use crate::behavioral::BehavioralReport;
 use crate::lockfile::{LockfileWarning, RiskySpec};
 use crate::matcher::Match;
 use crate::types::Severity;
@@ -368,10 +369,40 @@ pub fn analysis_to_sarif(results: &[AnalysisResult], script_paths: &[PathBuf]) -
     }])
 }
 
+pub fn behavioral_to_sarif(report: &BehavioralReport) -> Vec<SarifResult> {
+    let mut results = Vec::new();
+
+    for anomaly in &report.anomalies {
+        let rule_id = format!("behavioral/{:?}", anomaly.kind).to_lowercase();
+        results.push(SarifResult {
+            rule_id,
+            rule_index: 0,
+            level: severity_to_sarif_level(&anomaly.severity),
+            message: SarifMessage {
+                text: anomaly.description.clone(),
+            },
+            locations: Vec::new(),
+            fingerprints: {
+                let mut fp = HashMap::new();
+                fp.insert(
+                    "ripley/behavioral/v1".to_string(),
+                    format!("{}/{}/{}", report.package, report.version, anomaly.evidence),
+                );
+                fp
+            },
+        });
+    }
+
+    results
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::analyzer::{HighlightedLine, MatchedRule};
+    use crate::behavioral::report::{
+        AnomalyKind, BehavioralAnomaly, DeclaredBehavior, ObservedBehavior,
+    };
     use crate::feed::{Advisory, AffectedRange, FeedSource};
     use crate::lockfile::InstalledPackage;
     use crate::types::Ecosystem;
@@ -630,5 +661,40 @@ mod tests {
                 .map(|r| r.start_line),
             Some(5)
         );
+    }
+
+    #[test]
+    fn test_behavioral_to_sarif() {
+        let report = BehavioralReport {
+            package: "evil-pkg".to_string(),
+            version: "1.0.0".to_string(),
+            ecosystem: Ecosystem::Npm,
+            declared: DeclaredBehavior::default(),
+            observed: ObservedBehavior::default(),
+            anomalies: vec![
+                BehavioralAnomaly {
+                    kind: AnomalyKind::UnexpectedNetwork,
+                    severity: Severity::High,
+                    description: "network access to evil.com".to_string(),
+                    evidence: "evil.com".to_string(),
+                },
+                BehavioralAnomaly {
+                    kind: AnomalyKind::CredentialAccess,
+                    severity: Severity::Critical,
+                    description: "read ~/.ssh/id_rsa".to_string(),
+                    evidence: "~/.ssh/id_rsa".to_string(),
+                },
+            ],
+            risk_score: 0.65,
+            analysis_duration_ms: 50,
+        };
+
+        let results = behavioral_to_sarif(&report);
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].level, SarifLevel::Error);
+        assert_eq!(results[1].level, SarifLevel::Error);
+        assert!(results[0].rule_id.contains("unexpectednetwork"));
+        assert!(results[1].rule_id.contains("credentialaccess"));
+        assert!(results[0].fingerprints.contains_key("ripley/behavioral/v1"));
     }
 }

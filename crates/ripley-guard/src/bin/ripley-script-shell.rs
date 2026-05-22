@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 
 use ripley_core::analyzer;
+use ripley_core::behavioral;
 use ripley_core::config::{self, GuardConfig};
 use ripley_core::rules::RuleSet;
 use ripley_core::sandbox::{self, SandboxProfile, SandboxResult};
@@ -118,6 +119,23 @@ fn delegate_to_sandbox(script: &str, config: &GuardConfig) -> ExitCode {
                     eprintln!("ripley: sandbox violation: {:?} — {}", v.kind, v.detail);
                 }
             }
+
+            if let Ok(report) =
+                behavioral::analyze_behavior(&package_dir, ecosystem, &result, &profile)
+            {
+                if report.risk_score > 0.0 {
+                    log_behavioral_report(&report);
+                }
+                for anomaly in &report.anomalies {
+                    if anomaly.severity >= Severity::High {
+                        eprintln!(
+                            "ripley: behavioral anomaly [{:?}]: {}",
+                            anomaly.kind, anomaly.description
+                        );
+                    }
+                }
+            }
+
             ExitCode::from(result.exit_code as u8)
         }
         Err(e) => {
@@ -255,6 +273,48 @@ fn log_sandbox_result(script: &str, result: &SandboxResult) {
         "network_blocked": result.network_blocked,
         "duration_ms": result.duration_ms,
         "violations": violations,
+    });
+
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+    {
+        let _ = writeln!(file, "{}", entry);
+    }
+}
+
+fn log_behavioral_report(report: &behavioral::BehavioralReport) {
+    let data_dir = match ripley_core::dirs::data_dir() {
+        Ok(d) => d,
+        Err(_) => return,
+    };
+
+    let log_path = data_dir.join("guard.jsonl");
+
+    let anomalies: Vec<serde_json::Value> = report
+        .anomalies
+        .iter()
+        .map(|a| {
+            serde_json::json!({
+                "kind": format!("{:?}", a.kind),
+                "severity": a.severity.to_string(),
+                "description": a.description,
+                "evidence": a.evidence,
+            })
+        })
+        .collect();
+
+    let entry = serde_json::json!({
+        "timestamp": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        "package": report.package,
+        "version": report.version,
+        "ecosystem": report.ecosystem.to_string(),
+        "action": "behavioral_analysis",
+        "source": "script-shell",
+        "risk_score": report.risk_score,
+        "anomalies": anomalies,
+        "analysis_duration_ms": report.analysis_duration_ms,
     });
 
     if let Ok(mut file) = std::fs::OpenOptions::new()

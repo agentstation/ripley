@@ -365,10 +365,10 @@ discard partial work.
 
 ```
 Phase:     5 --- Advanced Analysis
-Milestone: M22 --- Behavioral Analysis Engine
+Milestone: M23 --- Community Rule Sharing
 Task:      (not started)
 Status:    pending
-Last gate: M21
+Last gate: M22
 ```
 
 Update this section after each task completes. Format:
@@ -3321,7 +3321,7 @@ Phase 4 Gate.
 
 **Scope guard:** No dtrace/strace. Sandbox IS the observer — blocked operations are the behavioral signals.
 
-- [ ] **M22.1** — Behavioral report types
+- [x] **M22.1** — Behavioral report types
 
   New module `crates/ripley-core/src/behavioral/mod.rs`: re-exports.
   New file `crates/ripley-core/src/behavioral/report.rs`:
@@ -3338,7 +3338,7 @@ Phase 4 Gate.
 
   Verify: `cargo test -p ripley-core -- behavioral::report && cargo clippy --workspace`
 
-- [ ] **M22.2** — Declared behavior extractor
+- [x] **M22.2** — Declared behavior extractor
 
   New file `crates/ripley-core/src/behavioral/analyzer.rs`:
   - `fn extract_declared_behavior(package_dir, ecosystem) -> Result<DeclaredBehavior, BehavioralError>`
@@ -3352,7 +3352,7 @@ Phase 4 Gate.
 
   Verify: `cargo test -p ripley-core -- behavioral::analyzer && cargo clippy --workspace`
 
-- [ ] **M22.3** — Sandbox result to observed behavior
+- [x] **M22.3** — Sandbox result to observed behavior
 
   Extend `crates/ripley-core/src/behavioral/analyzer.rs`:
   - `fn sandbox_result_to_observed(result: &SandboxResult, profile: &SandboxProfile) -> ObservedBehavior`
@@ -3363,7 +3363,7 @@ Phase 4 Gate.
 
   Verify: `cargo test -p ripley-core -- behavioral::analyzer && cargo clippy --workspace`
 
-- [ ] **M22.4** — Anomaly detection and risk scoring
+- [x] **M22.4** — Anomaly detection and risk scoring
 
   Extend `crates/ripley-core/src/behavioral/analyzer.rs`:
   - `fn detect_anomalies(declared, observed) -> Vec<BehavioralAnomaly>` — rules:
@@ -3379,7 +3379,7 @@ Phase 4 Gate.
 
   Verify: `cargo test -p ripley-core -- behavioral && cargo clippy --workspace`
 
-- [ ] **M22.5** — Wire behavioral analysis into script-shell and SARIF
+- [x] **M22.5** — Wire behavioral analysis into script-shell and SARIF
 
   Files:
   - `crates/ripley-guard/src/bin/ripley-script-shell.rs`: after sandbox, run `analyze_behavior`, print anomalies if High+, log to guard.jsonl
@@ -3391,13 +3391,13 @@ Phase 4 Gate.
   Verify: `cargo build --workspace && cargo test --workspace && cargo clippy --workspace`
 
 #### M22 Gate
-- [ ] `BehavioralReport` captures declared vs. observed behavior
-- [ ] Anomaly detection flags unexpected network from non-network packages
-- [ ] Risk scoring: 0.0 for benign, >0.4 for critical anomalies
-- [ ] Behavioral results integrate into SARIF output
-- [ ] Guard log includes behavioral analysis when sandbox enabled
-- [ ] No `unwrap()`/`expect()` in ripley-core behavioral code
-- [ ] `cargo test --workspace && cargo clippy --workspace && cargo fmt --all -- --check`
+- [x] `BehavioralReport` captures declared vs. observed behavior
+- [x] Anomaly detection flags unexpected network from non-network packages
+- [x] Risk scoring: 0.0 for benign, >0.4 for critical anomalies
+- [x] Behavioral results integrate into SARIF output
+- [x] Guard log includes behavioral analysis when sandbox enabled
+- [x] No `unwrap()`/`expect()` in ripley-core behavioral code
+- [x] `cargo test --workspace && cargo clippy --workspace && cargo fmt --all -- --check`
 
 
 ---

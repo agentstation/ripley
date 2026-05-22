@@ -1,5 +1,6 @@
 pub mod analyzer;
 pub mod audit;
+pub mod behavioral;
 pub mod config;
 pub mod db;
 pub mod dirs;
