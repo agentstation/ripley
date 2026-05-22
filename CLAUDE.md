@@ -37,8 +37,9 @@ cargo run -p ripley-guard -- guard status
 
 ## Current work
 
-**Phase 5: Advanced Analysis.** Phases 1-4 complete (M1-M18, 426 tests). Next:
-sandboxed script execution, behavioral analysis, community rule sharing, CI/CD integration.
+**Phase 5 complete.** Phases 1-5 complete (M1-M23, 510+ tests). Delivered:
+SARIF output, CI/CD integration, sandboxed script execution, behavioral analysis,
+community rule sharing with three-tier loading.
 
 See PLAN.md for detailed task breakdown and ROADMAP.md for deliverable descriptions.
 
@@ -70,8 +71,8 @@ See PLAN.md for detailed task breakdown and ROADMAP.md for deliverable descripti
 
 ## Scope guardrails
 
-- **Phase 4 only.** Do not implement Phase 5+ features (community rule sharing,
-  plugin system, hosted dashboard). Use trait/enum extension points where the design
+- **Phase 5 complete.** Do not implement Phase 6+ features (plugin system,
+  hosted dashboard, deep tracing). Use trait/enum extension points where the design
   needs them for later phases.
 - **New deps:** Evaluate carefully. Do not add crates without a clear reason.
 - **Follow existing patterns.** Audit checks use collect/evaluate pattern: `collect_*()`

@@ -366,9 +366,9 @@ discard partial work.
 ```
 Phase:     5 --- Advanced Analysis
 Milestone: Phase 5 Gate
-Task:      (verification)
-Status:    in-progress
-Last gate: M23
+Task:      Phase 5 Gate
+Status:    completed
+Last gate: Phase 5 Gate
 ```
 
 Update this section after each task completes. Format:
@@ -3509,25 +3509,25 @@ Phase 4 Gate.
 
 **All must pass before Phase 5 is complete:**
 
-- [ ] All M19-M23 gates passed
-- [ ] `cargo build --workspace --release`
-- [ ] `cargo test --workspace` — target 500+ tests
-- [ ] `cargo clippy --workspace` — no warnings
-- [ ] `cargo fmt --all -- --check`
-- [ ] `cargo deny check` — clean
-- [ ] `ripley scan --format sarif tests/fixtures/` produces valid SARIF 2.1.0 JSON
-- [ ] `ripley scan --ci --sarif-output /tmp/test.sarif tests/fixtures/` writes SARIF sidecar
-- [ ] GitHub Action YAML syntactically valid
-- [ ] GitLab CI template syntactically valid
-- [ ] Sandbox catches network call from test script
-- [ ] Behavioral analysis detects anomaly for non-network package making network call
-- [ ] Community rule loads from registry (integration test)
-- [ ] Three-tier merge: user > community > compiled
-- [ ] `ripley rule list` shows configured sources
-- [ ] No `unwrap()` or `expect()` in ripley-core production code
-- [ ] All public functions have tests
-- [ ] No `#[allow(dead_code)]` remaining on Phase 5 scaffolding
-- [ ] Commit: `Phase 5: Advanced analysis`
+- [x] All M19-M23 gates passed
+- [x] `cargo build --workspace --release`
+- [x] `cargo test --workspace` — 510 tests (target 500+)
+- [x] `cargo clippy --workspace` — no warnings
+- [x] `cargo fmt --all -- --check`
+- [x] `cargo deny check` — clean
+- [x] `ripley scan --format sarif tests/fixtures/` produces valid SARIF 2.1.0 JSON
+- [x] `ripley scan --ci --sarif-output /tmp/test.sarif tests/fixtures/` writes SARIF sidecar
+- [x] GitHub Action YAML syntactically valid
+- [x] GitLab CI template syntactically valid
+- [x] Sandbox catches network call from test script
+- [x] Behavioral analysis detects anomaly for non-network package making network call
+- [x] Community rule loads from registry (integration test)
+- [x] Three-tier merge: user > community > compiled
+- [x] `ripley rule list` shows configured sources
+- [x] No `unwrap()` or `expect()` in ripley-core production code
+- [x] All public functions have tests
+- [x] No `#[allow(dead_code)]` remaining on Phase 5 scaffolding
+- [x] Commit: `Phase 5: Advanced analysis`
 
 
 ---
