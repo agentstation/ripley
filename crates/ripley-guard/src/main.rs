@@ -32,6 +32,12 @@ enum Commands {
         /// Skip advisory cache, fetch fresh data
         #[arg(long)]
         no_cache: bool,
+        /// CI mode: auto-detect CI, write SARIF sidecar file
+        #[arg(long)]
+        ci: bool,
+        /// Path to write SARIF output file (used with --ci)
+        #[arg(long)]
+        sarif_output: Option<PathBuf>,
     },
     /// Manage the package manager guard
     Guard {
@@ -152,9 +158,13 @@ async fn main() -> ExitCode {
             deep,
             fix,
             no_cache,
+            ci,
+            sarif_output,
         } => {
             let target = path.unwrap_or_else(|| PathBuf::from("."));
-            match commands::scan::cmd_scan(target, &format, deep, fix, no_cache).await {
+            match commands::scan::cmd_scan(target, &format, deep, fix, no_cache, ci, sarif_output)
+                .await
+            {
                 Ok(code) => return code,
                 Err(e) => Err(e),
             }

@@ -365,10 +365,10 @@ discard partial work.
 
 ```
 Phase:     5 --- Advanced Analysis
-Milestone: M20 --- CI/CD Integration
+Milestone: M21 --- Sandbox Execution
 Task:      (not started)
 Status:    pending
-Last gate: M19
+Last gate: M20
 ```
 
 Update this section after each task completes. Format:
@@ -3173,7 +3173,7 @@ Phase 4 Gate.
 
 **Goal:** GitHub Action, GitLab CI template, `--ci` flag with SARIF sidecar file output. Teams can gate builds on Ripley findings.
 
-- [ ] **M20.1** — `--ci` flag and CI auto-detection
+- [x] **M20.1** — `--ci` flag and CI auto-detection
 
   Files:
   - `crates/ripley-core/src/platform.rs`: `pub fn is_ci() -> bool` — checks CI, GITHUB_ACTIONS, GITLAB_CI, JENKINS_URL, CIRCLECI, TRAVIS env vars
@@ -3186,7 +3186,7 @@ Phase 4 Gate.
 
   Verify: `cargo test --workspace && cargo run -p ripley-guard -- scan --ci --help`
 
-- [ ] **M20.2** — GitHub Action
+- [x] **M20.2** — GitHub Action
 
   New file `.github/actions/ripley-scan/action.yml`:
   - Composite action: install ripley, run scan with --ci, upload SARIF via github/codeql-action/upload-sarif@v3
@@ -3198,14 +3198,14 @@ Phase 4 Gate.
 
   Verify: `python3 -c "import yaml; yaml.safe_load(open('.github/actions/ripley-scan/action.yml'))"`
 
-- [ ] **M20.3** — GitLab CI template
+- [x] **M20.3** — GitLab CI template
 
   New file `docs/ci/gitlab-ci.yml`: ripley-scan job with SAST-compatible artifact.
   New file `docs/ci/gitlab-ci.md`: usage documentation.
 
   Tests: YAML is syntactically valid.
 
-- [ ] **M20.4** — CI integration tests
+- [x] **M20.4** — CI integration tests
 
   New file `crates/ripley-guard/tests/ci_integration.rs`:
   - `test_ci_flag_produces_sarif_file`: run with --ci --sarif-output, assert file exists + valid SARIF
@@ -3216,11 +3216,11 @@ Phase 4 Gate.
   Verify: `cargo test --workspace`
 
 #### M20 Gate
-- [ ] `ripley scan --ci` auto-writes SARIF sidecar file
-- [ ] GitHub Action YAML syntactically valid
-- [ ] GitLab CI template syntactically valid
-- [ ] Exit codes: 0=clean, 1=findings, 2=error (unchanged)
-- [ ] `cargo test --workspace && cargo clippy --workspace && cargo fmt --all -- --check`
+- [x] `ripley scan --ci` auto-writes SARIF sidecar file
+- [x] GitHub Action YAML syntactically valid
+- [x] GitLab CI template syntactically valid
+- [x] Exit codes: 0=clean, 1=findings, 2=error (unchanged)
+- [x] `cargo test --workspace && cargo clippy --workspace && cargo fmt --all -- --check`
 
 
 ---

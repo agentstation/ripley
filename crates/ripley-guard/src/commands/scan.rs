@@ -19,7 +19,15 @@ pub async fn cmd_scan(
     deep: bool,
     fix: bool,
     no_cache: bool,
+    ci: bool,
+    sarif_output: Option<PathBuf>,
 ) -> anyhow::Result<ExitCode> {
+    let ci_mode = ci || ripley_core::platform::is_ci();
+    let sarif_path = if ci_mode {
+        Some(sarif_output.unwrap_or_else(|| PathBuf::from("ripley-results.sarif")))
+    } else {
+        sarif_output
+    };
     let cwd = std::env::current_dir()?;
     let cfg = config::load_config(&cwd)?;
     let cache_dir = ripley_core::dirs::cache_dir()?;
@@ -82,6 +90,7 @@ pub async fn cmd_scan(
                     deep,
                     fix,
                     &cfg,
+                    sarif_path.as_deref(),
                 );
             }
         };
@@ -136,6 +145,7 @@ pub async fn cmd_scan(
         deep,
         fix,
         &cfg,
+        sarif_path.as_deref(),
     )
 }
 
@@ -150,6 +160,7 @@ fn run_matcher_and_output(
     deep: bool,
     fix: bool,
     cfg: &Config,
+    sarif_path: Option<&std::path::Path>,
 ) -> anyhow::Result<ExitCode> {
     let all_advisories = db.get_all_advisories()?;
     let matches = matcher::find_matches(&all_advisories, packages, path);
@@ -177,6 +188,15 @@ fn run_matcher_and_output(
                 output::print_deep_table(report);
             }
         }
+    }
+
+    if let Some(sarif_file) = sarif_path
+        && format != "sarif"
+    {
+        let log = ripley_core::sarif::matches_to_sarif(&matches, warnings, risky_specs);
+        let json = serde_json::to_string_pretty(&log)?;
+        std::fs::write(sarif_file, json)?;
+        eprintln!("ripley: SARIF output written to {}", sarif_file.display());
     }
 
     if fix && !matches.is_empty() {

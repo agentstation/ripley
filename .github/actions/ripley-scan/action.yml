@@ -1,0 +1,41 @@
+name: 'Ripley Supply Chain Scan'
+description: 'Scan dependencies for known vulnerabilities and supply chain risks'
+inputs:
+  path:
+    description: 'Path to scan'
+    required: false
+    default: '.'
+  format:
+    description: 'Output format (table, json, sarif)'
+    required: false
+    default: 'table'
+  deep:
+    description: 'Run deep forensic scan'
+    required: false
+    default: 'false'
+  sarif-upload:
+    description: 'Upload SARIF to GitHub Code Scanning'
+    required: false
+    default: 'true'
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Ripley
+      shell: bash
+      run: cargo install --path crates/ripley-guard
+    - name: Run scan
+      shell: bash
+      run: |
+        ARGS="--ci --sarif-output ripley-results.sarif --format ${{ inputs.format }} ${{ inputs.path }}"
+        if [ "${{ inputs.deep }}" = "true" ]; then
+          ARGS="--deep $ARGS"
+        fi
+        ripley scan $ARGS
+      env:
+        RIPLEY_NON_INTERACTIVE: '1'
+    - name: Upload SARIF
+      if: inputs.sarif-upload == 'true' && always()
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ripley-results.sarif
+        category: ripley

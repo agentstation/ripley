@@ -201,6 +201,16 @@ fn which_exists(cmd: &str) -> bool {
     }
 }
 
+pub fn is_ci() -> bool {
+    std::env::var("CI").is_ok()
+        || std::env::var("GITHUB_ACTIONS").is_ok()
+        || std::env::var("GITLAB_CI").is_ok()
+        || std::env::var("JENKINS_URL").is_ok()
+        || std::env::var("CIRCLECI").is_ok()
+        || std::env::var("TRAVIS").is_ok()
+        || std::env::var("BUILDKITE").is_ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -263,6 +273,16 @@ mod tests {
         {
             assert!(is_command_available("ls"));
             assert!(!is_command_available("nonexistent_binary_xyz_123"));
+        }
+    }
+
+    #[test]
+    fn test_is_ci_without_env() {
+        // In normal test environment without CI vars explicitly set,
+        // is_ci() should return based on whether we're actually in CI
+        let result = is_ci();
+        if std::env::var("CI").is_ok() {
+            assert!(result);
         }
     }
 }

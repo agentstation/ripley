@@ -1,0 +1,13 @@
+ripley-scan:
+  stage: test
+  image: rust:latest
+  script:
+    - cargo install --path crates/ripley-guard
+    - ripley scan --ci --format table --sarif-output gl-sast-report.json .
+  artifacts:
+    reports:
+      sast: gl-sast-report.json
+    when: always
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
