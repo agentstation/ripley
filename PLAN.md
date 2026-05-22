@@ -365,10 +365,10 @@ discard partial work.
 
 ```
 Phase:     5 --- Advanced Analysis
-Milestone: M21 --- Sandbox Execution
+Milestone: M22 --- Behavioral Analysis Engine
 Task:      (not started)
 Status:    pending
-Last gate: M20
+Last gate: M21
 ```
 
 Update this section after each task completes. Format:
@@ -3232,7 +3232,7 @@ Phase 4 Gate.
 
 **Design:** sandbox-exec is deprecated on macOS but still functional (used by Homebrew, Nix, Chrome). bwrap (bubblewrap) on Linux is standard unprivileged sandboxing (Flatpak). No root required.
 
-- [ ] **M21.1** — Sandbox config section
+- [x] **M21.1** — Sandbox config section
 
   File `crates/ripley-core/src/config.rs`:
   - Add to `GuardConfig`: `sandbox: bool` (default false), `sandbox_allow_network: bool` (default false), `sandbox_writable_paths: Vec<String>`
@@ -3245,7 +3245,7 @@ Phase 4 Gate.
 
   Verify: `cargo test -p ripley-core -- config && cargo clippy --workspace`
 
-- [ ] **M21.2** — Sandbox profiles (core library)
+- [x] **M21.2** — Sandbox profiles (core library)
 
   New module `crates/ripley-core/src/sandbox/mod.rs`: re-exports.
   New file `crates/ripley-core/src/sandbox/profile.rs`:
@@ -3259,7 +3259,7 @@ Phase 4 Gate.
 
   Verify: `cargo test -p ripley-core -- sandbox::profile && cargo clippy --workspace`
 
-- [ ] **M21.3** — Sandbox executor
+- [x] **M21.3** — Sandbox executor
 
   New file `crates/ripley-core/src/sandbox/executor.rs`:
   - `struct SandboxResult { exit_code, stderr_output, network_blocked, duration_ms, sandbox_violations }`
@@ -3273,7 +3273,7 @@ Phase 4 Gate.
 
   Verify: `cargo test -p ripley-core -- sandbox::executor && cargo clippy --workspace`
 
-- [ ] **M21.4** — Wire sandbox into script-shell
+- [x] **M21.4** — Wire sandbox into script-shell
 
   File `crates/ripley-guard/src/bin/ripley-script-shell.rs`:
   - Load config, check `guard.sandbox`
@@ -3287,7 +3287,7 @@ Phase 4 Gate.
 
   Verify: `cargo build -p ripley-guard && cargo test --workspace`
 
-- [ ] **M21.5** — Sandbox integration tests
+- [x] **M21.5** — Sandbox integration tests
 
   New fixtures:
   - `tests/fixtures/scripts/sandbox-network-test.sh` — attempts curl/wget
@@ -3302,14 +3302,14 @@ Phase 4 Gate.
   Verify: `cargo test --workspace`
 
 #### M21 Gate
-- [ ] macOS sandbox-exec profile denies network and restricts filesystem
-- [ ] Linux bwrap args include `--unshare-net` and `--ro-bind`
-- [ ] Sandbox catches network call from test script
-- [ ] Sandbox allows benign script to complete
-- [ ] script-shell falls back gracefully when sandbox unavailable
-- [ ] Guard log includes sandbox violation details
-- [ ] No `unwrap()`/`expect()` in ripley-core sandbox code
-- [ ] `cargo test --workspace && cargo clippy --workspace && cargo fmt --all -- --check`
+- [x] macOS sandbox-exec profile denies network and restricts filesystem
+- [x] Linux bwrap args include `--unshare-net` and `--ro-bind`
+- [x] Sandbox catches network call from test script
+- [x] Sandbox allows benign script to complete
+- [x] script-shell falls back gracefully when sandbox unavailable
+- [x] Guard log includes sandbox violation details
+- [x] No `unwrap()`/`expect()` in ripley-core sandbox code
+- [x] `cargo test --workspace && cargo clippy --workspace && cargo fmt --all -- --check`
 
 
 ---

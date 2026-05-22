@@ -98,6 +98,9 @@ pub struct GuardConfig {
     pub mode: GuardMode,
     pub trust: Vec<String>,
     pub timeout_secs: u64,
+    pub sandbox: bool,
+    pub sandbox_allow_network: bool,
+    pub sandbox_writable_paths: Vec<String>,
 }
 
 impl Default for GuardConfig {
@@ -106,6 +109,9 @@ impl Default for GuardConfig {
             mode: GuardMode::Strict,
             trust: Vec::new(),
             timeout_secs: 30,
+            sandbox: false,
+            sandbox_allow_network: false,
+            sandbox_writable_paths: Vec::new(),
         }
     }
 }
@@ -260,6 +266,9 @@ struct GuardOverlay {
     mode: Option<GuardMode>,
     trust: Option<Vec<String>>,
     timeout_secs: Option<u64>,
+    sandbox: Option<bool>,
+    sandbox_allow_network: Option<bool>,
+    sandbox_writable_paths: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -341,6 +350,15 @@ fn apply_overlay(base: &mut Config, overlay: &ConfigOverlay) {
     }
     if let Some(v) = overlay.guard.timeout_secs {
         base.guard.timeout_secs = v;
+    }
+    if let Some(v) = overlay.guard.sandbox {
+        base.guard.sandbox = v;
+    }
+    if let Some(v) = overlay.guard.sandbox_allow_network {
+        base.guard.sandbox_allow_network = v;
+    }
+    if let Some(ref v) = overlay.guard.sandbox_writable_paths {
+        base.guard.sandbox_writable_paths.extend(v.iter().cloned());
     }
 
     if let Some(v) = overlay.posture.strict {
@@ -445,6 +463,12 @@ fn apply_env_overrides(config: &mut Config) {
     }
     if let Ok(val) = std::env::var("RIPLEY_MONITOR_WATCH_LOCKFILES") {
         config.monitor.watch_lockfiles = val == "1" || val.eq_ignore_ascii_case("true");
+    }
+    if let Ok(val) = std::env::var("RIPLEY_GUARD_SANDBOX") {
+        config.guard.sandbox = val == "1" || val.eq_ignore_ascii_case("true");
+    }
+    if let Ok(val) = std::env::var("RIPLEY_GUARD_SANDBOX_ALLOW_NETWORK") {
+        config.guard.sandbox_allow_network = val == "1" || val.eq_ignore_ascii_case("true");
     }
     if let Ok(val) = std::env::var("RIPLEY_SOCKET_API_KEY") {
         config.feeds.socket_api_key = Some(val);

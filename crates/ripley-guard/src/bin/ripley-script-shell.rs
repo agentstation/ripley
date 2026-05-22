@@ -1,8 +1,11 @@
 use std::io::{self, IsTerminal, Write};
+use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 
 use ripley_core::analyzer;
+use ripley_core::config::{self, GuardConfig};
 use ripley_core::rules::RuleSet;
+use ripley_core::sandbox::{self, SandboxProfile, SandboxResult};
 use ripley_core::types::{Ecosystem, Severity};
 
 fn main() -> ExitCode {
@@ -33,11 +36,13 @@ fn main() -> ExitCode {
         }
     };
 
+    let config = load_guard_config();
+
     let result = analyzer::analyze(&script, &rules, Ecosystem::Npm);
 
     if result.risk_level <= Severity::Low {
         log_decision(&script, "allowed", &result, false);
-        return delegate_to_sh(&args);
+        return execute_script(&args, &script, &config);
     }
 
     print_analysis(&result);
@@ -52,7 +57,7 @@ fn main() -> ExitCode {
             return ExitCode::from(1);
         }
         log_decision(&script, "allowed", &result, false);
-        return delegate_to_sh(&args);
+        return execute_script(&args, &script, &config);
     }
 
     eprint!("ripley: allow this script? [y/N] ");
@@ -61,7 +66,7 @@ fn main() -> ExitCode {
     let mut input = String::new();
     if io::stdin().read_line(&mut input).is_ok() && input.trim().eq_ignore_ascii_case("y") {
         log_decision(&script, "allowed", &result, true);
-        delegate_to_sh(&args)
+        execute_script(&args, &script, &config)
     } else {
         eprintln!("ripley: blocked by user");
         log_decision(&script, "blocked", &result, true);
@@ -77,6 +82,72 @@ fn parse_script_arg(args: &[String]) -> Option<String> {
         }
     }
     None
+}
+
+fn load_guard_config() -> GuardConfig {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    config::load_config(&cwd)
+        .map(|c| c.guard)
+        .unwrap_or_default()
+}
+
+fn execute_script(args: &[String], script: &str, config: &GuardConfig) -> ExitCode {
+    if config.sandbox {
+        delegate_to_sandbox(script, config)
+    } else {
+        delegate_to_sh(args)
+    }
+}
+
+fn delegate_to_sandbox(script: &str, config: &GuardConfig) -> ExitCode {
+    let package_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let ecosystem = detect_ecosystem();
+
+    let mut profile = SandboxProfile::for_ecosystem(ecosystem, &package_dir);
+    profile.allow_network = config.sandbox_allow_network;
+
+    for path in &config.sandbox_writable_paths {
+        profile.writable_paths.push(PathBuf::from(path));
+    }
+
+    match sandbox::execute_sandboxed(script, &[], &profile) {
+        Ok(result) => {
+            if !result.sandbox_violations.is_empty() {
+                log_sandbox_result(script, &result);
+                for v in &result.sandbox_violations {
+                    eprintln!("ripley: sandbox violation: {:?} — {}", v.kind, v.detail);
+                }
+            }
+            ExitCode::from(result.exit_code as u8)
+        }
+        Err(e) => {
+            eprintln!("ripley: sandbox unavailable ({e}), falling back to /bin/sh");
+            let status = Command::new("/bin/sh")
+                .arg("-c")
+                .arg(script)
+                .current_dir(&package_dir)
+                .status();
+            match status {
+                Ok(s) => ExitCode::from(s.code().unwrap_or(1) as u8),
+                Err(io_err) => {
+                    eprintln!("ripley: could not execute /bin/sh: {io_err}");
+                    ExitCode::from(2)
+                }
+            }
+        }
+    }
+}
+
+fn detect_ecosystem() -> Ecosystem {
+    if std::env::var("npm_package_name").is_ok() || std::env::var("npm_lifecycle_event").is_ok() {
+        Ecosystem::Npm
+    } else if std::env::var("CARGO_PKG_NAME").is_ok() {
+        Ecosystem::Cargo
+    } else if std::env::var("VIRTUAL_ENV").is_ok() || std::env::var("PIP_PREFIX").is_ok() {
+        Ecosystem::PyPI
+    } else {
+        Ecosystem::Npm
+    }
 }
 
 fn delegate_to_sh(args: &[String]) -> ExitCode {
@@ -135,6 +206,55 @@ fn log_decision(script: &str, action: &str, result: &analyzer::AnalysisResult, p
         "matched_rules": matched_rules,
         "source": "script-shell",
         "user_decision": prompted,
+    });
+
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+    {
+        let _ = writeln!(file, "{}", entry);
+    }
+}
+
+fn log_sandbox_result(script: &str, result: &SandboxResult) {
+    let data_dir = match ripley_core::dirs::data_dir() {
+        Ok(d) => d,
+        Err(_) => return,
+    };
+
+    let log_path = data_dir.join("guard.jsonl");
+    let package = std::env::var("npm_package_name").unwrap_or_default();
+    let version = std::env::var("npm_package_version").unwrap_or_default();
+    let lifecycle = std::env::var("npm_lifecycle_event").unwrap_or_default();
+
+    let violations: Vec<serde_json::Value> = result
+        .sandbox_violations
+        .iter()
+        .map(|v| {
+            serde_json::json!({
+                "kind": format!("{:?}", v.kind),
+                "detail": v.detail,
+            })
+        })
+        .collect();
+
+    let entry = serde_json::json!({
+        "timestamp": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        "package": package,
+        "version": version,
+        "script": if lifecycle.is_empty() {
+            script.chars().take(200).collect::<String>()
+        } else {
+            lifecycle
+        },
+        "action": "sandbox_executed",
+        "source": "script-shell",
+        "sandbox": true,
+        "exit_code": result.exit_code,
+        "network_blocked": result.network_blocked,
+        "duration_ms": result.duration_ms,
+        "violations": violations,
     });
 
     if let Ok(mut file) = std::fs::OpenOptions::new()
