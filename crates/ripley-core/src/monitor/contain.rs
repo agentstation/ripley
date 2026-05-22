@@ -115,6 +115,17 @@ fn collect_snapshot_linux(pid: u32) -> Result<ProcessSnapshot, std::io::Error> {
         Err(_) => Vec::new(),
     };
 
+    let network_connections = match std::process::Command::new("lsof")
+        .args(["-i", "-n", "-P", "-a", "-p", &pid.to_string()])
+        .output()
+    {
+        Ok(output) => {
+            let lsof_str = String::from_utf8_lossy(&output.stdout);
+            crate::forensic::network::parse_lsof_output(&lsof_str)
+        }
+        Err(_) => Vec::new(),
+    };
+
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -125,7 +136,7 @@ fn collect_snapshot_linux(pid: u32) -> Result<ProcessSnapshot, std::io::Error> {
         name,
         cmdline,
         open_files,
-        network_connections: Vec::new(),
+        network_connections,
         env_vars,
         children,
         timestamp: now,

@@ -62,15 +62,13 @@ pub fn evaluate_connections(
         .unwrap_or_default()
         .as_secs();
 
-    let dev_connections: Vec<&NetworkConnection> = connections
+    let dev_connections: Vec<NetworkConnection> = connections
         .iter()
         .filter(|c| is_developer_process(&c.process))
+        .cloned()
         .collect();
 
-    let c2_findings = check_c2_connections(
-        &dev_connections.iter().copied().cloned().collect::<Vec<_>>(),
-        c2_db,
-    );
+    let c2_findings = check_c2_connections(&dev_connections, c2_db);
 
     let mut alerts: Vec<ProcessAlert> = c2_findings
         .into_iter()
@@ -96,7 +94,7 @@ pub fn evaluate_connections(
 
         if conn.state == "ESTABLISHED" && is_suspicious_port(conn.remote_port) {
             alerts.push(ProcessAlert {
-                connection: (*conn).clone(),
+                connection: conn.clone(),
                 reason: AlertReason::SuspiciousOutbound,
                 severity: Severity::Medium,
                 timestamp: now,

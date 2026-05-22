@@ -125,27 +125,23 @@ pub fn is_lockfile_edit(path: &Path) -> bool {
 pub fn is_persistence_path(path: &Path) -> bool {
     let path_str = path.to_string_lossy();
 
-    let patterns = [
-        "LaunchAgents/",
-        "systemd/",
-        "cron.d/",
-        "autostart/",
-        ".bashrc",
-        ".zshrc",
-        ".profile",
-        ".bash_profile",
-        ".vscode/tasks.json",
-        ".vscode/settings.json",
-        ".claude/settings.json",
-    ];
+    let dir_patterns = ["/LaunchAgents/", "/systemd/", "/cron.d/", "/autostart/"];
 
-    for pattern in &patterns {
+    for pattern in &dir_patterns {
         if path_str.contains(pattern) {
             return true;
         }
     }
 
-    false
+    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+    let file_patterns = [".bashrc", ".zshrc", ".profile", ".bash_profile"];
+
+    if file_patterns.contains(&file_name) {
+        return true;
+    }
+
+    path_str.ends_with(".vscode/tasks.json") || path_str.ends_with(".vscode/settings.json")
 }
 
 pub fn is_mcp_config(path: &Path) -> bool {
@@ -305,7 +301,8 @@ mod tests {
         assert!(is_persistence_path(Path::new(
             "/home/user/.vscode/tasks.json"
         )));
-        assert!(is_persistence_path(Path::new(
+        // .claude/settings.json is handled by is_mcp_config, not is_persistence_path
+        assert!(!is_persistence_path(Path::new(
             "/home/user/.claude/settings.json"
         )));
     }
@@ -317,6 +314,9 @@ mod tests {
         )));
         assert!(!is_persistence_path(Path::new(
             "/home/user/Documents/file.txt"
+        )));
+        assert!(!is_persistence_path(Path::new(
+            "/home/user/project/not-a-.bashrc-dir/readme.txt"
         )));
     }
 

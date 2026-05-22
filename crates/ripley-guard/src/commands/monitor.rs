@@ -35,16 +35,19 @@ pub async fn cmd_monitor(daemon: bool, format: &str) -> Result<()> {
 
     let data_dir = ripley_core::dirs::data_dir()?;
 
-    if daemon {
+    let _log_guard = if daemon {
         let log_dir = data_dir.join("logs");
         std::fs::create_dir_all(&log_dir)?;
         let file_appender = tracing_appender::rolling::daily(&log_dir, "ripley-monitor.log");
-        let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+        let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
         tracing_subscriber::fmt()
             .with_writer(non_blocking)
             .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
             .init();
-    }
+        Some(guard)
+    } else {
+        None
+    };
 
     let cancel = CancellationToken::new();
 
@@ -81,6 +84,8 @@ pub async fn cmd_monitor(daemon: bool, format: &str) -> Result<()> {
         });
     }
 
+    drop(event_tx);
+
     let guard_log_path = data_dir.join("guard.jsonl");
     let is_json = format == "json";
 
@@ -105,11 +110,15 @@ pub async fn cmd_monitor(daemon: bool, format: &str) -> Result<()> {
                 }
                 break;
             }
-            Some(event) = event_rx.recv() => {
+            event = event_rx.recv() => {
                 match event {
-                    MonitorEvent::ProcessAlert(alert) | MonitorEvent::FsAlert(alert) => {
+                    Some(MonitorEvent::ProcessAlert(alert) | MonitorEvent::FsAlert(alert)) => {
                         print_alert(&alert, is_json);
                         log_entry(&guard_log_path, &MonitorLogEntry::from_alert(&alert));
+                    }
+                    None => {
+                        tracing::warn!("all monitor workers exited");
+                        break;
                     }
                 }
             }
@@ -136,7 +145,7 @@ fn print_alert(alert: &ProcessAlert, json: bool) {
             Severity::Medium => "◐",
             Severity::Low => "○",
         };
-        let time = chrono_time_str(alert.timestamp);
+        let time = format_utc_time(alert.timestamp);
         let process_info = if alert.connection.pid > 0 {
             format!(
                 "{} (PID {})",
@@ -153,12 +162,12 @@ fn print_alert(alert: &ProcessAlert, json: bool) {
     }
 }
 
-fn chrono_time_str(timestamp: u64) -> String {
+fn format_utc_time(timestamp: u64) -> String {
     let secs = timestamp % 86400;
     let hours = secs / 3600;
     let mins = (secs % 3600) / 60;
     let s = secs % 60;
-    format!("{hours:02}:{mins:02}:{s:02}")
+    format!("{hours:02}:{mins:02}:{s:02}Z")
 }
 
 fn log_entry(path: &std::path::Path, entry: &MonitorLogEntry) {
