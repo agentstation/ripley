@@ -13,6 +13,7 @@ pub mod monitor;
 pub mod platform;
 pub mod prompt;
 pub mod rules;
+pub mod sarif;
 pub mod templates;
 pub mod types;
 pub mod typosquat;

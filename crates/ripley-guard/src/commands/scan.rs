@@ -168,6 +168,9 @@ fn run_matcher_and_output(
                 output::print_json(&matches, warnings, risky_specs)?;
             }
         }
+        "sarif" => {
+            output::print_sarif(&matches, warnings, risky_specs)?;
+        }
         _ => {
             output::print_table(&matches, warnings, risky_specs);
             if let Some(ref report) = deep_report {

@@ -9,8 +9,8 @@ tasks complete.
 ## /goal
 
 ```
-Implement Ripley Phase 4: Active Detection. Execute milestones M14
-through M18, pass every gate, and commit. PLAN.md is the control plane.
+Implement Ripley Phase 5: Advanced Analysis. Execute milestones M19
+through M23, pass every gate, and commit. PLAN.md is the control plane.
 
 ════════════════════════════════════════════════════════════════
  PROJECT CONTEXT
@@ -365,10 +365,10 @@ discard partial work.
 
 ```
 Phase:     5 --- Advanced Analysis
-Milestone: Phase 5
+Milestone: M20 --- CI/CD Integration
 Task:      (not started)
 Status:    pending
-Last gate: Phase 4
+Last gate: M19
 ```
 
 Update this section after each task completes. Format:
@@ -3101,21 +3101,432 @@ Phase 4 Gate.
 
 ## Phase 5: Advanced Analysis
 
-**Goal:** Behavioral analysis, community rules, CI/CD integration.
+**Goal:** SARIF output, CI/CD integration, sandboxed script execution, behavioral analysis, community rule sharing.
 
 > Spec: ROADMAP.md "Phase 5: Advanced Analysis"
+> Spec: WORKFLOW.md "8. CI pipeline gate"
 
-- [ ] Sandboxed script execution (macOS sandbox-exec, Linux bwrap)
-- [ ] Behavioral analysis engine (record filesystem/network/process activity)
-- [ ] Community rule sharing (publish/subscribe TOML rules)
-- [ ] GitHub Action: `ripley-guard` as build step
-- [ ] GitLab CI template
-- [ ] SARIF output for code scanning dashboards
+**Depends on:** Phase 4 complete (426 tests, M14-M18 gates passed).
+
+**Scope decision:** Behavioral analysis uses sandbox enforcement signals (blocked network, denied fs access) rather than deep process tracing (dtrace/strace). Full observation is Phase 6+. This keeps all 5 milestones roughly equal in size.
+
+
+---
+
+
+### M19: SARIF Output
+
+**Goal:** Add `--format sarif` to `ripley scan`, producing SARIF 2.1.0-compliant JSON for GitHub Code Scanning, GitLab SAST, and other security dashboards.
+
+- [x] **M19.1** — SARIF types and serialization
+
+  New module `crates/ripley-core/src/sarif.rs`:
+  - `SarifLog { version, schema, runs }`, `SarifRun { tool, results, invocations }`
+  - `SarifTool { driver: SarifToolComponent }`, `SarifToolComponent { name, version, rules }`
+  - `SarifReportingDescriptor { id, name, short_description, default_configuration }`
+  - `SarifResult { rule_id, rule_index, level, message, locations, fingerprints }`
+  - `SarifLocation { physical_location }`, `SarifPhysicalLocation { artifact_location, region }`
+  - `SarifArtifactLocation { uri, uri_base_id }`, `SarifRegion { start_line, start_column }`
+  - `SarifMessage { text }`, `SarifInvocation { execution_successful, exit_code }`
+  - `enum SarifLevel { Error, Warning, Note, None }` — maps from Severity
+  - `fn severity_to_sarif_level(severity: &Severity) -> SarifLevel`
+  - All structs: `#[serde(rename_all = "camelCase")]`
+  - Register in `crates/ripley-core/src/lib.rs`: `pub mod sarif;`
+
+  Tests: serialization valid JSON, severity mapping, empty results produce valid log, round-trip.
+
+  Verify: `cargo test -p ripley-core -- sarif && cargo clippy --workspace`
+
+- [x] **M19.2** — Convert scan results to SARIF
+
+  Extend `crates/ripley-core/src/sarif.rs`:
+  - `fn matches_to_sarif(matches: &[Match], warnings: &[LockfileWarning], risky_specs: &[RiskySpec]) -> SarifLog`
+  - `fn analysis_to_sarif(results: &[AnalysisResult], script_paths: &[PathBuf]) -> SarifLog`
+  - `fn sarif_fingerprint(advisory_id: &str, package: &str, version: &str) -> String` — SHA-256 deterministic fingerprint
+
+  Tests: single match → 1 result, multiple matches → deduped rules, snapshot test with insta.
+
+  Verify: `cargo test -p ripley-core -- sarif && cargo clippy --workspace`
+
+- [x] **M19.3** — Wire `--format sarif` into CLI
+
+  Files:
+  - `crates/ripley-guard/src/output.rs`: `pub fn print_sarif(matches, warnings, risky_specs)`
+  - `crates/ripley-guard/src/commands/scan.rs`: add `"sarif"` branch to format match
+  - `crates/ripley-guard/src/main.rs`: update `--format` help text to include `sarif`
+
+  Tests: CLI produces valid JSON with `$schema`, integration test parses output, exit codes unchanged.
+
+  Verify: `cargo test --workspace && cargo run -p ripley-guard -- scan --format sarif tests/fixtures/`
+
+#### M19 Gate
+- [x] SARIF output is valid JSON with `version: "2.1.0"` and `$schema`
+- [x] Each advisory match maps to a SARIF result with correct level
+- [x] `--format sarif` works alongside existing `--format json` and `--format table`
+- [x] `cargo test --workspace && cargo clippy --workspace && cargo fmt --all -- --check`
+
+
+---
+
+
+### M20: CI/CD Integration
+
+**Goal:** GitHub Action, GitLab CI template, `--ci` flag with SARIF sidecar file output. Teams can gate builds on Ripley findings.
+
+- [ ] **M20.1** — `--ci` flag and CI auto-detection
+
+  Files:
+  - `crates/ripley-core/src/platform.rs`: `pub fn is_ci() -> bool` — checks CI, GITHUB_ACTIONS, GITLAB_CI, JENKINS_URL, CIRCLECI, TRAVIS env vars
+  - `crates/ripley-guard/src/main.rs`: add `--ci` and `--sarif-output <PATH>` flags to Scan subcommand
+  - `crates/ripley-guard/src/commands/scan.rs`:
+    - `fn is_ci_environment() -> bool` (delegates to `platform::is_ci()`)
+    - When `--ci`: write SARIF sidecar to `--sarif-output` path (default: `ripley-results.sarif`), table to stdout
+
+  Tests: is_ci with CI=true → true, without → false, --ci flag parses.
+
+  Verify: `cargo test --workspace && cargo run -p ripley-guard -- scan --ci --help`
+
+- [ ] **M20.2** — GitHub Action
+
+  New file `.github/actions/ripley-scan/action.yml`:
+  - Composite action: install ripley, run scan with --ci, upload SARIF via github/codeql-action/upload-sarif@v3
+  - Inputs: path, format, posture-strict, sarif-upload
+
+  New file `docs/ci/github-actions.md`: usage documentation.
+
+  Tests: YAML is syntactically valid.
+
+  Verify: `python3 -c "import yaml; yaml.safe_load(open('.github/actions/ripley-scan/action.yml'))"`
+
+- [ ] **M20.3** — GitLab CI template
+
+  New file `docs/ci/gitlab-ci.yml`: ripley-scan job with SAST-compatible artifact.
+  New file `docs/ci/gitlab-ci.md`: usage documentation.
+
+  Tests: YAML is syntactically valid.
+
+- [ ] **M20.4** — CI integration tests
+
+  New file `crates/ripley-guard/tests/ci_integration.rs`:
+  - `test_ci_flag_produces_sarif_file`: run with --ci --sarif-output, assert file exists + valid SARIF
+  - `test_ci_exit_code_clean`: exit code 0 for clean scan
+  - `test_ci_exit_code_findings`: exit code 1 when findings exist
+  - `test_sarif_output_file_alongside_table`: --ci --format table writes table to stdout AND SARIF to file
+
+  Verify: `cargo test --workspace`
+
+#### M20 Gate
+- [ ] `ripley scan --ci` auto-writes SARIF sidecar file
+- [ ] GitHub Action YAML syntactically valid
+- [ ] GitLab CI template syntactically valid
+- [ ] Exit codes: 0=clean, 1=findings, 2=error (unchanged)
+- [ ] `cargo test --workspace && cargo clippy --workspace && cargo fmt --all -- --check`
+
+
+---
+
+
+### M21: Sandbox Execution
+
+**Goal:** Wrap script execution in platform-specific sandbox restricting network access and filesystem scope. macOS: sandbox-exec. Linux: bwrap. Windows: no-op stub. Opt-in via `[guard] sandbox = true`.
+
+**Design:** sandbox-exec is deprecated on macOS but still functional (used by Homebrew, Nix, Chrome). bwrap (bubblewrap) on Linux is standard unprivileged sandboxing (Flatpak). No root required.
+
+- [ ] **M21.1** — Sandbox config section
+
+  File `crates/ripley-core/src/config.rs`:
+  - Add to `GuardConfig`: `sandbox: bool` (default false), `sandbox_allow_network: bool` (default false), `sandbox_writable_paths: Vec<String>`
+  - Add to `GuardOverlay`: corresponding `Option<>` fields
+  - Env var overrides: `RIPLEY_GUARD_SANDBOX`, `RIPLEY_GUARD_SANDBOX_ALLOW_NETWORK`
+
+  File `crates/ripley-guard/src/main.rs`: add `--sandbox` flag to Scan subcommand.
+
+  Tests: default false, TOML round-trip, overlay merge, env var override.
+
+  Verify: `cargo test -p ripley-core -- config && cargo clippy --workspace`
+
+- [ ] **M21.2** — Sandbox profiles (core library)
+
+  New module `crates/ripley-core/src/sandbox/mod.rs`: re-exports.
+  New file `crates/ripley-core/src/sandbox/profile.rs`:
+  - `struct SandboxProfile { allow_network, writable_paths, readable_paths, working_dir }`
+  - `SandboxProfile::for_ecosystem(ecosystem, package_dir)` — dispatch per ecosystem
+  - `#[cfg(target_os = "macos")] fn to_sandbox_exec_profile(&self) -> String` — Scheme-syntax .sb profile
+  - `#[cfg(target_os = "linux")] fn to_bwrap_args(&self) -> Vec<String>` — bwrap CLI args
+  - `#[cfg(target_os = "windows")]` — stub with warning
+
+  Tests: macOS profile contains `(deny default)`, `(deny network*)` when appropriate. Linux args contain `--unshare-net`, `--ro-bind`. Windows stub returns without error.
+
+  Verify: `cargo test -p ripley-core -- sandbox::profile && cargo clippy --workspace`
+
+- [ ] **M21.3** — Sandbox executor
+
+  New file `crates/ripley-core/src/sandbox/executor.rs`:
+  - `struct SandboxResult { exit_code, stderr_output, network_blocked, duration_ms, sandbox_violations }`
+  - `struct SandboxViolation { kind: ViolationKind, detail }`
+  - `enum ViolationKind { NetworkAccess, FileWriteOutsideScope, ProcessSpawn, Other }`
+  - `pub fn execute_sandboxed(script, args, profile) -> Result<SandboxResult, SandboxError>`
+  - Platform dispatch: macOS → sandbox-exec, Linux → bwrap, Windows → Err(Unsupported)
+  - `enum SandboxError { BwrapNotFound, ProfileGenerationFailed, ExecutionFailed, SandboxExecNotFound, Unsupported }`
+
+  Tests: echo hello succeeds in sandbox (platform-gated), SandboxResult serialization, violation categorization.
+
+  Verify: `cargo test -p ripley-core -- sandbox::executor && cargo clippy --workspace`
+
+- [ ] **M21.4** — Wire sandbox into script-shell
+
+  File `crates/ripley-guard/src/bin/ripley-script-shell.rs`:
+  - Load config, check `guard.sandbox`
+  - If enabled: build profile for ecosystem, call `execute_sandboxed`
+  - Log violations to guard.jsonl: `"sandbox": true, "violations": [...]`
+  - If violations High/Critical: apply block/prompt logic
+  - Fallback: if sandbox setup fails, fall back to `delegate_to_sh()` with warning
+  - New: `fn delegate_to_sandbox(args, config) -> ExitCode`
+
+  Tests: sandbox=false uses delegate_to_sh, unsupported platform falls back, log entries include sandbox fields.
+
+  Verify: `cargo build -p ripley-guard && cargo test --workspace`
+
+- [ ] **M21.5** — Sandbox integration tests
+
+  New fixtures:
+  - `tests/fixtures/scripts/sandbox-network-test.sh` — attempts curl/wget
+  - `tests/fixtures/scripts/sandbox-fs-escape-test.sh` — writes to /tmp/evil.txt
+  - `tests/fixtures/scripts/sandbox-benign.sh` — mkdir + cp within package dir
+
+  New file `crates/ripley-guard/tests/sandbox_integration.rs`:
+  - `#[cfg(target_os = "macos")]`: test_sandbox_blocks_network, test_sandbox_allows_benign
+  - `#[cfg(target_os = "linux")]`: same tests (skip if bwrap not installed)
+  - Cross-platform: test_sandbox_disabled_passthrough, test_sandbox_result_logged
+
+  Verify: `cargo test --workspace`
+
+#### M21 Gate
+- [ ] macOS sandbox-exec profile denies network and restricts filesystem
+- [ ] Linux bwrap args include `--unshare-net` and `--ro-bind`
+- [ ] Sandbox catches network call from test script
+- [ ] Sandbox allows benign script to complete
+- [ ] script-shell falls back gracefully when sandbox unavailable
+- [ ] Guard log includes sandbox violation details
+- [ ] No `unwrap()`/`expect()` in ripley-core sandbox code
+- [ ] `cargo test --workspace && cargo clippy --workspace && cargo fmt --all -- --check`
+
+
+---
+
+
+### M22: Behavioral Analysis Engine
+
+**Goal:** Record and evaluate behavior observed during sandboxed script execution. Produce `BehavioralReport` comparing observed vs. declared behavior. Uses sandbox violation signals, not deep tracing.
+
+**Scope guard:** No dtrace/strace. Sandbox IS the observer — blocked operations are the behavioral signals.
+
+- [ ] **M22.1** — Behavioral report types
+
+  New module `crates/ripley-core/src/behavioral/mod.rs`: re-exports.
+  New file `crates/ripley-core/src/behavioral/report.rs`:
+  - `BehavioralReport { package, version, ecosystem, declared, observed, anomalies, risk_score, analysis_duration_ms }`
+  - `DeclaredBehavior { has_install_scripts, script_names, declared_dependencies, known_build_tool }`
+  - `ObservedBehavior { network_attempts, fs_writes, fs_reads, process_spawns, exit_code }`
+  - `NetworkAttempt { host, port, blocked }`, `FsWrite { path, blocked, outside_package }`
+  - `FsRead { path, sensitive }`, `ProcessSpawn { command, args }`
+  - `BehavioralAnomaly { kind, severity, description, evidence }`
+  - `enum AnomalyKind { UnexpectedNetwork, ScopeEscape, CredentialAccess, SuspiciousSpawn, BehaviorMismatch }`
+  - `risk_score`: 0.0-1.0
+
+  Tests: serialization, defaults, AnomalyKind round-trip.
+
+  Verify: `cargo test -p ripley-core -- behavioral::report && cargo clippy --workspace`
+
+- [ ] **M22.2** — Declared behavior extractor
+
+  New file `crates/ripley-core/src/behavioral/analyzer.rs`:
+  - `fn extract_declared_behavior(package_dir, ecosystem) -> Result<DeclaredBehavior, BehavioralError>`
+    - npm: parse package.json scripts (preinstall, postinstall, install, prepare)
+    - cargo: parse Cargo.toml for `build = "build.rs"`, `links`
+    - pip: parse pyproject.toml build system
+  - `fn is_known_build_tool(package_name, ecosystem) -> bool` — curated list (node-gyp, esbuild, webpack, etc.)
+  - `enum BehavioralError { ManifestNotFound, ParseError(String) }`
+
+  Tests: npm with postinstall → has_install_scripts=true, without → false, known build tools, missing manifest → error.
+
+  Verify: `cargo test -p ripley-core -- behavioral::analyzer && cargo clippy --workspace`
+
+- [ ] **M22.3** — Sandbox result to observed behavior
+
+  Extend `crates/ripley-core/src/behavioral/analyzer.rs`:
+  - `fn sandbox_result_to_observed(result: &SandboxResult, profile: &SandboxProfile) -> ObservedBehavior`
+  - `fn parse_sandbox_exec_stderr(stderr: &str) -> Vec<SandboxViolation>` — parse macOS denial messages
+  - `fn parse_bwrap_stderr(stderr: &str) -> Vec<SandboxViolation>` — parse Linux permission errors
+
+  Tests: macOS denial parsed, Linux permission denied parsed, clean stderr → empty observed.
+
+  Verify: `cargo test -p ripley-core -- behavioral::analyzer && cargo clippy --workspace`
+
+- [ ] **M22.4** — Anomaly detection and risk scoring
+
+  Extend `crates/ripley-core/src/behavioral/analyzer.rs`:
+  - `fn detect_anomalies(declared, observed) -> Vec<BehavioralAnomaly>` — rules:
+    1. Network from non-network package → UnexpectedNetwork, High
+    2. Writes outside package dir → ScopeEscape, High
+    3. Reads credential paths (~/.ssh, ~/.npmrc, ~/.aws) → CredentialAccess, Critical
+    4. Unexpected shell spawns → SuspiciousSpawn, Medium
+    5. Behavior from package with no install scripts → BehaviorMismatch, Critical
+  - `fn calculate_risk_score(anomalies) -> f64` — weighted: Critical=0.4, High=0.25, Medium=0.15, Low=0.05, cap 1.0
+  - `pub fn analyze_behavior(package_dir, ecosystem, sandbox_result, profile) -> Result<BehavioralReport, BehavioralError>` — orchestrator
+
+  Tests: CSS library + network → anomaly, node-gyp + network → no anomaly, credential read → Critical, risk score ranges, insta snapshot.
+
+  Verify: `cargo test -p ripley-core -- behavioral && cargo clippy --workspace`
+
+- [ ] **M22.5** — Wire behavioral analysis into script-shell and SARIF
+
+  Files:
+  - `crates/ripley-guard/src/bin/ripley-script-shell.rs`: after sandbox, run `analyze_behavior`, print anomalies if High+, log to guard.jsonl
+  - `crates/ripley-guard/src/output.rs`: `print_behavioral_table()`, `print_behavioral_json()`
+  - `crates/ripley-core/src/sarif.rs`: `fn behavioral_to_sarif(report) -> Vec<SarifResult>`
+
+  Tests: anomalies in stderr, guard log includes risk score, behavioral SARIF results correct.
+
+  Verify: `cargo build --workspace && cargo test --workspace && cargo clippy --workspace`
+
+#### M22 Gate
+- [ ] `BehavioralReport` captures declared vs. observed behavior
+- [ ] Anomaly detection flags unexpected network from non-network packages
+- [ ] Risk scoring: 0.0 for benign, >0.4 for critical anomalies
+- [ ] Behavioral results integrate into SARIF output
+- [ ] Guard log includes behavioral analysis when sandbox enabled
+- [ ] No `unwrap()`/`expect()` in ripley-core behavioral code
+- [ ] `cargo test --workspace && cargo clippy --workspace && cargo fmt --all -- --check`
+
+
+---
+
+
+### M23: Community Rule Sharing
+
+**Goal:** Enable publish/subscribe of detection rules from community sources. Three-tier rule loading: compiled-in (base) + user (local) + community (fetched from URLs). Git-based distribution (Homebrew tap model), no custom registry server.
+
+**Trust model:** Community rules untrusted by default — they flag but cannot block in strict mode unless the user promotes a source to trusted.
+
+- [ ] **M23.1** — Extended rule metadata
+
+  File `crates/ripley-core/src/rules/mod.rs`:
+  - Add optional fields to `Rule`: `author: Option<String>`, `confidence: Option<u8>`, `source_attack: Option<String>`, `updated_at: Option<String>`, `min_ripley_version: Option<String>`, `source: RuleSource`
+  - `enum RuleSource { Compiled, User, Community { source_name: String } }` with `#[serde(default)]`
+  - `impl Rule`: `fn is_community(&self) -> bool`, `fn is_trusted(&self, trusted_sources: &[String]) -> bool`
+
+  Tests: existing rules parse unchanged, full metadata parses, is_community correct, compiled rules still load.
+
+  Verify: `cargo test -p ripley-core -- rules && cargo clippy --workspace`
+
+- [ ] **M23.2** — Rule source registry and index
+
+  New file `crates/ripley-core/src/rules/registry.rs`:
+  - `struct RuleSourceEntry { name, url, trust_level, last_fetched, rule_count }`
+  - `enum TrustLevel { Untrusted, Trusted }`
+  - `struct RuleIndex { version, rules: Vec<RuleEntry> }` — the `index.toml` format
+  - `struct RuleEntry { file, id, name, ecosystem, weight, author, updated_at }`
+  - `struct SourceRegistry { sources: Vec<RuleSourceEntry> }` — persisted to `{data_dir}/rules/sources.toml`
+  - `fn load_registry`, `fn save_registry` (atomic write), `fn add_source`, `fn remove_source`, `fn trust_source`, `fn untrust_source`
+
+  Tests: add/remove/trust, round-trip persistence, duplicate name → error, empty registry loads.
+
+  Verify: `cargo test -p ripley-core -- rules::registry && cargo clippy --workspace`
+
+- [ ] **M23.3** — Rule fetcher
+
+  New file `crates/ripley-core/src/rules/fetcher.rs`:
+  - `async fn fetch_rules(source, data_dir) -> Result<Vec<Rule>>` — GET index.toml, GET each rule file, store in `{data_dir}/rules/community/{name}/`
+  - `async fn update_source(source, data_dir) -> Result<usize>` — fetch + update last_fetched
+  - `async fn update_all_sources(registry, data_dir) -> Result<Vec<(String, usize)>>`
+  - ETag caching (If-None-Match header, skip on 304)
+  - Validation: patterns must be valid regex, weight valid severity, ecosystem recognized. Invalid rules skipped.
+  - Uses `reqwest` (already in workspace)
+
+  Extend `crates/ripley-core/src/rules/mod.rs`:
+  - `RuleSet::load_all(config_dir, data_dir)` — three-tier merge: compiled < community < user
+  - `fn load_community_rules(data_dir)` — walk `{data_dir}/rules/community/*/`
+
+  Tests: mock HTTP fetch, ETag caching, invalid rule skipped, three-tier precedence (user > community > compiled).
+
+  Verify: `cargo test -p ripley-core -- rules::fetcher && cargo clippy --workspace`
+
+- [ ] **M23.4** — `ripley rule` CLI commands
+
+  File `crates/ripley-guard/src/main.rs`:
+  - Add `Rule { command: RuleCommands }` to Commands enum
+  - `enum RuleCommands { Add, Remove, Update, List, Trust, Untrust, Search }`
+
+  New file `crates/ripley-guard/src/commands/rule.rs`:
+  - `cmd_add(name, url)`, `cmd_remove(name)`, `cmd_update(name)`, `cmd_list()`, `cmd_trust(name)`, `cmd_untrust(name)`, `cmd_search(query)`
+
+  Tests: clap parses correctly, empty list → helpful message, search finds by keyword.
+
+  Verify: `cargo build -p ripley-guard && cargo run -p ripley-guard -- rule --help && cargo run -p ripley-guard -- rule list`
+
+- [ ] **M23.5** — Three-tier loading integration + tests
+
+  Files:
+  - `crates/ripley-guard/src/bin/ripley-script-shell.rs`: replace load_compiled+load_user with `RuleSet::load_all`
+  - `crates/ripley-guard/src/commands/scan.rs`: use `RuleSet::load_all` for analysis
+  - Untrusted community rules can flag but not block in non-interactive mode
+
+  New file `crates/ripley-guard/tests/community_rules_integration.rs`:
+  - test_community_rule_loads_from_directory
+  - test_community_rule_untrusted_does_not_block
+  - test_community_rule_trusted_blocks
+  - test_three_tier_merge_precedence
+
+  Verify: `cargo test --workspace`
+
+- [ ] **M23.6** — Example community rule repository
+
+  New files:
+  - `docs/community-rules-example/index.toml` — example index
+  - `docs/community-rules-example/supply_chain_2026.toml` — example rules with full metadata
+  - `docs/community-rules.md` — documentation (format, subscribe, trust model, publish)
+
+  Tests: example index parses as valid RuleIndex, example rules parse as valid Rule.
+
+  Verify: `cargo test --workspace`
+
+#### M23 Gate
+- [ ] Three-tier rule loading: compiled + community + user, correct precedence
+- [ ] `ripley rule add` fetches rules from HTTP source
+- [ ] `ripley rule list` shows sources with metadata
+- [ ] Community rules from untrusted sources flag but do not block
+- [ ] Trusted community rules can block like compiled rules
+- [ ] `ripley rule search` finds rules by keyword
+- [ ] Example community rule repository parses correctly
+- [ ] `cargo test --workspace && cargo clippy --workspace && cargo fmt --all -- --check`
+
+
+---
+
 
 #### Phase 5 Gate
+
+**All must pass before Phase 5 is complete:**
+
+- [ ] All M19-M23 gates passed
+- [ ] `cargo build --workspace --release`
+- [ ] `cargo test --workspace` — target 500+ tests
+- [ ] `cargo clippy --workspace` — no warnings
+- [ ] `cargo fmt --all -- --check`
+- [ ] `cargo deny check` — clean
+- [ ] `ripley scan --format sarif tests/fixtures/` produces valid SARIF 2.1.0 JSON
+- [ ] `ripley scan --ci --sarif-output /tmp/test.sarif tests/fixtures/` writes SARIF sidecar
+- [ ] GitHub Action YAML syntactically valid
+- [ ] GitLab CI template syntactically valid
 - [ ] Sandbox catches network call from test script
-- [ ] Community rule loads from registry
-- [ ] GitHub Action passes in test repo
+- [ ] Behavioral analysis detects anomaly for non-network package making network call
+- [ ] Community rule loads from registry (integration test)
+- [ ] Three-tier merge: user > community > compiled
+- [ ] `ripley rule list` shows configured sources
+- [ ] No `unwrap()` or `expect()` in ripley-core production code
+- [ ] All public functions have tests
+- [ ] No `#[allow(dead_code)]` remaining on Phase 5 scaffolding
 - [ ] Commit: `Phase 5: Advanced analysis`
 
 

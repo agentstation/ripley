@@ -81,6 +81,16 @@ pub fn print_json(
     Ok(())
 }
 
+pub fn print_sarif(
+    matches: &[Match],
+    warnings: &[LockfileWarning],
+    risky_specs: &[RiskySpec],
+) -> anyhow::Result<()> {
+    let log = ripley_core::sarif::matches_to_sarif(matches, warnings, risky_specs);
+    println!("{}", serde_json::to_string_pretty(&log)?);
+    Ok(())
+}
+
 fn print_posture_summary(warnings: &[LockfileWarning], risky_specs: &[RiskySpec]) {
     if warnings.is_empty() && risky_specs.is_empty() {
         return;

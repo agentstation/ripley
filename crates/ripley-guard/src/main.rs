@@ -20,7 +20,7 @@ enum Commands {
     Scan {
         /// Path to scan (defaults to current directory)
         path: Option<PathBuf>,
-        /// Output format (table or json)
+        /// Output format (table, json, or sarif)
         #[arg(long, default_value = "table")]
         format: String,
         /// Run deep forensic scan
