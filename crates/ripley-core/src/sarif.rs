@@ -369,31 +369,49 @@ pub fn analysis_to_sarif(results: &[AnalysisResult], script_paths: &[PathBuf]) -
     }])
 }
 
-pub fn behavioral_to_sarif(report: &BehavioralReport) -> Vec<SarifResult> {
+pub fn behavioral_to_sarif(
+    report: &BehavioralReport,
+) -> (Vec<SarifReportingDescriptor>, Vec<SarifResult>) {
+    let mut rules: Vec<SarifReportingDescriptor> = Vec::new();
+    let mut rule_index_map: HashMap<String, usize> = HashMap::new();
     let mut results = Vec::new();
 
     for anomaly in &report.anomalies {
         let rule_id = format!("behavioral/{:?}", anomaly.kind).to_lowercase();
+
+        let rule_idx = *rule_index_map.entry(rule_id.clone()).or_insert_with(|| {
+            let idx = rules.len();
+            rules.push(SarifReportingDescriptor {
+                id: rule_id.clone(),
+                name: format!("{:?}", anomaly.kind),
+                short_description: SarifMessage {
+                    text: format!("Behavioral anomaly: {:?}", anomaly.kind),
+                },
+                full_description: None,
+                default_configuration: SarifConfiguration {
+                    level: severity_to_sarif_level(&anomaly.severity),
+                },
+                help_uri: None,
+            });
+            idx
+        });
+
         results.push(SarifResult {
             rule_id,
-            rule_index: 0,
+            rule_index: rule_idx,
             level: severity_to_sarif_level(&anomaly.severity),
             message: SarifMessage {
                 text: anomaly.description.clone(),
             },
             locations: Vec::new(),
-            fingerprints: {
-                let mut fp = HashMap::new();
-                fp.insert(
-                    "ripley/behavioral/v1".to_string(),
-                    format!("{}/{}/{}", report.package, report.version, anomaly.evidence),
-                );
-                fp
-            },
+            fingerprints: HashMap::from([(
+                "ripley/behavioral/v1".to_string(),
+                format!("{}/{}/{}", report.package, report.version, anomaly.evidence),
+            )]),
         });
     }
 
-    results
+    (rules, results)
 }
 
 #[cfg(test)]
@@ -689,12 +707,17 @@ mod tests {
             analysis_duration_ms: 50,
         };
 
-        let results = behavioral_to_sarif(&report);
+        let (rules, results) = behavioral_to_sarif(&report);
         assert_eq!(results.len(), 2);
+        assert_eq!(rules.len(), 2);
         assert_eq!(results[0].level, SarifLevel::Error);
         assert_eq!(results[1].level, SarifLevel::Error);
+        assert_eq!(results[0].rule_index, 0);
+        assert_eq!(results[1].rule_index, 1);
         assert!(results[0].rule_id.contains("unexpectednetwork"));
         assert!(results[1].rule_id.contains("credentialaccess"));
         assert!(results[0].fingerprints.contains_key("ripley/behavioral/v1"));
+        assert_eq!(rules[0].id, results[0].rule_id);
+        assert_eq!(rules[1].id, results[1].rule_id);
     }
 }

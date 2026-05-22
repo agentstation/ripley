@@ -199,11 +199,16 @@ impl RuleSet {
             if !source_path.is_dir() {
                 continue;
             }
-            let source_name = source_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("unknown")
-                .to_string();
+            let source_name = match source_path.file_name().and_then(|n| n.to_str()) {
+                Some(name) => name.to_string(),
+                None => {
+                    tracing::warn!(
+                        "skipping community rule directory with non-UTF8 name: {:?}",
+                        source_path
+                    );
+                    continue;
+                }
+            };
 
             let entries = match std::fs::read_dir(&source_path) {
                 Ok(e) => e,

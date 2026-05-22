@@ -303,20 +303,25 @@ pub fn analyze_behavior(
     ecosystem: Ecosystem,
     sandbox_result: &SandboxResult,
     profile: &SandboxProfile,
+    package: &str,
+    version: &str,
 ) -> Result<BehavioralReport, BehavioralError> {
     let start = Instant::now();
 
-    let declared = extract_declared_behavior(package_dir, ecosystem).unwrap_or_default();
+    let declared = match extract_declared_behavior(package_dir, ecosystem) {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::debug!("could not extract declared behavior: {e}, using defaults");
+            DeclaredBehavior::default()
+        }
+    };
     let observed = sandbox_result_to_observed(sandbox_result, profile);
     let anomalies = detect_anomalies(&declared, &observed);
     let risk_score = calculate_risk_score(&anomalies);
 
-    let package = std::env::var("npm_package_name").unwrap_or_default();
-    let version = std::env::var("npm_package_version").unwrap_or_default();
-
     Ok(BehavioralReport {
-        package,
-        version,
+        package: package.to_string(),
+        version: version.to_string(),
         ecosystem,
         declared,
         observed,

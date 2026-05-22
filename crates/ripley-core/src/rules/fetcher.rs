@@ -26,11 +26,27 @@ pub enum FetchError {
 pub async fn fetch_rules(
     source: &RuleSourceEntry,
     data_dir: &Path,
-) -> Result<Vec<Rule>, FetchError> {
+) -> Result<Option<(Vec<Rule>, Option<String>)>, FetchError> {
     let client = reqwest::Client::new();
 
     let index_url = format!("{}/index.toml", source.url.trim_end_matches('/'));
-    let index_response = client.get(&index_url).send().await?.text().await?;
+    let mut request = client.get(&index_url);
+    if let Some(ref etag) = source.etag {
+        request = request.header("If-None-Match", etag.as_str());
+    }
+
+    let response = request.send().await?;
+    if response.status() == reqwest::StatusCode::NOT_MODIFIED {
+        return Ok(None);
+    }
+
+    let new_etag = response
+        .headers()
+        .get("etag")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    let index_response = response.text().await?;
     let index: RuleIndex = toml::from_str(&index_response)?;
 
     let source_dir = data_dir.join("rules").join("community").join(&source.name);
@@ -84,18 +100,26 @@ pub async fn fetch_rules(
         }
     }
 
-    Ok(rules)
+    Ok(Some((rules, new_etag)))
 }
 
 pub async fn update_source(
     source: &mut RuleSourceEntry,
     data_dir: &Path,
 ) -> Result<usize, FetchError> {
-    let rules = fetch_rules(source, data_dir).await?;
-    let count = rules.len();
-    source.rule_count = count;
-    source.last_fetched = Some(chrono::Utc::now().to_rfc3339());
-    Ok(count)
+    match fetch_rules(source, data_dir).await? {
+        Some((rules, new_etag)) => {
+            let count = rules.len();
+            source.rule_count = count;
+            source.last_fetched = Some(chrono::Utc::now().to_rfc3339());
+            source.etag = new_etag;
+            Ok(count)
+        }
+        None => {
+            tracing::debug!("source '{}' unchanged (304 Not Modified)", source.name);
+            Ok(source.rule_count)
+        }
+    }
 }
 
 pub async fn update_all_sources(

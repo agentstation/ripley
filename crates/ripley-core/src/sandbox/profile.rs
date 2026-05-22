@@ -79,21 +79,16 @@ impl SandboxProfile {
         profile.push_str("(allow mach-lookup)\n");
 
         for path in &self.readable_paths {
-            profile.push_str(&format!(
-                "(allow file-read* (subpath \"{}\"))\n",
-                path.display()
-            ));
+            if let Some(safe) = sanitize_sb_path(path) {
+                profile.push_str(&format!("(allow file-read* (subpath \"{safe}\"))\n"));
+            }
         }
 
         for path in &self.writable_paths {
-            profile.push_str(&format!(
-                "(allow file-read* (subpath \"{}\"))\n",
-                path.display()
-            ));
-            profile.push_str(&format!(
-                "(allow file-write* (subpath \"{}\"))\n",
-                path.display()
-            ));
+            if let Some(safe) = sanitize_sb_path(path) {
+                profile.push_str(&format!("(allow file-read* (subpath \"{safe}\"))\n"));
+                profile.push_str(&format!("(allow file-write* (subpath \"{safe}\"))\n"));
+            }
         }
 
         if self.allow_network {
@@ -139,6 +134,15 @@ impl SandboxProfile {
     pub fn to_bwrap_args(&self) -> Vec<String> {
         Vec::new()
     }
+}
+
+fn sanitize_sb_path(path: &Path) -> Option<String> {
+    let s = path.to_string_lossy();
+    if s.contains('"') || s.contains(')') || s.contains('\n') || s.contains('\0') {
+        tracing::warn!("rejecting unsafe sandbox path: {:?}", path);
+        return None;
+    }
+    Some(s.into_owned())
 }
 
 #[cfg(test)]
@@ -237,5 +241,49 @@ mod tests {
         };
         let args = profile.to_bwrap_args();
         assert!(!args.contains(&"--unshare-net".to_string()));
+    }
+
+    #[test]
+    fn test_sanitize_sb_path_valid() {
+        assert_eq!(
+            sanitize_sb_path(Path::new("/usr/local/bin")),
+            Some("/usr/local/bin".to_string())
+        );
+    }
+
+    #[test]
+    fn test_sanitize_sb_path_rejects_quotes() {
+        assert_eq!(
+            sanitize_sb_path(Path::new("/tmp/evil\"))\n(allow network*")),
+            None
+        );
+    }
+
+    #[test]
+    fn test_sanitize_sb_path_rejects_parens() {
+        assert_eq!(sanitize_sb_path(Path::new("/tmp/evil)")), None);
+    }
+
+    #[test]
+    fn test_sanitize_sb_path_rejects_newlines() {
+        assert_eq!(sanitize_sb_path(Path::new("/tmp/evil\npath")), None);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_macos_profile_skips_unsafe_paths() {
+        let profile = SandboxProfile {
+            allow_network: false,
+            writable_paths: vec![
+                PathBuf::from("/tmp/safe"),
+                PathBuf::from("/tmp/evil\"))\n(allow network*"),
+            ],
+            readable_paths: vec![PathBuf::from("/usr")],
+            working_dir: PathBuf::from("/tmp"),
+        };
+        let sb = profile.to_sandbox_exec_profile();
+        assert!(sb.contains("/tmp/safe"));
+        assert!(!sb.contains("evil"));
+        assert!(!sb.contains("(allow network*)"));
     }
 }

@@ -97,6 +97,8 @@ fn execute_script(args: &[String], script: &str, config: &GuardConfig) -> ExitCo
 fn delegate_to_sandbox(script: &str, config: &GuardConfig) -> ExitCode {
     let package_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let ecosystem = detect_ecosystem();
+    let package = std::env::var("npm_package_name").unwrap_or_default();
+    let version = std::env::var("npm_package_version").unwrap_or_default();
 
     let mut profile = SandboxProfile::for_ecosystem(ecosystem, &package_dir);
     profile.allow_network = config.sandbox_allow_network;
@@ -114,9 +116,14 @@ fn delegate_to_sandbox(script: &str, config: &GuardConfig) -> ExitCode {
                 }
             }
 
-            if let Ok(report) =
-                behavioral::analyze_behavior(&package_dir, ecosystem, &result, &profile)
-            {
+            if let Ok(report) = behavioral::analyze_behavior(
+                &package_dir,
+                ecosystem,
+                &result,
+                &profile,
+                &package,
+                &version,
+            ) {
                 if report.risk_score > 0.0 {
                     log_behavioral_report(&report);
                 }

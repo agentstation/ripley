@@ -20,6 +20,15 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Cache cargo registry and build
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ripley-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: ripley-${{ runner.os }}-
     - name: Install Ripley
       shell: bash
       run: cargo install --path crates/ripley-guard

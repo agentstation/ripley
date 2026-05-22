@@ -31,6 +31,8 @@ pub struct RuleSourceEntry {
     pub trust_level: TrustLevel,
     pub last_fetched: Option<String>,
     pub rule_count: usize,
+    #[serde(default)]
+    pub etag: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -105,6 +107,7 @@ impl SourceRegistry {
             trust_level: TrustLevel::Untrusted,
             last_fetched: None,
             rule_count: 0,
+            etag: None,
         });
         Ok(())
     }
