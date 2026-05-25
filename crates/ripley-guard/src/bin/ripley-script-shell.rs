@@ -8,6 +8,7 @@ use ripley_core::config::{self, GuardConfig};
 use ripley_core::rules::RuleSet;
 use ripley_core::sandbox::{self, SandboxProfile, SandboxResult};
 use ripley_core::types::{Ecosystem, Severity};
+#[cfg(unix)]
 use ripley_ipc::protocol::{GuardDecision, GuardPromptData, Request, Response};
 
 fn main() -> ExitCode {
@@ -43,6 +44,7 @@ fn main() -> ExitCode {
 
     print_analysis(&result);
 
+    #[cfg(unix)]
     if let Some(decision) = try_desktop_decision(&script, &result) {
         match decision {
             GuardDecision::Allow | GuardDecision::Trust => {
@@ -190,6 +192,7 @@ fn detect_ecosystem() -> Ecosystem {
 /// in time. Any failure (no socket, IO error, timeout, malformed response)
 /// returns `None` so the caller falls back to the terminal prompt — this
 /// preserves Phase 1 behavior on systems without the desktop app installed.
+#[cfg(unix)]
 fn try_desktop_decision(script: &str, result: &analyzer::AnalysisResult) -> Option<GuardDecision> {
     if std::env::var("RIPLEY_FORCE_CLI").is_ok() {
         return None;
