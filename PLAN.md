@@ -3890,11 +3890,11 @@ Phase 4 Gate.
 
 #### M25 Gate
 - [ ] Simulated `npm install` interception triggers guard dialog end-to-end
-- [ ] User Allow → script-shell exits 0; Block → script-shell exits non-zero (Phase 1 contract preserved)
+- [x] User Allow → script-shell exits 0; Block → script-shell exits non-zero (Phase 1 contract preserved)
 - [ ] p95 cold latency <500ms on Apple Silicon
 - [ ] p95 warm latency <50ms on Apple Silicon
-- [ ] `tauri-specta` types compile without `any` in IPC layer
-- [ ] No protocol change to `ripley_ipc::protocol` (Phase 1 wire format preserved)
+- [x] `tauri-specta` types compile without `any` in IPC layer
+- [x] No protocol change to `ripley_ipc::protocol` (Phase 1 wire format preserved)
 - [x] **Playwright perf spec** (`tests/browser/perf/guard-dialog.spec.ts`) mounts the dialog component in Vite-served React, uses `performance.mark` between route enter and first interactive paint, and asserts warm budget <50ms in headless Chromium (proxy for the Tauri shell — does not replace the native cold-path measurement above)
 - [x] **Playwright a11y spec** for guard dialog passes axe with zero violations of `serious` or `critical` severity
 - [ ] Commit: `M25: Guard-dialog critical path`
