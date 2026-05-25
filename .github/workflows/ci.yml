@@ -36,7 +36,8 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libsoup-3.0-dev \
-            libjavascriptcoregtk-4.1-dev
+            libjavascriptcoregtk-4.1-dev \
+            libxdo-dev
 
       - name: Build
         run: cargo build --workspace
@@ -139,7 +140,8 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libsoup-3.0-dev \
-            libjavascriptcoregtk-4.1-dev
+            libjavascriptcoregtk-4.1-dev \
+            libxdo-dev
 
       - name: Build release
         run: cargo build --workspace --release --target ${{ matrix.target }}
