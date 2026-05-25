@@ -39,9 +39,6 @@ pub async fn cmd_watch(daemon: bool) -> Result<()> {
         cancel_clone.cancel();
     });
 
-    let socket_path = ripley_ipc::protocol::socket_path()
-        .ok_or_else(|| anyhow::anyhow!("could not determine socket path"))?;
-
     let (event_tx, mut event_rx) = mpsc::channel::<WatchEvent>(64);
 
     let db_path = data_dir.join("advisories.redb");
@@ -61,43 +58,52 @@ pub async fn cmd_watch(daemon: bool) -> Result<()> {
         run_watcher(watcher_config, watcher_tx, watcher_cancel).await;
     });
 
-    let ipc_cancel = cancel.clone();
-    tokio::spawn(async move {
-        if let Err(e) = ripley_ipc::server::serve(
-            &socket_path,
-            |req| async move {
-                match req {
-                    ripley_ipc::Request::Status => {
-                        ripley_ipc::Response::Status(ripley_ipc::protocol::StatusData {
-                            last_poll: None,
-                            alert_count: 0,
-                            watching: Vec::new(),
-                        })
+    #[cfg(unix)]
+    {
+        let socket_path = ripley_ipc::protocol::socket_path()
+            .ok_or_else(|| anyhow::anyhow!("could not determine socket path"))?;
+        let ipc_cancel = cancel.clone();
+        tokio::spawn(async move {
+            if let Err(e) = ripley_ipc::server::serve(
+                &socket_path,
+                |req| async move {
+                    match req {
+                        ripley_ipc::Request::Status => {
+                            ripley_ipc::Response::Status(ripley_ipc::protocol::StatusData {
+                                last_poll: None,
+                                alert_count: 0,
+                                watching: Vec::new(),
+                            })
+                        }
+                        ripley_ipc::Request::Scan { .. } => {
+                            ripley_ipc::Response::Error("scan via IPC not yet implemented".into())
+                        }
+                        ripley_ipc::Request::GetAlerts => ripley_ipc::Response::Error(
+                            "get_alerts via IPC not yet implemented".into(),
+                        ),
+                        ripley_ipc::Request::GuardPrompt(_) => ripley_ipc::Response::Error(
+                            "guard_prompt via IPC not yet implemented".into(),
+                        ),
+                        ripley_ipc::Request::Contain { .. } => ripley_ipc::Response::Error(
+                            "contain via IPC not yet implemented".into(),
+                        ),
+                        ripley_ipc::Request::SubscribeAlerts => ripley_ipc::Response::Error(
+                            "subscribe_alerts via IPC not yet implemented".into(),
+                        ),
                     }
-                    ripley_ipc::Request::Scan { .. } => {
-                        ripley_ipc::Response::Error("scan via IPC not yet implemented".into())
-                    }
-                    ripley_ipc::Request::GetAlerts => {
-                        ripley_ipc::Response::Error("get_alerts via IPC not yet implemented".into())
-                    }
-                    ripley_ipc::Request::GuardPrompt(_) => ripley_ipc::Response::Error(
-                        "guard_prompt via IPC not yet implemented".into(),
-                    ),
-                    ripley_ipc::Request::Contain { .. } => {
-                        ripley_ipc::Response::Error("contain via IPC not yet implemented".into())
-                    }
-                    ripley_ipc::Request::SubscribeAlerts => ripley_ipc::Response::Error(
-                        "subscribe_alerts via IPC not yet implemented".into(),
-                    ),
-                }
-            },
-            ipc_cancel,
-        )
-        .await
-        {
-            tracing::error!("IPC server error: {e}");
-        }
-    });
+                },
+                ipc_cancel,
+            )
+            .await
+            {
+                tracing::error!("IPC server error: {e}");
+            }
+        });
+    }
+    #[cfg(not(unix))]
+    {
+        tracing::warn!("IPC server is unix-only; skipping on this platform");
+    }
 
     eprintln!("ripley: watching for changes (Ctrl-C to stop)");
 
