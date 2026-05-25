@@ -224,7 +224,7 @@ mod tests {
     #[test]
     fn test_detect_bun_binary_flag() {
         let dir = tempfile::tempdir().expect("tempdir");
-        std::fs::write(dir.path().join("bun.lockb"), &[0u8; 10]).expect("write");
+        std::fs::write(dir.path().join("bun.lockb"), [0u8; 10]).expect("write");
         let pms = detect_package_managers(dir.path());
         assert_eq!(pms.len(), 1);
         assert_eq!(pms[0].name, "bun");
