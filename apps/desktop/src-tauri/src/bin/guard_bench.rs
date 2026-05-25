@@ -7,15 +7,26 @@
 //!
 //! Usage: `guard-bench [N]` (default N=10). The desktop app must be running.
 
+#[cfg(not(unix))]
+fn main() {
+    eprintln!("guard-bench: only supported on Unix targets (requires UDS)");
+    std::process::exit(2);
+}
+
+#[cfg(unix)]
 use std::io::{BufRead, BufReader};
+#[cfg(unix)]
 use std::path::PathBuf;
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
+#[cfg(unix)]
 use ripley_ipc::{
     client,
     protocol::{GuardPromptData, Request, Response},
 };
 
+#[cfg(unix)]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let iterations: usize = std::env::args()
@@ -59,11 +70,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[cfg(unix)]
 fn latency_log_path() -> Option<PathBuf> {
     let data_dir = ripley_core::dirs::data_dir().ok()?;
     Some(data_dir.join("guard-latency.jsonl"))
 }
 
+#[cfg(unix)]
 fn count_lines(path: &PathBuf) -> std::io::Result<usize> {
     if !path.exists() {
         return Ok(0);
@@ -73,6 +86,7 @@ fn count_lines(path: &PathBuf) -> std::io::Result<usize> {
     Ok(count)
 }
 
+#[cfg(unix)]
 #[derive(serde::Deserialize)]
 struct LatencyRecord {
     #[allow(dead_code)]
@@ -82,6 +96,7 @@ struct LatencyRecord {
     recorded_at_ms: u128,
 }
 
+#[cfg(unix)]
 fn read_new_records(
     path: &PathBuf,
     skip: usize,
@@ -107,6 +122,7 @@ fn read_new_records(
     }
 }
 
+#[cfg(unix)]
 fn print_percentiles(label: &str, samples: &[u64]) {
     if samples.is_empty() {
         println!("{label}: no samples");
