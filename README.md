@@ -228,7 +228,9 @@ model. See [DESIGN.md](DESIGN.md) for the design system (tokens, colors, typogra
 [DECISIONS.md](DECISIONS.md) for technical decisions and competitive landscape.
 See [ROADMAP.md](ROADMAP.md) for the phased execution plan. See
 [WORKFLOW.md](WORKFLOW.md) for user workflow streams. See
-[SETTINGS.md](SETTINGS.md) for configuration reference.
+[SETTINGS.md](SETTINGS.md) for configuration reference. See
+[STACK_DECISION.md](STACK_DECISION.md) for the Phase 6 UI stack (Tauri 2 + React 19
++ shadcn/Base UI + Tailwind v4) and canonical 2026 versions/tooling.
 
 
 ## CLI

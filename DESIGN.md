@@ -264,9 +264,11 @@ components:
 
 Design system for Ripley. This document is a token dictionary that defines
 the visual language --- colors, typography, spacing, and component styles.
-For view wireframes and interaction specs, see [UI.md](UI.md). For system
-architecture, see [ARCHITECTURE.md](ARCHITECTURE.md). For user workflows,
-see [WORKFLOW.md](WORKFLOW.md). For settings, see [SETTINGS.md](SETTINGS.md).
+For view wireframes and interaction specs, see [UI.md](UI.md). For
+component picks per workflow, keyboard model, and DX patterns, see
+[UX_DESIGN.md](UX_DESIGN.md). For system architecture, see
+[ARCHITECTURE.md](ARCHITECTURE.md). For user workflows, see
+[WORKFLOW.md](WORKFLOW.md). For settings, see [SETTINGS.md](SETTINGS.md).
 For technical decisions, see [DECISIONS.md](DECISIONS.md).
 
 
@@ -369,9 +371,11 @@ Convenience aliases that map to severity where appropriate.
 
 ## Typography
 
-System fonts only. No bundled typefaces. `iced` resolves system fonts
-automatically. macOS gets SF Pro (sans) and SF Mono (mono). Linux gets
-the system default. Windows gets Segoe UI and Cascadia Mono.
+System fonts only. No bundled typefaces, no web font loads. CSS uses
+`font-family: system-ui` (sans) and `ui-monospace` (mono) — the WebView
+resolves to the platform default automatically. macOS gets SF Pro (sans) and
+SF Mono (mono). Linux gets the system default. Windows gets Segoe UI and
+Cascadia Mono. Tailwind v4 exposes these via `font-sans` / `font-mono`.
 
 ### Scale
 

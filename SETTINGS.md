@@ -54,7 +54,7 @@ if missing. Human-editable, version-controllable. All writes are atomic
 |---------|------|---------|-------------|
 | `poll_interval_secs` | `u64` | `300` | How often to poll advisory feeds (seconds). Minimum: 60. |
 | `harness` | `string?` | `null` (auto-detect) | Preferred AI coding CLI for remediation prompts. Values: `"claude"`, `"codex"`, `"opencode"`. When null, Ripley checks PATH in that order and uses the first one found. |
-| `launch_at_login` | `bool` | `false` | Install a LaunchAgent (macOS) to start the tray app on login. |
+| `launch_at_login` | `bool` | `false` | Start the tray app on login. Installs a LaunchAgent on macOS, a Registry `Run` entry on Windows, and an XDG autostart `.desktop` file on Linux. |
 
 ```toml
 [general]

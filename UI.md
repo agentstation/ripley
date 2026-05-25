@@ -3,7 +3,8 @@
 Views, wireframes, and interaction specifications for Ripley. This
 document defines what appears on screen and how users interact with it.
 For the design system (colors, typography, spacing, components), see
-[DESIGN.md](DESIGN.md). For system architecture, see
+[DESIGN.md](DESIGN.md). For component picks per workflow and keyboard
+model, see [UX_DESIGN.md](UX_DESIGN.md). For system architecture, see
 [ARCHITECTURE.md](ARCHITECTURE.md). For user workflows, see
 [WORKFLOW.md](WORKFLOW.md). For settings, see [SETTINGS.md](SETTINGS.md).
 
@@ -762,82 +763,80 @@ with a tooltip: "Enable in Settings > Monitor."
 
 ## Technology
 
-### UI framework: `iced`
+### Stack: Tauri 2 + React 19 + shadcn/ui (Base UI) + Tailwind v4
 
-| Criterion              | `iced`            | `egui`            |
-|------------------------|-------------------|-------------------|
-| Architecture           | Elm / TEA         | Immediate mode    |
-| Rendering              | wgpu (GPU)        | wgpu or glow      |
-| Idle CPU               | ~0% (retained)    | Redraws every frame |
-| Custom theming         | Full control      | Limited           |
-| Native feel            | Higher            | Lower             |
-| Binary size impact     | ~8 MB             | ~5 MB             |
-| Learning curve         | Moderate          | Low               |
+Full rationale and version locks in [STACK_DECISION.md](STACK_DECISION.md).
+Short version:
 
-### Why `iced`
+- **Cross-platform first-class.** Single codebase ships macOS + Linux + Windows.
+  No second GUI stack to maintain.
+- **First-party tray on all 3 OSes.** Tauri's `TrayIconBuilder` wraps
+  `NSStatusItem` (macOS), `Shell_NotifyIcon` (Windows), `StatusNotifierItem`
+  (Linux). No bolt-on glue, no event-loop wrestling.
+- **DOM accessibility tree preserved.** WebView exposes the full AX tree on
+  every platform — the Peekaboo `see` / `click` design loop keeps working, and
+  WebdriverIO + `tauri-driver` provides e2e on Linux + Windows.
+- **Component depth + designer hireability.** shadcn/ui (Base UI primitive) +
+  Tailwind v4 + DESIGN.md tokens give us a copy-into-repo terminal-density
+  aesthetic without fighting an opinionated library. React + Tailwind is the
+  industry-standard 2026 frontend stack.
 
-1. **Elm architecture matches the event channel design.** The tray app
-   already uses `AppEvent` with `mpsc` channels (ROADMAP M3). `iced`'s
-   `update(message) → Command` maps directly onto this pattern.
+The Phase 1-5 `crates/ripley-app` (iced + tray-icon + muda) is retired in Phase
+6 M28; it was eliminated by the cross-platform-v1 constraint (no first-party
+tray story; no AX tree).
 
-2. **Retained mode for a background app.** Ripley's window is idle most
-   of the time. `iced` only redraws when state changes. `egui` redraws
-   every frame --- wasteful for a tray app that the user glances at
-   occasionally.
-
-3. **Theming control.** The dark security-tool aesthetic requires custom
-   colors, spacing, and typography. `iced` exposes full theme and
-   stylesheet traits. `egui`'s `Visuals` struct is more limited.
-
-4. **Professional output.** A security tool needs to look trustworthy.
-   `iced`'s text rendering (via `cosmic-text`) and layout engine produce
-   a more polished result.
-
-### Integration with `tray-icon`
-
-Both `tray-icon` and `iced` need the main thread on macOS (AppKit
-requirement). `iced` 0.13+ supports external event injection via
-`Subscription::run`, which bridges tray icon events into the Elm
-update loop.
+### Tray + window integration
 
 ```
-tray-icon (platform event loop)
+Tauri main process (Rust)
     │
-    ├── icon click  → send ShowDashboard to channel
-    ├── "Scan Now"  → send ScanRequested to channel
-    └── "Quit"      → send Quit to channel
-         │
-         ▼
-iced Subscription::run(channel_receiver)
+    ├── TrayIconBuilder (per-OS: NSStatusItem / Shell_NotifyIcon / StatusNotifierItem)
+    │       ├── icon click  → window.show()  (pre-warmed, hidden since startup)
+    │       ├── menu "Scan Now"  → invoke scan command
+    │       └── menu "Quit"  → app.exit()
     │
-    └── maps to iced Message enum → update() → view()
+    └── WebView (React 19 SPA)
+            │
+            ├── tauri::invoke → typed via tauri-specta bindings
+            ├── window.event::<T>() listeners (push from Rust → React)
+            └── TanStack Query caches IPC results; invalidates on events
 ```
 
-The tray icon runs on the platform event loop. `iced` subscribes to
-tray events through a channel and maps them into its own message type.
-Window visibility is controlled by `iced::window::open` / `close`.
+On startup the app launches with `set_activation_policy(.Accessory)` on macOS
+(no Dock icon) and a hidden pre-warmed window so the first show is <500ms.
+Subsequent shows are <50ms.
+
+### Type-safe IPC (tauri-specta v2)
+
+`#[tauri::command]` handlers in `apps/desktop/src-tauri/src/commands/` are
+annotated with `specta::Type` on their DTOs. A `build.rs` step emits
+`apps/desktop/src/lib/bindings.ts` at build time. The frontend imports
+`commands.scan()` and calls it as a typed function — no hand-written
+`invoke<T>("scan")` calls. Generated bindings are committed to the repo (same
+principle as `Cargo.lock`).
 
 ### Guard dialog via IPC
 
-The script-shell binary is a separate process. When the tray app is
-running, it sends an IPC request over the Unix socket and the tray app
-renders the dialog via `iced`. The script-shell blocks until it
-receives an allow/block response.
+The `ripley-script-shell` binary is unchanged from Phase 1-5. When the desktop
+app is running, it sends an IPC request over the Unix socket; the desktop app
+bridges that into a Tauri event, renders the dialog via shadcn's `Dialog` on
+Base UI, and returns the user's response over the same socket.
 
 ```
 ripley-script-shell
     │
     ├── connect to {data_dir}/ripley.sock
     │       ├── connected → send GuardPrompt request
-    │       │                 ├── tray app shows iced dialog
+    │       │                 ├── desktop app shows shadcn Dialog (Base UI)
     │       │                 └── returns Allow | Block | Trust
     │       └── not running → fall back to terminal prompt
     │
     └── execute or block based on response
 ```
 
-This keeps the script-shell binary small (no UI dependencies) while
-providing a rich dialog when the tray app is available.
+The UDS protocol (`ripley-ipc` crate) is unchanged. Only the GUI consumer
+changes — the script-shell binary remains UI-dependency-free and works against
+either the iced (Phase 1-5) or Tauri (Phase 6+) desktop app.
 
 
 ---
@@ -845,22 +844,26 @@ providing a rich dialog when the tray app is available.
 
 ## Milestone Map
 
-Which views ship in which milestone.
+Which views ship in which milestone. Phase 1-5 (M3, M5, M11, M13, M18) shipped
+on iced + `tray-icon` + `muda`. **Phase 6 M24-M27 re-implements these views in
+Tauri + React + shadcn/Base UI**, in the priority order from
+[DESIGN_ISSUES.md](DESIGN_ISSUES.md).
 
-| View                       | Milestone | Notes                            |
-|----------------------------|-----------|----------------------------------|
-| Tray icon + menu           | M3        | `tray-icon` + `muda`             |
-| Notifications (3 variants) | M3        | `notify-rust`                    |
-| Dashboard: sidebar + nav   | M3        | `iced` window                    |
-| Dashboard: alerts view     | M3        | Primary view, severity-sorted    |
-| Alert detail panel         | M3        | Slide-in panel on alert click    |
-| Dashboard: guard log view  | M3        | Table from guard.jsonl           |
-| Settings view              | M3        | Form that writes config.toml     |
-| Guard interception dialog  | M3        | IPC from script-shell to tray    |
-| First-run onboarding       | M3        | Welcome screen with setup steps  |
-| Empty state (alerts)       | M3        | Green shield, "no findings"      |
-| Error states (network, IPC)| M3        | Warning banners, degraded info   |
-| Deep scan report view      | M5        | After forensic scan is built     |
-| Audit report view          | Phase 3   | Environment audit results        |
-| Posture view (harden)      | Phase 3   | PM-specific hardening recs       |
-| Monitor view               | Phase 4   | Live process/filesystem activity |
+| View                       | Phase 1-5 (iced, shipped) | Phase 6 (Tauri rewrite) | Notes                            |
+|----------------------------|---------------------------|-------------------------|----------------------------------|
+| Tray icon + menu           | M3                        | M24                     | Tauri `TrayIconBuilder` (per-OS) |
+| Notifications (3 variants) | M3                        | M24                     | Tauri `notification` plugin      |
+| Dashboard: sidebar + nav   | M3                        | M27                     | App shell in `App.tsx`           |
+| Dashboard: alerts view     | M3                        | M27                     | `AlertCard` + severity-sorted    |
+| Alert detail panel         | M3                        | M27                     | shadcn `Sheet` (slide-in)        |
+| Dashboard: guard log view  | M3                        | M27                     | shadcn `DataTable` + TanStack    |
+| Settings view              | M3                        | M27                     | shadcn forms over config.toml    |
+| Guard interception dialog  | M3                        | **M25**                 | Primary critical path: <500ms    |
+| First-run onboarding       | M3                        | M27                     | Welcome screen                   |
+| Empty state (alerts)       | M3                        | M27                     | Green shield, "no findings"      |
+| Error states (network, IPC)| M3                        | M27                     | shadcn `Alert` banners           |
+| Deep scan report view      | M5                        | M27                     | Findings tree                    |
+| Audit report view          | M10 (Phase 3)             | M27                     | Traffic-light output             |
+| Posture view (harden)      | M11 (Phase 3)             | M27                     | PM-specific hardening recs       |
+| Monitor view               | M18 (Phase 4)             | M27                     | Subscribe to IPC alerts via Query |
+| Command palette (Cmd+K)    | (new)                     | M24 scaffold, M27 wire  | Base UI `Combobox` + `match-sorter` |

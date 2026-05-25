@@ -2,3 +2,15 @@
 *.swp
 *.swo
 .DS_Store
+
+# Tool output (M19+ SARIF scans land here when run from package dirs)
+ripley-results.sarif
+*.sarif
+
+# Phase 6 (Tauri / pnpm) — populated by M24+
+node_modules/
+dist/
+*.tsbuildinfo
+pnpm-debug.log*
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/binaries/

@@ -28,6 +28,7 @@ rationale, [WORKFLOW.md](WORKFLOW.md) for user workflows,
 | **3** | Response depth (after) | `ripley fix`, `ripley exposure`, `ripley audit`, `ripley harden` |
 | **4** | Active detection (during) | Process/filesystem monitoring, containment |
 | **5** | Advanced analysis (all) | Sandboxed execution, community rules, CI/CD |
+| **6** | UI rewrite (Tauri 2) | Cross-platform GUI v1: macOS + Linux + Windows; type-safe IPC; retire iced |
 
 
 ---
@@ -35,14 +36,19 @@ rationale, [WORKFLOW.md](WORKFLOW.md) for user workflows,
 
 ## Phase 1: Foundation
 
-**Goal:** A developer on macOS can install Ripley, get a tray notification when
-a package they depend on is compromised, click "Fix" to launch an AI harness
-with a scoped remediation prompt, and run `ripley scan --deep` to forensically
-audit their machine after a breach.
+**Goal (as shipped):** A developer on macOS can install Ripley, get a tray
+notification when a package they depend on is compromised, click "Fix" to
+launch an AI harness with a scoped remediation prompt, and run `ripley scan
+--deep` to forensically audit their machine after a breach.
 
-**Not in scope:** other lockfile formats, other PM shims, Windows/Linux tray
-builds, `ripley fix`/`exposure`/`harden` commands, process monitoring,
-sandboxing.
+**Phase 6 update:** the macOS-only constraint was a Phase 1 scoping decision,
+not a product decision. Phase 6 reworks the UI on Tauri 2 to make the dashboard
+cross-platform v1 (macOS + Linux + Windows) — see Phase 6 below. The CLI
+(`ripley-guard`) has been cross-platform since Phase 2.
+
+**Not in scope (Phase 1):** other lockfile formats, other PM shims,
+Windows/Linux tray builds (delivered in Phase 6), `ripley fix`/`exposure`/`harden`
+commands, process monitoring, sandboxing.
 
 
 ### M1: Core Data Pipeline
@@ -882,3 +888,59 @@ community-driven rule development. Ship CI/CD integrations for teams.
   - GitHub Action: `ripley-guard` as a build step
   - GitLab CI template
   - `ripley guard --ci` with SARIF output for code scanning dashboards
+
+
+---
+
+
+## Phase 6: UI Rewrite (Tauri 2)
+
+**Goal:** Replace the iced-based `crates/ripley-app` (Phase 1-5) with a Tauri 2
+desktop app delivering cross-platform tray + dashboard + guard dialog on
+macOS + Linux + Windows. Type-safe IPC end-to-end via `tauri-specta`. shadcn/ui
+(Base UI primitive) + Tailwind v4 views matching DESIGN.md tokens. Retire iced.
+
+**Depends on:** Phase 1 M3 (existing UDS IPC protocol, view inventory),
+[DESIGN_ISSUES.md](DESIGN_ISSUES.md) (priority-ordered view migration list).
+
+**Stack:** locked in [STACK_DECISION.md](STACK_DECISION.md). Tauri 2.11 +
+React 19.2 + shadcn/ui (`@base-ui/react` 1.x, style `base-vega`) + Tailwind v4
++ Zustand 5 + TanStack Query v5 + `tauri-specta` v2. pnpm + Vite 8 + TypeScript 6.
+ESLint 9 flat config + Prettier 3 + Vitest 2 + WebdriverIO 9. Lefthook +
+release-plz + just + mise.
+
+### Deliverables
+
+- **M24 — Tauri scaffold & shell:**
+  - `apps/desktop/` Tauri 2 scaffold + Vite + React 19 + pnpm + TS 6
+  - Root `package.json` (private), `pnpm-workspace.yaml`, `justfile`,
+    `lefthook.yml`, `release-plz.toml`, `.mise.toml`
+  - shadcn init (`--base base-ui`, style `base-vega`) + Tailwind v4 with
+    DESIGN.md tokens in `theme.css`
+  - `tauri-specta` v2 codegen in `build.rs` → committed `bindings.ts`
+  - `TrayIconBuilder` on all 3 OSes; hidden pre-warm window; `set_activation_policy(.Accessory)` on macOS
+  - Cmd/Ctrl+Shift+R global shortcut shows the pre-warm window; Cmd/Ctrl+K reserved for the in-window command palette (wired in M27.5)
+  - 3 placeholder typed `tauri::command` invokes wired via TanStack Query
+  - CI matrix (macOS/Linux/Windows) builds + smoke-test green
+- **M25 — Guard-dialog critical path:**
+  - Bridge existing `ripley-script-shell` UDS protocol into Tauri events
+  - shadcn `Dialog` on Base UI renders prompt; Allow/Block/Trust roundtrip
+  - Pre-warm tuning until <500ms first show + <50ms warm on all 3 OSes
+  - Latency instrumented; insta snapshot of prompt text
+- **M26 — Cross-platform parity:**
+  - Linux primary: Ubuntu LTS + Fedora; Arch/Hyprland documented
+  - Windows: Win10 22H2+ (WebView2 evergreen + bootstrap fallback)
+  - Tray verified: GNOME (extension docs), KDE, Hyprland, Win 11
+  - Tauri bundler: `.dmg` + `.app`, `.msi` + `.exe`, AppImage + `.deb` + `.rpm`
+  - WebdriverIO + `tauri-driver` e2e on Linux + Windows CI runners
+- **M27 — View migration (priority-ordered per DESIGN_ISSUES.md):**
+  - Alerts + `AlertCard` + `SeverityBadge`; Guard Log virtualized DataTable
+  - Deep Scan, Monitor, Audit, Posture, Settings views
+  - Command palette: Base UI `Combobox` + `match-sorter` + recency (no cmdk)
+  - All DESIGN.md tokens consumed; no `#[allow(dead_code)]` remaining
+- **M28 — Release ops & retire iced:**
+  - macOS notarization (Developer ID hardened runtime), Windows code signing
+  - Tauri updater with Ed25519 signed manifests
+  - `release-plz` Rust automation; JS supply chain audit (`pnpm audit`) in CI
+  - Delete `crates/ripley-app`; drop iced/tray-icon/muda/cargo-bundle from `Cargo.toml`
+  - Per-platform install docs

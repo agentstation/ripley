@@ -155,7 +155,9 @@ ripley scan ~/src/myapp
 installed packages — automatically, without running `scan` manually.
 
 ```
-ripley                                  ← launch tray app (Ripley.app on macOS)
+ripley                                  ← launch tray app (Ripley.app on macOS,
+                                          Ripley.exe on Windows, AppImage /
+                                          .deb / .rpm on Linux — Phase 6 M28)
 ripley watch                            ← headless daemon mode (no tray icon, for servers)
 ripley status                           ← check monitoring state via IPC
 ```
@@ -875,7 +877,9 @@ ripley guard uninstall              ← remove guard shims and script-shell
 1. PATH shim binaries from `{data_dir}/bin/`.
 2. The PATH prepend line from shell RC files (`.zshrc`, `.bashrc`).
 3. The `script-shell` entry from `~/.npmrc`.
-4. The LaunchAgent plist if installed (stops tray app auto-start).
+4. Autostart entry if installed: LaunchAgent plist on macOS, Registry `Run`
+   key on Windows, XDG autostart `.desktop` file on Linux (stops tray app
+   auto-start).
 
 **What `guard uninstall` does NOT remove** (manual cleanup):
 
@@ -884,17 +888,25 @@ ripley guard uninstall              ← remove guard shims and script-shell
 - `{data_dir}/guard.jsonl` --- guard log, may be needed for compliance.
 - `{config_dir}/rules/` and `{config_dir}/iocs/` --- user-supplied rules.
 - The `ripley` binary itself (remove via package manager or `cargo uninstall`).
-- The `Ripley.app` bundle (remove by dragging to Trash on macOS).
+- The desktop app bundle: drag `Ripley.app` to Trash (macOS), uninstall via
+  Settings → Apps (Windows `.msi`), or remove the AppImage / `apt remove
+  ripley-desktop` / `dnf remove ripley-desktop` (Linux).
 
 **Full removal:**
 
 ```
 ripley guard uninstall              ← remove shims and hooks
-rm -rf ~/Library/Application\ Support/ripley/   ← macOS data + config
-rm -rf ~/Library/Caches/ripley/                 ← macOS cache
+# macOS
+rm -rf ~/Library/Application\ Support/ripley/   ← data + config
+rm -rf ~/Library/Caches/ripley/                 ← cache
+# Linux
+rm -rf ~/.config/ripley/ ~/.local/share/ripley/ ~/.cache/ripley/
+# Windows (PowerShell)
+Remove-Item -Recurse $env:APPDATA\ripley\ , $env:LOCALAPPDATA\ripley\
+# Binary
 cargo uninstall ripley              ← remove the binary
-# or: rm /usr/local/bin/ripley
-# and: drag Ripley.app to Trash
+# or: rm /usr/local/bin/ripley (Unix) / del %USERPROFILE%\.cargo\bin\ripley.exe (Windows)
+# Desktop app: per-OS uninstall path above
 ```
 
 ### Upgrade
@@ -907,8 +919,11 @@ Upgrades preserve both:
   existing `config.toml` and `advisories.redb` without migration.
 - **Guard shim upgrade:** `ripley guard install` is idempotent. Run it after
   upgrading the binary to update the shim binaries in `{data_dir}/bin/`.
-- **Tray app upgrade:** Replace `Ripley.app` in `/Applications/`. The app
-  reads the same config and data directories.
+- **Tray app upgrade:** Phase 6 M28 ships a Tauri updater (Ed25519-signed
+  manifests) that handles upgrades in-app. Manual upgrade also supported:
+  replace `Ripley.app` in `/Applications/` (macOS), run the new `.msi`
+  installer (Windows), or replace the AppImage / `apt upgrade ripley-desktop`
+  (Linux). All paths preserve the existing config and data directories.
 - **Config schema changes:** New settings get their default values via
   `#[serde(default)]`. Removed settings are silently ignored. No migration
   step required.

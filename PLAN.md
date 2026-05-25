@@ -356,6 +356,12 @@ codebase and this file are intact. Recovery steps:
    is needed.
 6. Resume implementation from the first unchecked task.
 
+**Phase 6 entry-point reading order** (when resuming M24-M28):
+`STACK_DECISION.md` (locked stack, versions, tooling, repo layout) →
+`DESIGN_ISSUES.md` (M27 view-migration priority list) →
+`UI.md` (view wireframes + milestone map) →
+`PLAN.md` Phase 6 task list.
+
 If uncommitted changes exist that appear to be a partially completed
 task, review them, finish the task, verify, and mark complete. Do not
 discard partial work.
@@ -364,10 +370,10 @@ discard partial work.
 ## Plan State
 
 ```
-Phase:     5 --- Advanced Analysis
-Milestone: Phase 5 Gate
-Task:      Phase 5 Gate
-Status:    completed
+Phase:     6 --- UI Rewrite (Tauri 2)
+Milestone: M24 --- Tauri scaffold and shell
+Task:      M24.1
+Status:    pending
 Last gate: Phase 5 Gate
 ```
 
@@ -392,6 +398,108 @@ Every spec document, what it contains, and when to consult it:
 | `WORKFLOW.md` | 14 user workflow streams with step-by-step flows and ASCII diagrams | Understanding user-facing behavior |
 | `SETTINGS.md` | Every config setting, env var, CLI flag, rule format, IOC profile format | Implementing config, rules, settings |
 | `README.md` | Project motivation, background attacks, CLI reference, architecture diagram | Project overview and CLI contract |
+| `STACK_DECISION.md` | Phase 6 UI stack: Tauri 2 + React 19 + shadcn/Base UI + Tailwind v4; canonical 2026 versions, tooling, patterns, repo layout | Implementing M24-M28 (Phase 6) |
+| `DESIGN_ISSUES.md` | Priority-ordered design gaps captured against iced app; M27 input list | Migrating views in M27 |
+| `UX_DESIGN.md` | First-principles UX/DX: workflow → Base UI component mapping, keyboard model, tray + palette system surfaces, DX patterns | Implementing M24-M28 views; choosing components |
+
+
+---
+
+
+## Verification harness (Phase 6)
+
+The Phase 6 success criteria must be **machine-checkable**, not "looks right."
+This section defines the verification tools, their roles, and the standing
+bar each milestone gate references.
+
+### Tool roles (no overlap)
+
+| Tool | Scope | Run mode | Owns |
+|------|-------|----------|------|
+| `cargo test --workspace` | Rust unit + integration | CI + local | Backend logic; IPC commands; `ripley-desktop` Rust crate |
+| Vitest 2.x + `@testing-library/react` | TS unit + React component | CI + local | Component behavior; Zustand slices; hooks; bindings shape |
+| **Playwright (new)** | React app served by Vite (no Tauri shell) | CI + local | Per-view smoke; a11y; visual regression; perf budgets; keyboard reachability |
+| **Chrome DevTools MCP (new)** | Live Vite dev server in agent-driven Chromium | Agent-driven, dev only | Interactive verification during implementation: screenshots, Lighthouse audits, ARIA snapshots, console + network inspection |
+| WebdriverIO 9 + `tauri-driver` | Full Tauri shell (window + tray + IPC) on real OS | CI only | E2E on Linux + Windows; tray icon presence; hotkey registration; IPC roundtrips |
+| Peekaboo + manual review | macOS Tauri shell visuals | Local only | macOS WKWebView gap (no WebDriver coverage) |
+
+**Why both Playwright and WebdriverIO:** Playwright cannot drive WebKitGTK
+(Tauri's Linux WebView) and cannot drive WKWebView (Tauri's macOS WebView).
+It targets the React app standalone via `pnpm dev` — fast feedback on every
+PR. WebdriverIO+`tauri-driver` is the only way to exercise the actual Tauri
+shell on Linux + Windows CI and stays the e2e primary. The two are
+complementary, not competing.
+
+**Why Chrome MCP is not a CI tool:** it is an agent-driven interactive
+session, not a scripted runner. Use it during implementation to verify
+incremental work ("navigate to alerts view, take a screenshot, run
+Lighthouse, check console"). Convert findings into Playwright assertions
+once stable.
+
+### Standing bar (must hold for every view in M25-M28)
+
+Each of these is enforced by a Playwright spec under
+`apps/desktop/tests/browser/` (or by ESLint/Vite where noted):
+
+| Check | Threshold | How verified |
+|-------|-----------|--------------|
+| Lighthouse accessibility | ≥ 95 per view | `lighthouse_audit` (MCP, ad-hoc) + `@playwright/test` + `playwright-lighthouse` (CI) |
+| Lighthouse performance | ≥ 90 per view (Vite-served, headless Chromium) | Same |
+| Lighthouse best-practices | ≥ 95 per view | Same |
+| Zero `console.error` / `console.warn` | 0 on initial mount, 0 during scripted flows | Playwright `page.on("console", ...)` assertion |
+| Zero failed network requests | 0 non-200 (or non-mocked) on view load | Playwright `page.on("requestfailed", ...)` assertion |
+| Severity colors match tokens | `getComputedStyle` returns exact `severity-*` hex from DESIGN.md | Playwright per-badge assertion (one spec, all four severities) |
+| Raw hex in JSX/CSS | 0 occurrences | ESLint rule `ripley/no-raw-hex` |
+| `aria-label` on icon-only buttons | 100% coverage | Playwright `axe` scan (`@axe-core/playwright`) |
+| Keyboard reachability | Every action in `KEYMAP` reachable via scripted keystroke | Playwright per-shortcut spec |
+| Bundle size budget | TBD baseline + 10% ceiling | `vite build` reporter assert in CI |
+| Mount-to-interactive (guard dialog component) | < 50ms warm in headless Chromium (proxy for cold path) | Playwright + `performance.mark` round-trip |
+
+Failures on any of these block the corresponding milestone gate.
+
+### What Chrome MCP does during implementation
+
+When implementing a view (e.g. M27.2 Alerts), the canonical loop is:
+
+1. Start `pnpm -C apps/desktop dev` (Vite dev server on `:5173`).
+2. Use `mcp__chrome-devtools__new_page` to open `http://localhost:5173/alerts`.
+3. `take_screenshot` — visual sanity.
+4. `take_snapshot` — verify ARIA tree shape (heading levels, landmarks,
+   button labels).
+5. `lighthouse_audit` — confirm a11y ≥ 95 before opening a PR.
+6. `list_console_messages` — verify no errors/warnings.
+7. `list_network_requests` — verify no calls to non-`tauri://` endpoints
+   (the dev server stubs IPC; production uses Tauri).
+8. Encode any non-trivial finding as a Playwright spec under
+   `tests/browser/` so it stays verified in CI.
+
+### What Playwright does in CI
+
+`apps/desktop/tests/browser/` contains scripted regressions:
+
+- `tests/browser/views/*.spec.ts` — per-view smoke (mount, assert key DOM,
+  no console errors, no failed requests)
+- `tests/browser/a11y/*.spec.ts` — `@axe-core/playwright` scan per view
+- `tests/browser/lighthouse/*.spec.ts` — `playwright-lighthouse` scoring
+- `tests/browser/keyboard/*.spec.ts` — every `KEYMAP` entry scripted
+  (`page.keyboard.press`)
+- `tests/browser/visual/*.spec.ts` — screenshot diffs vs.
+  `tests/browser/__snapshots__/`
+- `tests/browser/perf/guard-dialog.spec.ts` — mount-to-interactive
+  measurement against the < 50ms budget
+
+These run on Chromium only (Vite-served, no Tauri); cross-platform
+coverage lives in WebdriverIO+tauri-driver as before.
+
+### What Chrome MCP and Playwright explicitly do NOT cover
+
+- Tray icon and tray menu (OS-native, outside WebView). Owned by
+  WebdriverIO + Rust unit tests + Peekaboo.
+- Global hotkey registration. Owned by WebdriverIO + Rust unit tests.
+- IPC over UDS. Owned by `ripley-desktop` Rust integration tests.
+- Notifications (OS-native). Owned by Rust tests + manual cross-platform
+  smoke.
+- macOS visual fidelity. Owned by Peekaboo + manual review.
 
 
 ---
@@ -3533,19 +3641,607 @@ Phase 4 Gate.
 ---
 
 
+## Phase 6: UI Rewrite (Tauri 2)
+
+**Goal:** Replace iced-based `crates/ripley-app` with a cross-platform Tauri 2 desktop app (React 19 + shadcn/Base UI + Tailwind v4) shipping on macOS + Linux + Windows from first release. Type-safe IPC via `tauri-specta`. Sub-500ms cold / sub-50ms warm guard-dialog latency preserved. Retire iced.
+
+**Stack:** see `STACK_DECISION.md` "Canonical 2026 versions (locked)" — Tauri 2.11, React 19.2, Vite 8, TS 6, Tailwind v4, shadcn CLI v4 (`--base base-ui`, style `base-vega`), `@base-ui/react` ~1.5, Zustand 5, TanStack Query v5, TanStack Table v8 + Virtual v3, `tauri-specta` v2, ESLint 9 flat, Prettier 3, Vitest 2.x, WebdriverIO 9 + `tauri-driver`, pnpm, Lefthook 1.x, release-plz, just, mise.
+
+**Repo layout:** see `STACK_DECISION.md` "Repo layout (locked)". `crates/ripley-app` is preserved and still builds until M28.
+
+**Order rationale:** ship the risk surface first. M24 scaffolds the shell so the tray-only behavior is falsifiable immediately. M25 measures real guard-dialog latency on real hardware — the only genuine unknown. M26 expands cross-platform parity before content migration so we don't discover Linux/Windows blockers after porting every view. M27 ports views. M28 signs/notarizes, automates releases, then retires iced.
+
+
+### M24: Tauri scaffold and shell
+
+**Goal:** Empty-but-runnable Tauri app on macOS dev box: tray icon, hidden pre-warm window, Cmd+Shift+R opens it, `tauri-specta` codegen wired day one, ESLint+Prettier+Vitest configured, pnpm/just/lefthook/mise in place.
+
+- [ ] **M24.0** — Pre-flight environment verification
+
+  This sub-milestone is a **gate, not an implementation step**. No new files
+  except `apps/desktop/.ripley-agent/turns` (turn counter for `/goal`'s
+  built-in cap). Verifies the toolchain, auth, and baseline before any
+  scaffolding work starts. If any check fails, emit the halt token
+  `[HALT-AND-WAIT: preflight-env-missing] <which check>` per `GOAL.md` §5b
+  and do not proceed to M24.1.
+
+  Checks (each must exit 0 except where noted):
+  - `mise install` resolves locked versions for `node`, `pnpm`, `just`, `lefthook`, `tauri-cli` (read `.mise.toml` once it lands in M24.1; until then verify host versions are not blockers)
+  - `cargo --version`, `rustc --version` match `rust-toolchain.toml`
+  - `gh auth status` shows authenticated; `gh api user` returns 200
+  - `gh api repos/agentstation/ripley/branches/main/protection` returns a config requiring at least: PR review + status checks (warn-only if branch protection is intentionally permissive on this fork)
+  - `df -h .` shows >20GB available
+  - `cargo deny check` passes on current `main` (baseline before any new work)
+  - `cargo test --workspace` passes on current `main` (baseline)
+  - GitHub Actions secrets listed (`gh secret list`) — informational only; missing M28 secrets do NOT halt here, they halt at M28.1/M28.2/M28.4 with the correct code
+
+  Setup actions (do these in this milestone, not later):
+  - Create `apps/desktop/.ripley-agent/` directory
+  - Create `apps/desktop/.ripley-agent/turns` containing `0`
+  - Add `apps/desktop/.ripley-agent/turns` to `.gitignore` (the counter is per-run, not per-repo)
+
+  Tests: every check above exits 0 on a clean clone with `mise install` done.
+
+  Verify: `mise install && gh auth status && cargo --version && rustc --version && df -h . | tail -1 && cargo deny check && cargo test --workspace`
+
+- [ ] **M24.1** — Root monorepo scaffolding
+
+  New files at workspace root:
+  - `package.json` — private, `"packageManager": "pnpm@..."`, scripts proxy to `just`
+  - `pnpm-workspace.yaml` — `packages: ["apps/*", "packages/*"]`
+  - `.mise.toml` — pin `node`, `pnpm`, `just`, `lefthook`, `tauri-cli`
+  - `justfile` — recipes: `dev`, `build`, `test`, `check`, `lint`, `fmt`, `e2e`, `guard-bench`
+  - `lefthook.yml` — pre-commit: `cargo fmt`, `cargo clippy`, `pnpm prettier`, `pnpm eslint`, `pnpm tsc` over `{staged_files}`
+  - `release-plz.toml` — workspace-aware Rust versioning config
+  - `packages/.gitkeep`
+
+  Extend root `Cargo.toml`:
+  - `resolver = "3"`
+  - `[workspace.package]` shared metadata (`version`, `edition`, `license`, `repository`, `rust-version`)
+  - `members += ["apps/desktop/src-tauri"]` (keep `crates/ripley-app` until M28)
+
+  Extend `.gitignore`: `node_modules/`, `dist/`, `*.tsbuildinfo`, `apps/desktop/src-tauri/target/`
+
+  Tests: `pnpm install` succeeds on clean clone, `just check` runs every gate, `mise install` resolves pins.
+
+  Verify: `pnpm install && just check && cargo build --workspace`
+
+- [ ] **M24.2** — Tauri 2 app scaffold
+
+  New directory `apps/desktop/`:
+  - `package.json` — React 19.2, Vite 8, TS 6, Tailwind v4, shadcn CLI v4, Zustand 5, `@tanstack/react-query` v5, `@tanstack/react-table` v8, `@tanstack/react-virtual` v3, `@base-ui/react` ~1.5, `lucide-react`, `clsx`, `tailwind-merge`, `class-variance-authority`, `match-sorter`, `vite-tsconfig-paths`, `@tauri-apps/api` 2.11, `@tauri-apps/cli` 2.11
+  - `tsconfig.json` (references-only), `tsconfig.app.json` (strict + canonical bundler flags), `tsconfig.node.json`
+  - `vite.config.ts` — `@tailwindcss/vite`, `@vitejs/plugin-react`, `vite-tsconfig-paths`
+  - `index.html` — Vite entry
+  - `eslint.config.js` — flat config: `typescript-eslint`, `react`, `react-hooks`, `jsx-a11y`, `eslint-config-prettier`
+  - `.prettierrc`
+  - `src/main.tsx` — `createRoot` + `<StrictMode>` + `QueryClientProvider`
+  - `src/App.tsx` — placeholder root component
+  - `src/env.d.ts`
+  - `src/styles/theme.css` — `@import "tailwindcss"; @theme { /* DESIGN.md tokens */ }`
+
+  New directory `apps/desktop/src-tauri/`:
+  - `Cargo.toml` — `name = "ripley-desktop"`, path deps to `../../../crates/ripley-core` and `ripley-ipc`; deps: `tauri` 2.11, `tauri-specta` v2, `specta` v2, `tokio` (workspace), `tracing`, `tracing-subscriber` (with `env-filter`), `serde`, `serde_json`
+  - `build.rs` — `tauri_build::build()` + `tauri_specta::Builder::new().export(...)` writing `../src/lib/bindings.ts`
+  - `tauri.conf.json` — v2 schema, single hidden window, tray-only bundle identifier
+  - `capabilities/default.json` — minimal allowlist (no `shell`, no `fs` beyond data dir)
+  - `icons/` — placeholder icons (full set in M26.3)
+  - `src/main.rs`, `src/lib.rs` — `tauri::Builder` shell only
+
+  Tests: `cargo build -p ripley-desktop` compiles, `pnpm tauri info` reports v2 environment, generated `bindings.ts` is non-empty.
+
+  Verify: `cd apps/desktop && pnpm install && pnpm tauri info && cargo build -p ripley-desktop`
+
+- [ ] **M24.3** — `tauri-specta` IPC codegen wired day one
+
+  Files:
+  - `apps/desktop/src-tauri/src/commands/mod.rs` — `pub mod ping;`
+  - `apps/desktop/src-tauri/src/commands/ping.rs` — `#[tauri::command, specta::specta] pub fn ping() -> String` (placeholder for M25 commands)
+  - `apps/desktop/src-tauri/build.rs` — emit `apps/desktop/src/lib/bindings.ts` via `tauri_specta::Builder::new().commands(collect_commands![ping])`
+  - `apps/desktop/src/lib/bindings.ts` — GENERATED, committed (do not edit by hand)
+  - `apps/desktop/src/lib/query.ts` — `QueryClient` factory + `invalidateAll()` helper
+  - `apps/desktop/src/lib/ipc.ts` — `subscribe(channel, handler)` event helper
+
+  Smoke test: React component calls `commands.ping()` (typed) and renders the result.
+
+  Tests: `bindings.ts` regenerates deterministically on `cargo build`; type errors surface when a Rust signature changes; frontend `pnpm tsc --noEmit` clean.
+
+  Verify: `cargo build -p ripley-desktop && cd apps/desktop && pnpm tsc --noEmit`
+
+- [ ] **M24.4** — Tray icon + hidden window + hotkey
+
+  Files:
+  - `apps/desktop/src-tauri/src/tray.rs` — `TrayIconBuilder` with template-icon on macOS, themed icon on Win/Linux; menu items: Open, Quit
+  - `apps/desktop/src-tauri/src/prewarm.rs` — create hidden window at startup (`visible: false`, `decorations: false`, `focus: false`), expose `show()` / `hide()`
+  - `apps/desktop/src-tauri/src/main.rs` — `set_activation_policy(.Accessory)` on macOS, register Cmd+Shift+R global shortcut → `prewarm::show()`
+  - `apps/desktop/src-tauri/capabilities/default.json` — grant `core:tray`, `global-shortcut:allow-register`
+
+  Tests: app launches with no Dock icon on macOS, tray icon appears, Cmd+Shift+R toggles window, Quit terminates cleanly.
+
+  Verify: `pnpm tauri dev` — visually confirm tray-only behavior on macOS dev box.
+
+- [ ] **M24.5** — shadcn init + Tailwind v4 theme tokens
+
+  Files:
+  - `apps/desktop/components.json` — shadcn config: `"style": "base-vega"`, `"primitive": "base-ui"`, `tsx: true`, `tailwind.cssVariables: false`, aliases (`@/components`, `@/lib`)
+  - `apps/desktop/src/styles/theme.css` — full DESIGN.md token map under `@theme` block (colors, font-sans/mono, radii, spacing, motion)
+  - `apps/desktop/src/lib/cn.ts` — re-export `clsx`, `tailwind-merge`, `cva`
+  - Run `pnpm dlx shadcn@latest init --base base-ui --style base-vega`; add `Button` as smoke test (`src/components/ui/button.tsx`)
+
+  Tests: Button renders with correct token-driven styling, `theme.css @theme` parses, dark mode toggles via `data-theme` attribute.
+
+  Verify: `pnpm vitest run src/components/ui/button.test.tsx`
+
+- [ ] **M24.6** — Lint/format/test rigging + lefthook hooks
+
+  Files:
+  - `apps/desktop/eslint.config.js` — flat config above; add custom rule `ripley/no-raw-hex` (regex on JSX + CSS attrs forbidding `#[0-9a-fA-F]{3,8}` outside `theme.css`)
+  - `apps/desktop/.prettierrc`
+  - `apps/desktop/vitest.config.ts` — `jsdom` env, `@testing-library/react` 16+, `setupFiles: ["./src/test/setup.ts"]`
+  - `apps/desktop/src/test/setup.ts` — jest-dom matchers
+  - `lefthook.yml` (root) — pre-commit gates active
+  - `.github/workflows/ci.yml` — extend with `pnpm install`, `pnpm -C apps/desktop lint`, `pnpm -C apps/desktop test`, `pnpm audit`
+
+  Tests: hooks run on commit; CI fails on TS error, lint error, or failing Vitest.
+
+  Verify: `just check && lefthook run pre-commit`
+
+- [ ] **M24.7** — Playwright + browser verification scaffold
+
+  Files:
+  - `apps/desktop/package.json` — add devDeps: `@playwright/test` v1.x, `@axe-core/playwright`, `playwright-lighthouse`
+  - `apps/desktop/playwright.config.ts` — `webServer: { command: "pnpm dev", port: 5173, reuseExistingServer: !process.env.CI }`, Chromium-only projects, screenshot/trace on failure
+  - `apps/desktop/tests/browser/smoke.spec.ts` — placeholder: app loads, no console errors, no failed requests
+  - `apps/desktop/tests/browser/a11y/baseline.spec.ts` — `axe` scan over the root view; baseline must be clean before per-view scans land in M27
+  - `apps/desktop/tests/browser/lighthouse/baseline.spec.ts` — runs `lighthouse_audit` against the empty shell; record initial scores in `tests/browser/__snapshots__/lighthouse-baseline.json` (regression-gates land in M27)
+  - `apps/desktop/tests/browser/__snapshots__/.gitkeep`
+  - `justfile` — add recipes `test:browser` (Playwright run), `test:browser:ui` (Playwright UI mode for local dev)
+  - `.github/workflows/ci.yml` — install Playwright browsers (`pnpm exec playwright install --with-deps chromium`), run `pnpm -C apps/desktop test:browser`
+  - Update `CLAUDE.md` Conventions to list Playwright + Chrome DevTools MCP
+  - Update `STACK_DECISION.md` Tooling stack to list both
+
+  Tests: `pnpm -C apps/desktop test:browser` passes smoke + a11y baseline; CI step uploads Playwright HTML report as artifact on failure.
+
+  Verify: `just test:browser` clean locally.
+
+#### M24 Gate
+- [ ] **M24.0 pre-flight passed** — `mise install`, `gh auth status`, baseline `cargo deny check` + `cargo test --workspace` all exit 0; `apps/desktop/.ripley-agent/turns` exists
+- [ ] `pnpm install && pnpm -C apps/desktop tauri dev` launches tray-only app on macOS
+- [ ] No Dock icon; tray icon visible; Cmd+Shift+R toggles hidden pre-warm window
+- [ ] `apps/desktop/src/lib/bindings.ts` generated by `cargo build -p ripley-desktop`
+- [ ] shadcn Button renders with DESIGN.md tokens (`base-vega` style + Base UI primitive)
+- [ ] `just check` passes (cargo fmt + clippy + test, pnpm lint + tsc + vitest, pnpm audit, cargo deny check)
+- [ ] Lefthook pre-commit gates pass on a noop commit
+- [ ] `crates/ripley-app` still builds and runs unchanged
+- [ ] **`just test:browser` passes** — Playwright smoke + a11y baseline + Lighthouse baseline recorded
+- [ ] **Chrome DevTools MCP can drive `http://localhost:5173`** — agent verified by `navigate_page` + `take_screenshot` + `lighthouse_audit`
+- [ ] **ESLint rule `ripley/no-raw-hex` fires on a deliberate test violation**
+- [ ] Commit: `M24: Tauri scaffold and shell`
+
+
+### M25: Guard-dialog critical path
+
+**Goal:** End-to-end interception flow on real hardware: simulated `npm install` triggers `ripley-script-shell`, UDS bridge emits Tauri event, pre-warmed window shows the guard dialog, user clicks Allow/Block, decision returns to script-shell. Measured cold + warm latency must meet <500ms / <50ms targets.
+
+- [ ] **M25.1** — IPC bridge: UDS → Tauri event
+
+  Files:
+  - `apps/desktop/src-tauri/src/ipc_bridge.rs` — async task spawned on Tauri startup: connect to `{data_dir}/ripley.sock` (Phase 1 protocol unchanged), forward `GuardEvent` messages via `app.emit("guard://event", ...)` and pass `GuardDecision` back via channel
+  - `apps/desktop/src-tauri/src/commands/guard.rs` — `#[tauri::command, specta::specta] async fn submit_guard_decision(id: String, decision: Decision) -> Result<(), String>`
+  - Reuse `ripley_ipc::protocol::*` — no wire-format changes
+
+  Tests: integration test in `apps/desktop/src-tauri/tests/ipc_bridge.rs` spawning a mock UDS server, asserting event emission and decision round-trip.
+
+  Verify: `cargo test -p ripley-desktop`
+
+- [ ] **M25.2** — Guard dialog React view
+
+  Files:
+  - `apps/desktop/src/routes/GuardDialog.tsx` — title, package/version, severity badge, rule matches list, Allow / Block / Allow once buttons
+  - `apps/desktop/src/components/ripley/SeverityBadge.tsx` — DESIGN.md weight tokens
+  - `apps/desktop/src/components/ripley/RuleMatchList.tsx`
+  - `apps/desktop/src/hooks/useGuardEvent.ts` — subscribe to `guard://event`, push into Zustand `guardSlice`
+  - `apps/desktop/src/store/guard.ts` — `currentEvent: GuardEvent | null`, `respond(decision)`
+
+  Tests: Vitest renders dialog from fixture event; button clicks call `commands.submitGuardDecision`; severity badge maps weights correctly.
+
+  Verify: `pnpm vitest run src/routes/GuardDialog`
+
+- [ ] **M25.3** — Pre-warm strategy + show-on-event
+
+  Files:
+  - `apps/desktop/src-tauri/src/prewarm.rs` — hidden window pre-rendered on startup; `show_on_event(event)`: populate state via channel, `set_focus`, center on cursor display
+  - `apps/desktop/src/App.tsx` — listen on `guard://show`, route to `<GuardDialog />`, return to last view on close
+
+  Tests: cold path (window not yet shown) and warm path (window already opened once) both render dialog without flicker.
+
+  Verify: manual smoke on dev box.
+
+- [ ] **M25.4** — Latency instrumentation
+
+  Files:
+  - `apps/desktop/src-tauri/src/ipc_bridge.rs` — `tracing::info!` spans: `event_received`, `event_emitted`, `dialog_visible`
+  - `apps/desktop/src/routes/GuardDialog.tsx` — `useEffect(() => commands.reportVisible(id), [])`
+  - `apps/desktop/src-tauri/src/commands/diag.rs` — `report_visible(id)` records latency in `{data_dir}/guard-latency.jsonl`
+  - `justfile` — `guard-bench` recipe that fires 10 simulated events and prints p50/p95
+
+  Tests: round-trip latency recorded per dialog instance.
+
+  Verify: `just guard-bench` reports p95 cold <500ms, p95 warm <50ms on Apple Silicon dev box.
+
+- [ ] **M25.5** — Sidecar wire-up to `ripley-script-shell`
+
+  Files:
+  - `apps/desktop/src-tauri/tauri.conf.json` — `bundle.externalBin: ["binaries/ripley-script-shell"]` per-platform suffixes
+  - `apps/desktop/src-tauri/build.rs` — copy `ripley-script-shell` build artifact into `apps/desktop/src-tauri/binaries/` on release builds
+  - Document non-Tauri install path: Phase 1 behavior preserved when desktop app is not installed (script-shell runs CLI prompt fallback)
+
+  Tests: bundle includes `ripley-script-shell` binary; headless invocation works without desktop app running.
+
+  Verify: `pnpm tauri build --debug && ls apps/desktop/src-tauri/target/debug/bundle/`
+
+- [ ] **M25.6** — Latency tuning to budget
+
+  Iterate `prewarm.rs` strategy (pre-render vs render-on-first-event), Vite chunking, React lazy boundaries, and dialog component weight until measured p95 ≤ budget.
+
+  Tests: three consecutive `just guard-bench` runs meet budget.
+
+  Verify: `just guard-bench` p95 cold ≤500ms, p95 warm ≤50ms.
+
+#### M25 Gate
+- [ ] Simulated `npm install` interception triggers guard dialog end-to-end
+- [ ] User Allow → script-shell exits 0; Block → script-shell exits non-zero (Phase 1 contract preserved)
+- [ ] p95 cold latency <500ms on Apple Silicon
+- [ ] p95 warm latency <50ms on Apple Silicon
+- [ ] `tauri-specta` types compile without `any` in IPC layer
+- [ ] No protocol change to `ripley_ipc::protocol` (Phase 1 wire format preserved)
+- [ ] **Playwright perf spec** (`tests/browser/perf/guard-dialog.spec.ts`) mounts the dialog component in Vite-served React, uses `performance.mark` between route enter and first interactive paint, and asserts warm budget <50ms in headless Chromium (proxy for the Tauri shell — does not replace the native cold-path measurement above)
+- [ ] **Playwright a11y spec** for guard dialog passes axe with zero violations of `serious` or `critical` severity
+- [ ] Commit: `M25: Guard-dialog critical path`
+
+
+### M26: Cross-platform parity
+
+**Goal:** Reproducible builds on Linux + Windows. Tray works on macOS, Windows 11, KDE, and (documented) GNOME + Hyprland. Tauri bundler outputs `.dmg`/`.app`, `.msi`/`.exe`, AppImage/`.deb`/`.rpm`. WebdriverIO e2e runs on Linux + Windows CI. macOS e2e gap explicitly documented and compensated.
+
+- [ ] **M26.1** — Linux build + tray verification
+
+  Files:
+  - `.github/workflows/ci.yml` — `ubuntu-22.04` matrix entry with `webkit2gtk-4.1-dev`, `libayatana-appindicator3-dev` apt deps
+  - `docs/install/linux.md` — system deps, AppIndicator extension note for stock GNOME
+  - `apps/desktop/src-tauri/src/tray.rs` — verify StatusNotifierItem path on Linux
+
+  Tests: CI green on Ubuntu; manual screenshots from KDE VM (Plasma 6) and GNOME VM with AppIndicator extension.
+
+  Verify: `cargo build --target x86_64-unknown-linux-gnu && pnpm tauri build --target x86_64-unknown-linux-gnu`
+
+- [ ] **M26.2** — Windows build + tray verification
+
+  Files:
+  - `.github/workflows/ci.yml` — `windows-latest` matrix entry
+  - `docs/install/windows.md` — WebView2 runtime dependency (pre-installed on Win 11), MSI install flow
+  - Code-signing key handling deferred to M28.2 (CI does an unsigned build here)
+
+  Tests: CI green on Windows; tray icon + dialog render in Win 11 VM.
+
+  Verify: `cargo build --target x86_64-pc-windows-msvc` produces a working `.msi`.
+
+- [ ] **M26.3** — Tauri bundler outputs per OS
+
+  Files:
+  - `apps/desktop/src-tauri/tauri.conf.json` — `bundle.targets: ["dmg", "app", "msi", "appimage", "deb", "rpm"]`
+  - `apps/desktop/src-tauri/icons/` — full icon set (16/32/64/128/256/512 + `.ico` + `.icns`)
+  - `release-plz.toml` — bundle step plumbed into the release pipeline (signing wires up in M28)
+
+  Tests: each platform CI uploads its artifact as a workflow artifact.
+
+  Verify: `pnpm tauri build --debug` on each matrix entry produces expected files.
+
+- [ ] **M26.4** — WebdriverIO e2e setup (Linux + Windows)
+
+  Files:
+  - `apps/desktop/wdio.conf.ts` — `tauri-driver` binary path, capabilities `tauri:options`
+  - `apps/desktop/tests/e2e/smoke.spec.ts` — launch app, open Cmd+Shift+R, assert palette renders
+  - `apps/desktop/tests/e2e/guard-dialog.spec.ts` — IPC-driven mock event, assert Allow/Block buttons fire `submit_guard_decision`
+  - `.github/workflows/ci.yml` — `e2e-linux` + `e2e-windows` jobs (NOT macOS — see M26.5)
+
+  Tests: 2 e2e specs pass on Linux + Windows runners.
+
+  Verify: `pnpm -C apps/desktop e2e` on Linux + Windows CI.
+
+- [ ] **M26.5** — macOS coverage compensation
+
+  Files:
+  - `apps/desktop/tests/peekaboo/` — screenshot scripts driven by the existing Peekaboo loop for tray/dialog visuals
+  - `apps/desktop/src-tauri/tests/` — additional Rust integration tests for tray menu actions, capabilities ACL boundary, IPC bridge error paths
+  - `apps/desktop/README.md` — document the WKWebView WebDriver gap explicitly (not a future-fix item)
+
+  Tests: Rust integration tests pass on macOS CI; documented Peekaboo runs are reproducible.
+
+  Verify: `cargo test -p ripley-desktop`
+
+#### M26 Gate
+- [ ] CI green on `ubuntu-22.04`, `windows-latest`, and `macos-14`
+- [ ] Tauri bundler emits `.dmg`, `.app`, `.msi`, `.AppImage`, `.deb`, `.rpm`
+- [ ] Tray visible + functional on macOS, Windows 11, KDE Plasma 6; documented setup for stock GNOME (AppIndicator) + Hyprland
+- [ ] WebdriverIO e2e green on Linux + Windows
+- [ ] macOS WebDriver gap documented + compensated (Rust integ + Vitest + Peekaboo)
+- [ ] **Playwright browser suite runs on all three OS runners** in CI alongside WebdriverIO — Playwright covers Vite-served React (no Tauri shell), WebdriverIO covers the Tauri shell on Linux + Windows. On macOS, Playwright is the only browser-level signal (compensates for the WebDriver gap)
+- [ ] **Lighthouse baseline scores recorded** in `tests/browser/__snapshots__/lighthouse-baseline.json` for each OS — accessibility ≥95, best-practices ≥95, performance ≥90 on the empty shell
+- [ ] Commit: `M26: Cross-platform parity`
+
+
+### M27: View migration
+
+**Goal:** Port every iced view to React/shadcn/Tailwind at functional parity. Migration order driven by `DESIGN_ISSUES.md` priority list (highest density-and-aesthetic delta first). Reuse Phase 1-5 backend logic unchanged.
+
+**Component picks, keyboard model, and DX patterns** are locked in [UX_DESIGN.md](UX_DESIGN.md). Install primitives via `pnpm dlx shadcn@latest add <slug> --base base-ui` in the order that doc lists (Button, Dialog, Sheet, Combobox first). Do not install components outside UX_DESIGN.md's "Used" table without a PR-time justification.
+
+- [ ] **M27.1** — Shared component library (`components/ripley/`)
+
+  Files (each with co-located `*.test.tsx`):
+  - `AlertCard.tsx`, `SeverityBadge.tsx`, `EcosystemIcon.tsx`, `WeightBar.tsx`, `RuleMatchList.tsx`, `TimestampCell.tsx`, `EmptyState.tsx`, `LoadingSkeleton.tsx`, `ErrorPane.tsx`
+  - `DataTable.tsx` — shadcn data-table recipe over TanStack Table + Virtual; row virtualization at >200 rows; column resize/sort/filter
+  - `KeyValueGrid.tsx` — DESIGN.md grid for forensic/audit reports
+
+  Tests: Vitest snapshot per component + DESIGN.md token-conformance assertions.
+
+  Verify: `pnpm -C apps/desktop test`
+
+- [ ] **M27.2** — Alerts view (M3 parity)
+
+  Files:
+  - `apps/desktop/src/routes/Alerts.tsx`
+  - `apps/desktop/src/hooks/useAlerts.ts` — `useQuery(["alerts"], commands.listAlerts)`
+  - `apps/desktop/src-tauri/src/commands/alerts.rs` — wrap `ripley_core::store` reads
+
+  Tests: empty state, 1 alert, 50 alerts (virtualized), error state.
+
+  Verify: `pnpm vitest run src/routes/Alerts`
+
+- [ ] **M27.3** — Guard log view (M3 parity)
+
+  Files:
+  - `apps/desktop/src/routes/GuardLog.tsx` — DataTable over `guard.jsonl`
+  - `apps/desktop/src/hooks/useGuardLog.ts`
+  - `apps/desktop/src-tauri/src/commands/guard_log.rs` — paginated read of `guard.jsonl`
+
+  Tests: pagination, filtering by decision, severity rendering, timestamp formatting.
+
+  Verify: `pnpm vitest run src/routes/GuardLog`
+
+- [ ] **M27.4** — Deep scan / Monitor / Audit / Posture views
+
+  Files:
+  - `apps/desktop/src/routes/DeepScan.tsx` — `KeyValueGrid` over forensic report
+  - `apps/desktop/src/routes/Monitor.tsx` — real-time monitor events via Tauri event channel + `queryClient.setQueryData`
+  - `apps/desktop/src/routes/Audit.tsx` — TrafficLight rendering of audit checks
+  - `apps/desktop/src/routes/Posture.tsx` — `ripley harden` recommendations
+  - Corresponding `commands::deep_scan`, `commands::monitor`, `commands::audit`, `commands::harden` Tauri handlers
+
+  Tests: each view has Vitest happy + empty + error coverage.
+
+  Verify: `pnpm vitest run`
+
+- [ ] **M27.5** — Command palette (Cmd+K)
+
+  Files:
+  - `apps/desktop/src/components/ripley/CommandPalette.tsx` — Base UI `Combobox` + `match-sorter`
+  - `apps/desktop/src/store/command-palette.ts` — recency list with `persist` middleware
+  - `apps/desktop/src/hooks/useCommands.ts` — declarative command registry
+
+  Tests: fuzzy search returns expected ordering; recency persists across sessions; Esc closes; Enter executes.
+
+  Verify: `pnpm vitest run src/components/ripley/CommandPalette`
+
+- [ ] **M27.6** — Settings view
+
+  Files:
+  - `apps/desktop/src/routes/Settings.tsx` — DESIGN.md form components over `ripley_core::config`
+  - `apps/desktop/src-tauri/src/commands/settings.rs` — read/write `config.toml` with atomic writes (reuse `ripley_core::config::save`)
+
+  Tests: round-trip read+write of every config layer; atomic write fault injection.
+
+  Verify: `pnpm vitest run src/routes/Settings && cargo test -p ripley-desktop -- commands::settings`
+
+- [ ] **M27.7** — DESIGN_ISSUES.md follow-through
+
+  Walk every numbered DESIGN_ISSUES item (4+) and either close it with a referenced PR/commit or move it to `apps/desktop/DESIGN_NOTES.md` with rationale. Items 1-3 dissolved by stack switch — mark as resolved.
+
+  Tests: every DESIGN_ISSUES item has explicit disposition.
+
+  Verify: manual review with Peekaboo screenshots.
+
+- [ ] **M27.8** — Per-view browser verification suite
+
+  Files (one spec per migrated view; co-located under `apps/desktop/tests/browser/views/`):
+  - `alerts.spec.ts`, `guard-log.spec.ts`, `deep-scan.spec.ts`, `monitor.spec.ts`, `audit.spec.ts`, `posture.spec.ts`, `settings.spec.ts`, `command-palette.spec.ts`
+  - Each spec asserts: route renders without console errors; axe scan is clean (zero `serious`/`critical`); all interactive elements reachable via Tab in `KEYMAP` order; severity colors match DESIGN.md tokens via `getComputedStyle`; no raw hex colors emitted in computed styles outside `--ripley-*` custom properties
+  - `apps/desktop/tests/browser/lighthouse/per-view.spec.ts` — Lighthouse audit per route, asserts a11y ≥95, perf ≥90, best-practices ≥95 against the recorded baseline
+  - `apps/desktop/tests/browser/visual/` — Playwright screenshot diffs per view (threshold 0.1% pixel diff); baselines committed under `__snapshots__/` per OS
+  - `.github/workflows/ci.yml` — extend `test:browser` job to run on `ubuntu-22.04`, `windows-latest`, `macos-14`
+
+  Tests: every view spec passes; Lighthouse never regresses below baseline; visual diffs flagged at PR time.
+
+  Verify: `just test:browser` green on all three OS runners.
+
+- [ ] **M27.9** — Chrome DevTools MCP verification recipe
+
+  Files:
+  - `apps/desktop/docs/mcp-verification.md` — canonical 8-step loop (new_page → navigate → take_snapshot → take_screenshot → list_console_messages → list_network_requests → lighthouse_audit → close_page); when to invoke it (PR self-review for any view touching DESIGN.md tokens, `KEYMAP`, or IPC bindings); how findings get filed (commit message + screenshot in PR description)
+  - `apps/desktop/docs/mcp-verification.md` enumerates per-view checklists (Alerts: virtualized scroll, severity sort, empty state; Settings: form errors render; CommandPalette: subsequence ranking, recency persistence)
+
+  Tests: docs reviewed; a single PR demonstrates the loop end-to-end with linked Chrome MCP transcript.
+
+  Verify: documentation review.
+
+#### M27 Gate
+- [ ] All Phase 1-5 views available in the Tauri app at functional parity
+- [ ] DataTable virtualizes correctly at 10k rows
+- [ ] Command palette opens with Cmd+K, fuzzy-finds commands, persists recency
+- [ ] Every DESIGN_ISSUES.md item has explicit disposition
+- [ ] Vitest coverage ≥80% on `apps/desktop/src/`
+- [ ] No iced view referenced by the Tauri app
+- [ ] **Every migrated view has a Playwright spec** under `tests/browser/views/` with axe + Lighthouse + computed-style token assertions passing on all three OS runners
+- [ ] **Lighthouse per-view scores meet baseline** (a11y ≥95, perf ≥90, best-practices ≥95) and no view regresses from the M26 baseline by more than 2 points without justification
+- [ ] **`ripley/no-raw-hex` ESLint rule** still passes — no raw hex literals in `apps/desktop/src/**` outside `theme.css`
+- [ ] **Chrome MCP verification loop documented** at `apps/desktop/docs/mcp-verification.md` and demonstrated on at least one PR
+- [ ] **Visual regression baselines committed** for every view; diffs reviewed on each PR touching `apps/desktop/src/`
+- [ ] Commit: `M27: View migration`
+
+
+### M28: Release ops + retire iced
+
+**Goal:** Sign + notarize + auto-update on all three OSes. `release-plz` automation for Rust. Delete `crates/ripley-app` and prune `iced`/`tray-icon`/`muda`/`cargo-bundle` from `Cargo.toml`. Per-platform install docs.
+
+- [ ] **M28.1** — macOS notarization
+
+  Files:
+  - `.github/workflows/release.yml` — `apple-actions/import-codesign-certs`, `apple-actions/submit-notarization`; secret refs for `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `APPLE_CERTIFICATE`
+  - `apps/desktop/src-tauri/tauri.conf.json` — `bundle.macOS.signingIdentity`, `entitlements`, hardened runtime
+  - `apps/desktop/entitlements.plist`
+
+  Tests: notarization succeeds in dry-run; `stapler validate` passes; Gatekeeper assesses signed bundle.
+
+  Verify: `spctl --assess --type execute --verbose apps/desktop/src-tauri/target/release/bundle/macos/Ripley.app`
+
+- [ ] **M28.2** — Windows code-signing
+
+  Files:
+  - `.github/workflows/release.yml` — Windows signing via Azure Trusted Signing or `signtool` with hardware token
+  - `docs/install/windows.md` — signing-key procurement notes
+
+  Tests: signed `.msi` and `.exe`; SmartScreen does not block after reputation build.
+
+  Verify: `signtool verify /pa <path>`
+
+- [ ] **M28.3** — Linux signing + repository hygiene
+
+  Files:
+  - Sign AppImage with `gpg --detach-sign`
+  - Provide `.deb` + `.rpm` checksums + `.sig`
+  - Document optional publish-to-repo path (Cloudsmith/GitHub Pages apt+rpm repo) — out of scope for v1 release, docs only
+
+  Tests: `gpg --verify` passes on AppImage signature.
+
+  Verify: `gpg --verify Ripley.AppImage.sig Ripley.AppImage`
+
+- [ ] **M28.4** — Tauri updater (Ed25519)
+
+  Files:
+  - Generate Ed25519 key pair; store private key in CI secret
+  - `apps/desktop/src-tauri/tauri.conf.json` — `plugins.updater.pubkey`, `endpoints` (placeholder until release infra exists)
+  - `release-plz.toml` — emit `latest.json` per platform on each release tag
+  - Implement silent update check on app startup; prompt user when an update is available
+
+  Tests: mock updater endpoint serves new version; app prompts and applies update on next launch.
+
+  Verify: end-to-end updater round-trip on dev VM with mock server.
+
+- [ ] **M28.5** — `release-plz` automation
+
+  Files:
+  - `release-plz.toml` — workspace-aware, Conventional Commits, CHANGELOG, tag, GitHub Release per crate
+  - `.github/workflows/release.yml` — trigger on `release-plz` PR merge: build matrix, attach bundles, publish release
+  - Document `crates.io` token vs binary-only release decision (binary-only for v1)
+
+  Tests: dry-run release on a fork produces expected artifacts + tags.
+
+  Verify: `release-plz --dry-run` on a feature branch.
+
+- [ ] **M28.6** — Retire iced (`crates/ripley-app` removal)
+
+  Files:
+  - Delete `crates/ripley-app/`
+  - Root `Cargo.toml` — remove from `members`
+  - Prune workspace deps: `iced`, `iced_core`, `iced_runtime`, `tray-icon`, `muda`, `cargo-bundle`, related dev-deps
+  - Update `CLAUDE.md` Quick reference + `ARCHITECTURE.md` Component 1 to drop iced mentions
+  - Delete `crates/ripley-app`-only fixtures
+  - Run `cargo deny check` to ensure no orphaned advisories
+
+  Tests: `cargo test --workspace` passes; release builds on all 3 OSes; bundle sizes recorded.
+
+  Verify: `cargo build --workspace --release && cargo test --workspace && cargo deny check`
+
+- [ ] **M28.7** — Install + release documentation
+
+  Files:
+  - `docs/install/macos.md`, `docs/install/linux.md`, `docs/install/windows.md`
+  - `README.md` — replace iced screenshots with Tauri screenshots; update install commands
+  - `CHANGELOG.md` — generated by `release-plz`
+  - `apps/desktop/README.md` — dev setup, e2e gap, contributing
+
+  Tests: every install command in docs verified against a clean VM.
+
+  Verify: manual run-through on each OS.
+
+#### M28 Gate
+- [ ] Signed + notarized bundles on macOS + Windows
+- [ ] Signed AppImage on Linux
+- [ ] Tauri updater applies an update end-to-end
+- [ ] `release-plz` produces a release tag + bundles + CHANGELOG
+- [ ] `crates/ripley-app` deleted; `iced`/`tray-icon`/`muda`/`cargo-bundle` removed from `Cargo.toml`
+- [ ] `cargo deny check` clean on the post-removal workspace
+- [ ] Install docs validated on a clean VM per OS
+- [ ] **Playwright suite runs against the production build** (`pnpm -C apps/desktop build && pnpm -C apps/desktop preview` served on `:4173`; `PLAYWRIGHT_BASE_URL=http://localhost:4173 just test:browser`) — verifies minified bundle behavior, not just dev-server output
+- [ ] **Bundle-size budget enforced** — Vite build emits `dist/stats.html`; `tests/browser/perf/bundle-size.spec.ts` asserts main JS chunk ≤250KB gzipped (regression-blocks any PR that crosses the line)
+- [ ] Commit: `M28: Release ops and retire iced`
+
+
+---
+
+
+#### Phase 6 Gate
+
+**All must pass before Phase 6 is complete:**
+
+- [ ] All M24-M28 gates passed
+- [ ] `pnpm install && just check` clean on a fresh clone
+- [ ] `cargo build --workspace --release` on macOS, Linux, Windows
+- [ ] `cargo test --workspace` — all tests pass on all platforms
+- [ ] `pnpm -C apps/desktop test` — Vitest coverage ≥80% on `src/`
+- [ ] `pnpm -C apps/desktop e2e` — WebdriverIO suite green on Linux + Windows
+- [ ] `just test:browser` — Playwright suite (smoke + per-view + a11y + Lighthouse + perf + visual) green on all three OS runners against both dev server and production build
+- [ ] `pnpm audit` clean (or documented allowlist)
+- [ ] `cargo deny check` clean
+- [ ] `cargo clippy --workspace` no warnings
+- [ ] Tauri bundler produces signed `.dmg`/`.app`, `.msi`/`.exe`, AppImage/`.deb`/`.rpm`
+- [ ] Tauri updater applies a real update on each OS
+- [ ] Guard-dialog p95 cold <500ms / warm <50ms preserved post-migration; Playwright warm-mount budget <50ms holds
+- [ ] Lighthouse: a11y ≥95, perf ≥90, best-practices ≥95 on every migrated view, all three OSes
+- [ ] axe scans clean (zero `serious`/`critical`) on every migrated view
+- [ ] `ripley/no-raw-hex` ESLint rule clean across `apps/desktop/src/**`
+- [ ] Bundle-size budget held — main JS chunk ≤250KB gzipped
+- [ ] Chrome DevTools MCP verification loop documented and demonstrated at least once
+- [ ] `tauri-specta` `bindings.ts` committed; no `any` in IPC layer
+- [ ] `crates/ripley-app` deleted; `iced`/`tray-icon`/`muda`/`cargo-bundle` gone from workspace
+- [ ] Every `DESIGN_ISSUES.md` item has explicit disposition
+- [ ] All public functions in new `apps/desktop/src-tauri/src/` have tests
+- [ ] Generated `bindings.ts` committed (not gitignored)
+- [ ] Commit: `Phase 6: UI rewrite (Tauri 2)`
+
+
+---
+
+
 ## Total Plan Gate
 
 **The plan is complete when ALL of the following are true:**
 
-- [ ] All Phase 1-5 gates passed
+- [ ] All Phase 1-6 gates passed
 - [ ] `cargo build --workspace --release` on macOS, Linux, Windows
 - [ ] `cargo test --workspace` --- all tests pass on all platforms
+- [ ] `pnpm install && just check` clean on a fresh clone
+- [ ] `pnpm -C apps/desktop test` --- Vitest coverage ≥80% on `src/`
+- [ ] `pnpm -C apps/desktop e2e` --- WebdriverIO green on Linux + Windows
+- [ ] `just test:browser` --- Playwright suite green on all three OS runners (dev + prod builds); Lighthouse ≥95/≥90/≥95; axe clean
+- [ ] `pnpm audit` clean (or documented allowlist)
 - [ ] `cargo deny check` --- clean
 - [ ] `cargo clippy --workspace` --- no warnings
-- [ ] Full end-to-end workflow test on macOS:
-  1. Install Ripley (cargo install + guard install)
-  2. Launch tray app
-  3. Run `ripley scan` --- produces results
+- [ ] Full end-to-end workflow test on macOS (Tauri app):
+  1. Install Ripley (signed `.dmg` install + guard install)
+  2. Launch tray app (Tauri); no Dock icon
+  3. Run `ripley scan` --- produces results visible in Alerts view
   4. Receive notification for a known vuln
   5. Click Fix --- harness launches with correct prompt
   6. Run `ripley scan --deep` --- forensic report produced
@@ -3553,8 +4249,13 @@ Phase 4 Gate.
   8. Run `ripley harden` --- PM hardening recommendations produced
   9. Run `ripley monitor` --- detects planted IOC
   10. Run `ripley contain` --- kills process, saves snapshot
-  11. Run `ripley guard uninstall` --- clean removal
-- [ ] Documentation matches implementation (all 9 docs accurate)
+  11. Trigger simulated `npm install` --- guard dialog shows within p95 budget
+  12. Tauri updater check applies a new version end-to-end
+  13. Run `ripley guard uninstall` --- clean removal
+- [ ] Same end-to-end workflow validated on Windows 11 (signed `.msi`) and Linux (signed AppImage + `.deb`)
+- [ ] Documentation matches implementation across all spec docs: `README.md`, `CLAUDE.md`, `ARCHITECTURE.md`, `STACK_DECISION.md`, `DESIGN.md`, `DESIGN_ISSUES.md`, `UI.md`, `DECISIONS.md`, `ROADMAP.md`, `WORKFLOW.md`, `SETTINGS.md`, `PLAN.md` (12 total)
 - [ ] No `unwrap()` or `expect()` in ripley-core
 - [ ] All public functions have tests
 - [ ] Snapshot tests cover all output formats
+- [ ] `crates/ripley-app` removed; `iced`/`tray-icon`/`muda`/`cargo-bundle` not in workspace deps
+- [ ] `tauri-specta` `bindings.ts` committed; IPC layer fully typed end-to-end
