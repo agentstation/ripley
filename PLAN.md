@@ -3869,7 +3869,7 @@ Phase 4 Gate.
 
   Verify: `just guard-bench` reports p95 cold <500ms, p95 warm <50ms on Apple Silicon dev box.
 
-- [ ] **M25.5** — Sidecar wire-up to `ripley-script-shell`
+- [x] **M25.5** — Sidecar wire-up to `ripley-script-shell`
 
   Files:
   - `apps/desktop/src-tauri/tauri.conf.json` — `bundle.externalBin: ["binaries/ripley-script-shell"]` per-platform suffixes

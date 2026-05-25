@@ -37,6 +37,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "externalBin": ["binaries/ripley-script-shell"],
     "category": "DeveloperTool",
     "shortDescription": "Supply chain defense for developers",
     "longDescription": "Supply chain defense for developers. System tray app + package manager guard."
