@@ -14,6 +14,10 @@ crate-type = ["lib", "cdylib", "staticlib"]
 name = "ripley-desktop"
 path = "src/main.rs"
 
+[[bin]]
+name = "gen-bindings"
+path = "src/bin/gen-bindings.rs"
+
 [build-dependencies]
 tauri-build = { version = "2.1", features = [] }
 tauri = "2.1"

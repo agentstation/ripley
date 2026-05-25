@@ -5,7 +5,9 @@
 
 
 export const commands = {
-
+async ping() : Promise<string> {
+    return await TAURI_INVOKE("ping");
+}
 }
 
 /** user-defined events **/

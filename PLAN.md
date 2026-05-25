@@ -3732,7 +3732,7 @@ Phase 4 Gate.
 
   Verify: `cd apps/desktop && pnpm install && pnpm tauri info && cargo build -p ripley-desktop`
 
-- [ ] **M24.3** — `tauri-specta` IPC codegen wired day one
+- [x] **M24.3** — `tauri-specta` IPC codegen wired day one
 
   Files:
   - `apps/desktop/src-tauri/src/commands/mod.rs` — `pub mod ping;`
