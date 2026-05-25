@@ -17,34 +17,33 @@ fn project_dirs() -> Result<ProjectDirs, DirError> {
     ProjectDirs::from("com", "agentstation", "ripley").ok_or(DirError::NoPlatformDirs)
 }
 
-pub fn config_dir() -> Result<PathBuf, DirError> {
-    let dirs = project_dirs()?;
-    let path = dirs.config_dir().to_path_buf();
+fn ensure(path: PathBuf) -> Result<PathBuf, DirError> {
     std::fs::create_dir_all(&path).map_err(|e| DirError::CreateDir {
         path: path.clone(),
         source: e,
     })?;
     Ok(path)
+}
+
+pub fn config_dir() -> Result<PathBuf, DirError> {
+    if let Ok(p) = std::env::var("RIPLEY_CONFIG_DIR") {
+        return ensure(PathBuf::from(p));
+    }
+    ensure(project_dirs()?.config_dir().to_path_buf())
 }
 
 pub fn data_dir() -> Result<PathBuf, DirError> {
-    let dirs = project_dirs()?;
-    let path = dirs.data_dir().to_path_buf();
-    std::fs::create_dir_all(&path).map_err(|e| DirError::CreateDir {
-        path: path.clone(),
-        source: e,
-    })?;
-    Ok(path)
+    if let Ok(p) = std::env::var("RIPLEY_DATA_DIR") {
+        return ensure(PathBuf::from(p));
+    }
+    ensure(project_dirs()?.data_dir().to_path_buf())
 }
 
 pub fn cache_dir() -> Result<PathBuf, DirError> {
-    let dirs = project_dirs()?;
-    let path = dirs.cache_dir().to_path_buf();
-    std::fs::create_dir_all(&path).map_err(|e| DirError::CreateDir {
-        path: path.clone(),
-        source: e,
-    })?;
-    Ok(path)
+    if let Ok(p) = std::env::var("RIPLEY_CACHE_DIR") {
+        return ensure(PathBuf::from(p));
+    }
+    ensure(project_dirs()?.cache_dir().to_path_buf())
 }
 
 #[cfg(test)]
