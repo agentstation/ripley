@@ -46,16 +46,6 @@ fn stage_script_shell_sidecar() {
     let profile = std::env::var("PROFILE").unwrap_or_else(|_| "debug".to_string());
     let candidate = workspace_root.join("target").join(&profile).join(exe_name);
 
-    if !candidate.exists() {
-        println!(
-            "cargo:warning=ripley-script-shell not yet built at {}; \
-             run `cargo build -p ripley-guard --bin ripley-script-shell` \
-             before `tauri build` to bundle the sidecar.",
-            candidate.display()
-        );
-        return;
-    }
-
     let dest_dir = manifest_dir.join("binaries");
     if let Err(e) = std::fs::create_dir_all(&dest_dir) {
         println!("cargo:warning=could not create binaries dir: {e}");
@@ -64,6 +54,31 @@ fn stage_script_shell_sidecar() {
 
     let suffix = if cfg!(windows) { ".exe" } else { "" };
     let dest = dest_dir.join(format!("ripley-script-shell-{target}{suffix}"));
+
+    if !candidate.exists() {
+        // tauri-build validates externalBin resource paths, so we always need
+        // the destination to exist. Stage a stub so `cargo build --workspace`
+        // and `cargo check` succeed; bundling without a real sidecar still
+        // produces a working dev shell because the daemon path is opt-in.
+        if !dest.exists() {
+            if let Err(e) = std::fs::write(&dest, b"#!/bin/sh\nexit 0\n") {
+                println!("cargo:warning=could not write sidecar stub: {e}");
+                return;
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o755));
+            }
+        }
+        println!(
+            "cargo:warning=ripley-script-shell not built at {}; staged a stub \
+             sidecar. Run `cargo build -p ripley-guard --bin ripley-script-shell` \
+             before `tauri build` to bundle the real binary.",
+            candidate.display()
+        );
+        return;
+    }
 
     if let Err(e) = std::fs::copy(&candidate, &dest) {
         println!(
