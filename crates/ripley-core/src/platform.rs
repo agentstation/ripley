@@ -239,6 +239,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_detect_shell_rc_returns_path() {
         if let Some(home) = home_dir() {

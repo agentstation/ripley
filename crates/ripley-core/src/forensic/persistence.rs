@@ -403,6 +403,7 @@ fn truncate_line(s: &str, max_len: usize) -> String {
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
     #[test]
     fn test_audit_shell_rc_detects_suspicious() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -504,6 +505,7 @@ mod tests {
         assert!(findings.is_empty());
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn test_audit_launch_agents_suspicious() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -571,6 +573,7 @@ mod tests {
         assert!(truncated.is_char_boundary(truncated.len()));
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn test_dead_man_switch_launch_agent() {
         let dir = tempfile::tempdir().expect("tempdir");
@@ -600,6 +603,7 @@ mod tests {
         assert_eq!(findings[0].severity, Severity::Critical);
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_dead_man_switch_shell_rc() {
         let dir = tempfile::tempdir().expect("tempdir");
