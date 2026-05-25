@@ -9,10 +9,12 @@ pre-commit:
       run: cargo clippy --workspace --all-targets -- -D warnings
     prettier:
       glob: "apps/desktop/**/*.{ts,tsx,js,jsx,css,json,md}"
-      run: pnpm -F desktop exec prettier --check {staged_files}
+      root: "apps/desktop"
+      run: pnpm exec prettier --check {staged_files}
     eslint:
       glob: "apps/desktop/**/*.{ts,tsx}"
-      run: pnpm -F desktop exec eslint {staged_files}
+      root: "apps/desktop"
+      run: pnpm exec eslint {staged_files}
     typecheck:
       glob: "apps/desktop/**/*.{ts,tsx}"
       run: pnpm -F desktop typecheck
