@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Instant;
 
 use ripley_ipc::protocol::{GuardDecision, GuardPromptData};
 use serde::{Deserialize, Serialize};
@@ -36,6 +37,12 @@ pub fn new_pending() -> PendingMap {
     Arc::new(Mutex::new(HashMap::new()))
 }
 
+pub type LatencyMap = Arc<Mutex<HashMap<String, Instant>>>;
+
+pub fn new_latency_map() -> LatencyMap {
+    Arc::new(Mutex::new(HashMap::new()))
+}
+
 static ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub fn next_id() -> String {
@@ -56,7 +63,9 @@ mod unix {
     use tokio::sync::oneshot;
     use tokio_util::sync::CancellationToken;
 
-    use super::{GuardEventPayload, PendingMap, next_id};
+    use std::time::Instant;
+
+    use super::{GuardEventPayload, LatencyMap, PendingMap, next_id};
 
     #[derive(Debug, thiserror::Error)]
     pub enum BridgeError {
@@ -69,6 +78,7 @@ mod unix {
     pub async fn serve<F>(
         socket_path: &Path,
         pending: PendingMap,
+        latencies: LatencyMap,
         emit: F,
         cancel: CancellationToken,
     ) -> Result<(), BridgeError>
@@ -101,9 +111,10 @@ mod unix {
                 accept = listener.accept() => {
                     let (stream, _) = accept?;
                     let pending = pending.clone();
+                    let latencies = latencies.clone();
                     let emit = emit.clone();
                     tokio::spawn(async move {
-                        if let Err(e) = handle_conn(stream, pending, emit).await {
+                        if let Err(e) = handle_conn(stream, pending, latencies, emit).await {
                             tracing::warn!("guard bridge connection error: {e}");
                         }
                     });
@@ -115,6 +126,7 @@ mod unix {
     async fn handle_conn<F>(
         stream: UnixStream,
         pending: PendingMap,
+        latencies: LatencyMap,
         emit: F,
     ) -> Result<(), BridgeError>
     where
@@ -142,6 +154,7 @@ mod unix {
                 let id = next_id();
                 let (tx, rx) = oneshot::channel();
                 pending.lock().await.insert(id.clone(), tx);
+                latencies.lock().await.insert(id.clone(), Instant::now());
                 tracing::info!(id = %id, "guard event_received");
                 emit(GuardEventPayload::from_prompt(id.clone(), prompt));
                 tracing::info!(id = %id, "guard event_emitted");

@@ -20,6 +20,10 @@ beforeEach(() => {
     status: "ok",
     data: null,
   });
+  vi.spyOn(commands, "reportVisible").mockResolvedValue({
+    status: "ok",
+    data: null,
+  });
   act(() => {
     useGuardStore.setState({
       currentEvent: sampleEvent,

@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RuleMatchList } from "@/components/ripley/RuleMatchList";
 import { SeverityBadge } from "@/components/ripley/SeverityBadge";
-import type { GuardEvent } from "@/lib/bindings";
+import { commands, type GuardEvent } from "@/lib/bindings";
 import { useGuardStore } from "@/store/guard";
 
 type Props = {
@@ -17,6 +17,7 @@ export function GuardDialog({ event }: Props) {
 
   useEffect(() => {
     trustRef.current?.focus();
+    void commands.reportVisible(event.id);
   }, [event.id]);
 
   return (

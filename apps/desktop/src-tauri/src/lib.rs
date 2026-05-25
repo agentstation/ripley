@@ -5,6 +5,7 @@ pub mod ipc_bridge;
 pub mod prewarm;
 pub mod tray;
 
+use commands::diag::report_visible;
 use commands::guard::submit_guard_decision;
 use commands::ping::ping;
 use ipc_bridge::GuardEventPayload;
@@ -14,7 +15,11 @@ pub struct GuardEvent(pub GuardEventPayload);
 
 pub fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
-        .commands(collect_commands![ping, submit_guard_decision])
+        .commands(collect_commands![
+            ping,
+            submit_guard_decision,
+            report_visible
+        ])
         .events(collect_events![GuardEvent])
 }
 
@@ -62,9 +67,11 @@ pub fn run() {
     }
 
     let pending = ipc_bridge::new_pending();
+    let latencies = ipc_bridge::new_latency_map();
 
     app.invoke_handler(builder.invoke_handler())
         .manage(pending.clone())
+        .manage(latencies.clone())
         .setup(move |app| {
             builder.mount_events(app);
 
@@ -86,6 +93,7 @@ pub fn run() {
                 };
                 let app_handle = app.handle().clone();
                 let pending = pending.clone();
+                let latencies = latencies.clone();
                 let cancel = tokio_util::sync::CancellationToken::new();
                 tauri::async_runtime::spawn(async move {
                     let emit = move |payload: GuardEventPayload| {
@@ -94,7 +102,9 @@ pub fn run() {
                         }
                         let _ = GuardEvent(payload).emit(&app_handle);
                     };
-                    if let Err(e) = ipc_bridge::serve(&socket_path, pending, emit, cancel).await {
+                    if let Err(e) =
+                        ipc_bridge::serve(&socket_path, pending, latencies, emit, cancel).await
+                    {
                         tracing::error!("guard bridge exited with error: {e}");
                     }
                 });

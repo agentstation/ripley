@@ -32,6 +32,10 @@ function renderApp() {
 
 beforeEach(() => {
   vi.spyOn(commands, "ping").mockResolvedValue("pong");
+  vi.spyOn(commands, "reportVisible").mockResolvedValue({
+    status: "ok",
+    data: null,
+  });
   act(() => {
     useGuardStore.setState({ currentEvent: null, inFlight: false });
   });

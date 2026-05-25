@@ -14,6 +14,14 @@ export const commands = {
       else return { status: "error", error: e as any };
     }
   },
+  async reportVisible(id: string): Promise<Result<null, string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("report_visible", { id }) };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
 };
 
 /** user-defined events **/

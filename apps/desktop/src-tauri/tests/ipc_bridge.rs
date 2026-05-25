@@ -13,6 +13,7 @@ async fn bridge_round_trip_allow() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let socket_path = tmp.path().join("ripley.sock");
     let pending = ipc_bridge::new_pending();
+    let latencies = ipc_bridge::new_latency_map();
 
     let captured: Arc<Mutex<Vec<GuardEventPayload>>> = Arc::new(Mutex::new(Vec::new()));
     let captured_for_emit = captured.clone();
@@ -25,12 +26,19 @@ async fn bridge_round_trip_allow() {
 
     let cancel = CancellationToken::new();
     let serve_pending = pending.clone();
+    let serve_latencies = latencies.clone();
     let serve_path = socket_path.clone();
     let serve_cancel = cancel.clone();
     let serve_handle = tokio::spawn(async move {
-        ipc_bridge::serve(&serve_path, serve_pending, emit, serve_cancel)
-            .await
-            .expect("serve");
+        ipc_bridge::serve(
+            &serve_path,
+            serve_pending,
+            serve_latencies,
+            emit,
+            serve_cancel,
+        )
+        .await
+        .expect("serve");
     });
 
     wait_for_socket(&socket_path).await;
@@ -50,6 +58,11 @@ async fn bridge_round_trip_allow() {
 
     let id = wait_for_event(&captured).await;
     assert!(id.starts_with("guard-"));
+
+    assert!(
+        latencies.lock().await.contains_key(&id),
+        "latency start should be recorded on event_received"
+    );
 
     let tx = pending
         .lock()
@@ -77,13 +90,14 @@ async fn bridge_rejects_unsupported_request() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let socket_path = tmp.path().join("ripley.sock");
     let pending = ipc_bridge::new_pending();
+    let latencies = ipc_bridge::new_latency_map();
 
     let emit = |_payload: GuardEventPayload| {};
     let cancel = CancellationToken::new();
     let serve_path = socket_path.clone();
     let serve_cancel = cancel.clone();
     let serve_handle = tokio::spawn(async move {
-        ipc_bridge::serve(&serve_path, pending, emit, serve_cancel)
+        ipc_bridge::serve(&serve_path, pending, latencies, emit, serve_cancel)
             .await
             .expect("serve");
     });

@@ -18,6 +18,11 @@ path = "src/main.rs"
 name = "gen-bindings"
 path = "src/bin/gen-bindings.rs"
 
+[[bin]]
+name = "guard-bench"
+path = "src/bin/guard_bench.rs"
+required-features = []
+
 [build-dependencies]
 tauri-build = { version = "2.1", features = [] }
 tauri = "2.1"

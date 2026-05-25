@@ -3857,7 +3857,7 @@ Phase 4 Gate.
 
   Verify: manual smoke on dev box.
 
-- [ ] **M25.4** — Latency instrumentation
+- [x] **M25.4** — Latency instrumentation
 
   Files:
   - `apps/desktop/src-tauri/src/ipc_bridge.rs` — `tracing::info!` spans: `event_received`, `event_emitted`, `dialog_visible`
