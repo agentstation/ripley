@@ -3,5 +3,9 @@
   "identifier": "default",
   "description": "Default capability set for the main Ripley window. Add per-command permissions as IPC commands are introduced.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "core:tray:default",
+    "global-shortcut:default"
+  ]
 }

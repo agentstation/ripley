@@ -3748,7 +3748,7 @@ Phase 4 Gate.
 
   Verify: `cargo build -p ripley-desktop && cd apps/desktop && pnpm tsc --noEmit`
 
-- [ ] **M24.4** — Tray icon + hidden window + hotkey
+- [x] **M24.4** — Tray icon + hidden window + hotkey
 
   Files:
   - `apps/desktop/src-tauri/src/tray.rs` — `TrayIconBuilder` with template-icon on macOS, themed icon on Win/Linux; menu items: Open, Quit

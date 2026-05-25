@@ -1,6 +1,8 @@
 use tauri_specta::{Builder, collect_commands};
 
 pub mod commands;
+pub mod prewarm;
+pub mod tray;
 
 use commands::ping::ping;
 
@@ -23,10 +25,40 @@ pub fn run() {
     #[cfg(debug_assertions)]
     let _ = export_bindings();
 
-    tauri::Builder::default()
-        .invoke_handler(builder.invoke_handler())
+    let mut app = tauri::Builder::default();
+
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
+
+        let toggle_shortcut = Shortcut::new(
+            Some(Modifiers::SUPER | Modifiers::SHIFT),
+            Code::KeyR,
+        );
+
+        app = app.plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_shortcut(toggle_shortcut)
+                .expect("failed to register global shortcut")
+                .with_handler(move |app, shortcut, event| {
+                    if shortcut == &toggle_shortcut
+                        && event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed
+                    {
+                        let _ = prewarm::toggle(app);
+                    }
+                })
+                .build(),
+        );
+    }
+
+    app.invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+            tray::build(app.handle())?;
             Ok(())
         })
         .run(tauri::generate_context!())

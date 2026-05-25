@@ -27,6 +27,7 @@ specta-typescript = "0.0.9"
 
 [dependencies]
 tauri = { version = "2.1", features = ["tray-icon"] }
+tauri-plugin-global-shortcut = "2.1"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 specta = { version = "=2.0.0-rc.22" }
 specta-typescript = "0.0.9"
