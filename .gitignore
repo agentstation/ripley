@@ -14,3 +14,6 @@ dist/
 pnpm-debug.log*
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/binaries/
+
+# /goal turn counter (per-run state, not per-repo)
+apps/desktop/.ripley-agent/turns
