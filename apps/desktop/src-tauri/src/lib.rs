@@ -89,6 +89,9 @@ pub fn run() {
                 let cancel = tokio_util::sync::CancellationToken::new();
                 tauri::async_runtime::spawn(async move {
                     let emit = move |payload: GuardEventPayload| {
+                        if let Err(e) = prewarm::show_on_event(&app_handle) {
+                            tracing::warn!("show_on_event failed: {e}");
+                        }
                         let _ = GuardEvent(payload).emit(&app_handle);
                     };
                     if let Err(e) = ipc_bridge::serve(&socket_path, pending, emit, cancel).await {

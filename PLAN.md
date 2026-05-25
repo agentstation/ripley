@@ -3847,7 +3847,7 @@ Phase 4 Gate.
 
   Verify: `pnpm vitest run src/routes/GuardDialog`
 
-- [ ] **M25.3** — Pre-warm strategy + show-on-event
+- [x] **M25.3** — Pre-warm strategy + show-on-event
 
   Files:
   - `apps/desktop/src-tauri/src/prewarm.rs` — hidden window pre-rendered on startup; `show_on_event(event)`: populate state via channel, `set_focus`, center on cursor display
