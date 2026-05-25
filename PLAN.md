@@ -3760,7 +3760,7 @@ Phase 4 Gate.
 
   Verify: `pnpm tauri dev` — visually confirm tray-only behavior on macOS dev box.
 
-- [ ] **M24.5** — shadcn init + Tailwind v4 theme tokens
+- [x] **M24.5** — shadcn init + Tailwind v4 theme tokens
 
   Files:
   - `apps/desktop/components.json` — shadcn config: `"style": "base-vega"`, `"primitive": "base-ui"`, `tsx: true`, `tailwind.cssVariables: false`, aliases (`@/components`, `@/lib`)
