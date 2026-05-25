@@ -72,6 +72,20 @@ jobs:
       - name: pnpm audit
         run: pnpm audit --prod
 
+      - name: Install Playwright browsers
+        run: pnpm -F desktop exec playwright install --with-deps chromium
+
+      - name: Browser tests (Playwright)
+        run: pnpm -F desktop test:browser
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.os }}
+          path: apps/desktop/playwright-report
+          if-no-files-found: ignore
+
   deny:
     name: cargo-deny
     runs-on: ubuntu-latest

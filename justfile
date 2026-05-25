@@ -52,6 +52,9 @@ e2e:
 test-browser:
     pnpm -F desktop test:browser
 
+test-browser-ui:
+    pnpm -F desktop exec playwright test --ui
+
 test-browser-prod:
     pnpm -F desktop test:browser:prod
 

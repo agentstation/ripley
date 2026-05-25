@@ -3786,7 +3786,7 @@ Phase 4 Gate.
 
   Verify: `just check && lefthook run pre-commit`
 
-- [ ] **M24.7** — Playwright + browser verification scaffold
+- [x] **M24.7** — Playwright + browser verification scaffold
 
   Files:
   - `apps/desktop/package.json` — add devDeps: `@playwright/test` v1.x, `@axe-core/playwright`, `playwright-lighthouse`
