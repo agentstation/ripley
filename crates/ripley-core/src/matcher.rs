@@ -137,11 +137,16 @@ mod tests {
         };
 
         let safe = package("multi-pkg", "1.0.5");
-        assert!(find_matches(&[adv.clone()], &[safe], Path::new("/test")).is_empty());
+        assert!(find_matches(std::slice::from_ref(&adv), &[safe], Path::new("/test")).is_empty());
 
         let affected_range1 = package("multi-pkg", "1.0.3");
         assert_eq!(
-            find_matches(&[adv.clone()], &[affected_range1], Path::new("/test")).len(),
+            find_matches(
+                std::slice::from_ref(&adv),
+                &[affected_range1],
+                Path::new("/test")
+            )
+            .len(),
             1
         );
 

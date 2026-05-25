@@ -3,6 +3,9 @@ use std::process::Command;
 fn ripley_with_home(home: &std::path::Path) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_ripley"));
     cmd.env("HOME", home);
+    cmd.env("RIPLEY_DATA_DIR", home.join("data"));
+    cmd.env("RIPLEY_CONFIG_DIR", home.join("config"));
+    cmd.env("RIPLEY_CACHE_DIR", home.join("cache"));
     cmd
 }
 

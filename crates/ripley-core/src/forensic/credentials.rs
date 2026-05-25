@@ -220,6 +220,7 @@ mod tests {
         assert!(report.findings.is_empty());
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_assess_exposure_glob_ssh_keys() {
         let dir = tempfile::tempdir().expect("tempdir");

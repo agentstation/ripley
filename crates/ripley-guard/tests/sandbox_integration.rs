@@ -114,10 +114,24 @@ mod linux {
     use super::*;
 
     fn has_bwrap() -> bool {
+        // Verify bwrap can actually open a minimal sandbox — `--version`
+        // succeeds even when user namespaces are disabled (e.g. some CI
+        // runners), which would make every sandboxed exec fail.
         std::process::Command::new("bwrap")
-            .arg("--version")
+            .args([
+                "--ro-bind",
+                "/",
+                "/",
+                "--dev",
+                "/dev",
+                "--proc",
+                "/proc",
+                "--unshare-all",
+                "true",
+            ])
             .output()
-            .is_ok()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
     }
 
     #[test]

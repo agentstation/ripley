@@ -1,0 +1,20 @@
+{
+  "name": "ripley-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Ripley monorepo root — Rust workspace + pnpm workspace for the Tauri desktop app",
+  "packageManager": "pnpm@10.33.4",
+  "engines": {
+    "node": ">=24",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "dev": "just dev",
+    "build": "just build",
+    "test": "just test",
+    "check": "just check",
+    "lint": "just lint",
+    "fmt": "just fmt",
+    "e2e": "just e2e"
+  }
+}

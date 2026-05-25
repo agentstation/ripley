@@ -160,7 +160,7 @@ mod tests {
         let db = AdvisoryDb::open(&dir.path().join("test.redb")).expect("open db");
 
         let advisory = sample_advisory();
-        db.store_advisories(Ecosystem::Npm, "lodash", &[advisory.clone()])
+        db.store_advisories(Ecosystem::Npm, "lodash", std::slice::from_ref(&advisory))
             .expect("store");
 
         let retrieved = db.get_advisories(Ecosystem::Npm, "lodash").expect("get");

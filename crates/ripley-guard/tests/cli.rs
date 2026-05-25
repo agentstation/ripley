@@ -8,6 +8,9 @@ fn ripley() -> Command {
 fn ripley_with_temp_home(home: &std::path::Path) -> Command {
     let mut cmd = ripley();
     cmd.env("HOME", home);
+    cmd.env("RIPLEY_DATA_DIR", home.join("data"));
+    cmd.env("RIPLEY_CONFIG_DIR", home.join("config"));
+    cmd.env("RIPLEY_CACHE_DIR", home.join("cache"));
     cmd
 }
 

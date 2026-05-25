@@ -3,14 +3,6 @@ use std::path::PathBuf;
 use ripley_core::rules::registry::{RuleIndex, SourceRegistry, TrustLevel};
 use ripley_core::rules::{RuleSet, RuleSource};
 
-fn fixtures_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("..")
-        .join("..")
-        .join("tests")
-        .join("fixtures")
-}
-
 fn example_rules_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")

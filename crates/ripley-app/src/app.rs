@@ -192,29 +192,36 @@ impl RipleyApp {
             return keys;
         }
 
-        let alerts = Subscription::run(|| {
-            iced::stream::channel(32, |mut output| async move {
-                loop {
-                    let resp =
-                        ripley_ipc::client::send_request(&ripley_ipc::Request::SubscribeAlerts)
-                            .await;
-                    if let Ok(ripley_ipc::Response::MonitorAlert(data)) = resp {
-                        let alert = ProcessAlert {
-                            connection: None,
-                            reason: ripley_core::monitor::process::AlertReason::C2Connection {
-                                indicator: data.detail.clone(),
-                            },
-                            severity: parse_severity(&data.severity),
-                            timestamp: data.timestamp,
-                        };
-                        let _ = output.send(Message::MonitorAlertReceived(alert)).await;
+        #[cfg(unix)]
+        {
+            let alerts = Subscription::run(|| {
+                iced::stream::channel(32, |mut output| async move {
+                    loop {
+                        let resp =
+                            ripley_ipc::client::send_request(&ripley_ipc::Request::SubscribeAlerts)
+                                .await;
+                        if let Ok(ripley_ipc::Response::MonitorAlert(data)) = resp {
+                            let alert = ProcessAlert {
+                                connection: None,
+                                reason: ripley_core::monitor::process::AlertReason::C2Connection {
+                                    indicator: data.detail.clone(),
+                                },
+                                severity: parse_severity(&data.severity),
+                                timestamp: data.timestamp,
+                            };
+                            let _ = output.send(Message::MonitorAlertReceived(alert)).await;
+                        }
+                        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
                     }
-                    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
-                }
-            })
-        });
+                })
+            });
 
-        Subscription::batch([keys, alerts])
+            Subscription::batch([keys, alerts])
+        }
+        #[cfg(not(unix))]
+        {
+            keys
+        }
     }
 
     fn view(&self) -> Element<'_, Message> {
