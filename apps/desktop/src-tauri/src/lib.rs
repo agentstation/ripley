@@ -1,19 +1,32 @@
-use tauri_specta::{Builder, collect_commands};
+use tauri_specta::{Builder, collect_commands, collect_events};
 
 pub mod commands;
+pub mod ipc_bridge;
 pub mod prewarm;
 pub mod tray;
 
+use commands::guard::submit_guard_decision;
 use commands::ping::ping;
+use ipc_bridge::GuardEventPayload;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
+pub struct GuardEvent(pub GuardEventPayload);
 
 pub fn specta_builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![ping])
+    Builder::<tauri::Wry>::new()
+        .commands(collect_commands![ping, submit_guard_decision])
+        .events(collect_events![GuardEvent])
 }
 
 pub fn export_bindings() -> Result<(), Box<dyn std::error::Error>> {
+    let bindings_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("src")
+        .join("lib")
+        .join("bindings.ts");
     specta_builder().export(
         specta_typescript::Typescript::default().formatter(specta_typescript::formatter::prettier),
-        "../src/lib/bindings.ts",
+        bindings_path,
     )?;
     Ok(())
 }
@@ -48,7 +61,10 @@ pub fn run() {
         );
     }
 
+    let pending = ipc_bridge::new_pending();
+
     app.invoke_handler(builder.invoke_handler())
+        .manage(pending.clone())
         .setup(move |app| {
             builder.mount_events(app);
 
@@ -56,6 +72,31 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             tray::build(app.handle())?;
+
+            #[cfg(unix)]
+            {
+                use tauri_specta::Event as _;
+
+                let socket_path = match ripley_ipc::protocol::socket_path() {
+                    Some(p) => p,
+                    None => {
+                        tracing::warn!("no socket path; guard bridge disabled");
+                        return Ok(());
+                    }
+                };
+                let app_handle = app.handle().clone();
+                let pending = pending.clone();
+                let cancel = tokio_util::sync::CancellationToken::new();
+                tauri::async_runtime::spawn(async move {
+                    let emit = move |payload: GuardEventPayload| {
+                        let _ = GuardEvent(payload).emit(&app_handle);
+                    };
+                    if let Err(e) = ipc_bridge::serve(&socket_path, pending, emit, cancel).await {
+                        tracing::error!("guard bridge exited with error: {e}");
+                    }
+                });
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -3816,7 +3816,7 @@ Phase 4 Gate.
 - [x] **`just test:browser` passes** — Playwright smoke + a11y baseline + Lighthouse baseline recorded
 - [x] **Chrome DevTools MCP can drive `http://localhost:5173`** — agent verified by `navigate_page` + `take_screenshot` + `lighthouse_audit`
 - [x] **ESLint rule `ripley/no-raw-hex` fires on a deliberate test violation**
-- [ ] Commit: `M24: Tauri scaffold and shell`
+- [x] Commit: `M24: Tauri scaffold and shell` *(merged in PR #1, squash commit e935145)*
 
 
 ### M25: Guard-dialog critical path
