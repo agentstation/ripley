@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { GuardDialog } from "./routes/GuardDialog";
@@ -8,6 +9,13 @@ import { useGuardStore } from "./store/guard";
 export default function App() {
   useGuardEvent();
   const currentEvent = useGuardStore((s) => s.currentEvent);
+
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      (window as unknown as { __ripleyGuardStore?: typeof useGuardStore }).__ripleyGuardStore =
+        useGuardStore;
+    }
+  }, []);
 
   return (
     <main className="min-h-screen bg-background text-foreground font-sans flex items-center justify-center p-6">

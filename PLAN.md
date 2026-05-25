@@ -3895,8 +3895,8 @@ Phase 4 Gate.
 - [ ] p95 warm latency <50ms on Apple Silicon
 - [ ] `tauri-specta` types compile without `any` in IPC layer
 - [ ] No protocol change to `ripley_ipc::protocol` (Phase 1 wire format preserved)
-- [ ] **Playwright perf spec** (`tests/browser/perf/guard-dialog.spec.ts`) mounts the dialog component in Vite-served React, uses `performance.mark` between route enter and first interactive paint, and asserts warm budget <50ms in headless Chromium (proxy for the Tauri shell — does not replace the native cold-path measurement above)
-- [ ] **Playwright a11y spec** for guard dialog passes axe with zero violations of `serious` or `critical` severity
+- [x] **Playwright perf spec** (`tests/browser/perf/guard-dialog.spec.ts`) mounts the dialog component in Vite-served React, uses `performance.mark` between route enter and first interactive paint, and asserts warm budget <50ms in headless Chromium (proxy for the Tauri shell — does not replace the native cold-path measurement above)
+- [x] **Playwright a11y spec** for guard dialog passes axe with zero violations of `serious` or `critical` severity
 - [ ] Commit: `M25: Guard-dialog critical path`
 
 

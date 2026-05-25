@@ -26,7 +26,7 @@
   /* Severity */
   --color-severity-critical: #f85149;
   --color-severity-critical-bg: #f8514920;
-  --color-severity-high: #db6d28;
+  --color-severity-high: #f0883e;
   --color-severity-high-bg: #db6d2820;
   --color-severity-medium: #d29922;
   --color-severity-medium-bg: #d2992220;
@@ -48,13 +48,13 @@
   --color-card-foreground: #e6edf3;
   --color-popover: #1c2128;
   --color-popover-foreground: #e6edf3;
-  --color-primary: #58a6ff;
+  --color-primary: #1f6feb;
   --color-primary-foreground: #ffffff;
   --color-secondary: #161b22;
   --color-secondary-foreground: #e6edf3;
   --color-muted: #21262d;
   --color-muted-foreground: #8b949e;
-  --color-destructive: #f85149;
+  --color-destructive: #cf222e;
   --color-destructive-foreground: #ffffff;
   --color-input: #30363d;
   --color-ring: #58a6ff;

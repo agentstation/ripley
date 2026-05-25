@@ -43,14 +43,16 @@ export function GuardDialog({ event }: Props) {
       </header>
 
       <div className="mb-4">
-        <h2 className="mb-1 text-xs font-medium uppercase tracking-wide text-text-muted">
+        <h2 className="mb-1 text-xs font-medium uppercase tracking-wide text-text-secondary">
           Matched rules
         </h2>
         <RuleMatchList rules={event.matched_rules} />
       </div>
 
       <div className="mb-6">
-        <h2 className="mb-1 text-xs font-medium uppercase tracking-wide text-text-muted">Script</h2>
+        <h2 className="mb-1 text-xs font-medium uppercase tracking-wide text-text-secondary">
+          Script
+        </h2>
         <pre
           id="guard-script"
           className="max-h-48 overflow-auto rounded border border-border-subtle bg-bg p-3 text-xs text-text-secondary"
