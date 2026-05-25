@@ -1,0 +1,6 @@
+[tools]
+node = "24"
+pnpm = "10"
+just = "1"
+lefthook = "1"
+"cargo:tauri-cli" = "2.11"

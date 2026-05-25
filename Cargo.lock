@@ -4121,6 +4121,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "ripley-desktop"
+version = "0.1.0"
+
+[[package]]
 name = "ripley-guard"
 version = "0.1.0"
 dependencies = [

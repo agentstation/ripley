@@ -3684,7 +3684,7 @@ Phase 4 Gate.
 
   Verify: `mise install && gh auth status && cargo --version && rustc --version && df -h . | tail -1 && cargo deny check && cargo test --workspace`
 
-- [ ] **M24.1** — Root monorepo scaffolding
+- [x] **M24.1** — Root monorepo scaffolding
 
   New files at workspace root:
   - `package.json` — private, `"packageManager": "pnpm@..."`, scripts proxy to `just`

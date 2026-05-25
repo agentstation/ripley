@@ -1,0 +1,27 @@
+pre-commit:
+  parallel: true
+  commands:
+    cargo-fmt:
+      glob: "*.rs"
+      run: cargo fmt --all -- --check
+    cargo-clippy:
+      glob: "*.rs"
+      run: cargo clippy --workspace --all-targets -- -D warnings
+    prettier:
+      glob: "apps/desktop/**/*.{ts,tsx,js,jsx,css,json,md}"
+      run: pnpm -F desktop exec prettier --check {staged_files}
+    eslint:
+      glob: "apps/desktop/**/*.{ts,tsx}"
+      run: pnpm -F desktop exec eslint {staged_files}
+    typecheck:
+      glob: "apps/desktop/**/*.{ts,tsx}"
+      run: pnpm -F desktop typecheck
+
+commit-msg:
+  commands:
+    conventional:
+      run: |
+        head -n1 {1} | grep -qE '^(feat|fix|chore|docs|refactor|test|perf|build|ci|style|revert)(\([a-z0-9._-]+\))?!?: .+' || {
+          echo "Commit message must follow Conventional Commits (feat:, fix:, chore:, ...)"
+          exit 1
+        }
