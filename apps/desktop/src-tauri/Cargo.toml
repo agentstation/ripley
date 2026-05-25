@@ -6,6 +6,33 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+[lib]
+name = "ripley_desktop_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
 [[bin]]
 name = "ripley-desktop"
 path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.1", features = [] }
+tauri = "2.1"
+tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
+specta = { version = "=2.0.0-rc.22" }
+specta-typescript = "0.0.9"
+
+[dependencies]
+tauri = { version = "2.1", features = ["tray-icon"] }
+tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
+specta = { version = "=2.0.0-rc.22" }
+specta-typescript = "0.0.9"
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+ripley-core = { workspace = true }
+ripley-ipc = { workspace = true }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

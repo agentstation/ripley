@@ -3706,7 +3706,7 @@ Phase 4 Gate.
 
   Verify: `pnpm install && just check && cargo build --workspace`
 
-- [ ] **M24.2** — Tauri 2 app scaffold
+- [x] **M24.2** — Tauri 2 app scaffold
 
   New directory `apps/desktop/`:
   - `package.json` — React 19.2, Vite 8, TS 6, Tailwind v4, shadcn CLI v4, Zustand 5, `@tanstack/react-query` v5, `@tanstack/react-table` v8, `@tanstack/react-virtual` v3, `@base-ui/react` ~1.5, `lucide-react`, `clsx`, `tailwind-merge`, `class-variance-authority`, `match-sorter`, `vite-tsconfig-paths`, `@tauri-apps/api` 2.11, `@tauri-apps/cli` 2.11
