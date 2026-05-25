@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use iced::futures::SinkExt;
+use iced::keyboard;
 use iced::widget::{Rule, button, column, container, row, text};
 use iced::{Element, Length, Subscription, Task as IcedTask, Theme};
 
@@ -170,11 +171,28 @@ impl RipleyApp {
     }
 
     fn subscription(&self) -> Subscription<Message> {
+        let keys = keyboard::on_key_press(|key, modifiers| {
+            if !modifiers.command() {
+                return None;
+            }
+            let view = match key.as_ref() {
+                keyboard::Key::Character("1") => View::Alerts,
+                keyboard::Key::Character("2") => View::Guard,
+                keyboard::Key::Character("3") => View::DeepScan,
+                keyboard::Key::Character("4") => View::Monitor,
+                keyboard::Key::Character("5") => View::Audit,
+                keyboard::Key::Character("6") => View::Posture,
+                keyboard::Key::Character("7") => View::Settings,
+                _ => return None,
+            };
+            Some(Message::NavigateTo(view))
+        });
+
         if !self.config.monitor.enabled {
-            return Subscription::none();
+            return keys;
         }
 
-        Subscription::run(|| {
+        let alerts = Subscription::run(|| {
             iced::stream::channel(32, |mut output| async move {
                 loop {
                     let resp =
@@ -194,7 +212,9 @@ impl RipleyApp {
                     tokio::time::sleep(std::time::Duration::from_secs(30)).await;
                 }
             })
-        })
+        });
+
+        Subscription::batch([keys, alerts])
     }
 
     fn view(&self) -> Element<'_, Message> {
