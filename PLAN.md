@@ -3772,7 +3772,7 @@ Phase 4 Gate.
 
   Verify: `pnpm vitest run src/components/ui/button.test.tsx`
 
-- [ ] **M24.6** — Lint/format/test rigging + lefthook hooks
+- [x] **M24.6** — Lint/format/test rigging + lefthook hooks
 
   Files:
   - `apps/desktop/eslint.config.js` — flat config above; add custom rule `ripley/no-raw-hex` (regex on JSX + CSS attrs forbidding `#[0-9a-fA-F]{3,8}` outside `theme.css`)

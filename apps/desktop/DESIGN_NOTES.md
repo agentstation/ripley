@@ -43,3 +43,19 @@ hand-validation of the full app.
 
 Source: PLAN.md M28 Phase 6 gate explicitly requires a manual smoke run
 before tagging the release.
+
+## M24.6 — ignore RUSTSEC-2025-0098 (unic-ucd-version unmaintained)
+
+`cargo deny check` started failing on RUSTSEC-2025-0098 (`unic-ucd-version`
+unmaintained, advisory date 2025). The crate is a transitive dep pulled in
+by Tauri:
+
+`tauri -> tauri-utils -> urlpattern -> unic-ucd-ident -> unic-ucd-version`
+
+No security vulnerability — just unmaintained. No upstream fix path exists
+until `urlpattern` migrates off the `unic-*` crates. This matches the
+existing precedent in `deny.toml` for the gtk-rs `RUSTSEC-2024-04xx`
+entries (also unmaintained-only, also transitive). Added to `deny.toml`
+ignore list with a re-evaluation note for Tauri 2.12.
+
+Source: deny.toml comment; precedent set by existing gtk-rs entries.

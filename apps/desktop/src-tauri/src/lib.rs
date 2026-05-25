@@ -31,10 +31,7 @@ pub fn run() {
     {
         use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
 
-        let toggle_shortcut = Shortcut::new(
-            Some(Modifiers::SUPER | Modifiers::SHIFT),
-            Code::KeyR,
-        );
+        let toggle_shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyR);
 
         app = app.plugin(
             tauri_plugin_global_shortcut::Builder::new()
