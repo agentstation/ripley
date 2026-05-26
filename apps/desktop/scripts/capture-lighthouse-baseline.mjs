@@ -18,12 +18,13 @@ if (!existsSync(path.join(APP_ROOT, "dist", "index.html"))) {
   process.exit(1);
 }
 
-const pnpmCmd = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const isWin = process.platform === "win32";
+const pnpmCmd = isWin ? "pnpm.cmd" : "pnpm";
 
 const preview = spawn(
   pnpmCmd,
   ["exec", "vite", "preview", "--port", String(PORT), "--strictPort"],
-  { cwd: APP_ROOT, stdio: ["ignore", "inherit", "inherit"] },
+  { cwd: APP_ROOT, stdio: ["ignore", "inherit", "inherit"], shell: isWin },
 );
 
 const shutdown = () => {
@@ -67,7 +68,7 @@ const lh = spawn(
     "--preset=desktop",
     "--only-categories=accessibility,performance,best-practices",
   ],
-  { cwd: APP_ROOT, stdio: ["ignore", "inherit", "inherit"] },
+  { cwd: APP_ROOT, stdio: ["ignore", "inherit", "inherit"], shell: isWin },
 );
 
 const lhExit = await new Promise((resolve) => lh.on("exit", resolve));
