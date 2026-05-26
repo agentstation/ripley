@@ -104,6 +104,79 @@ jobs:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v2
 
+  e2e:
+    name: e2e (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install Tauri Linux deps
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libxdo-dev \
+            xvfb \
+            webkit2gtk-driver
+
+      - name: Install tauri-driver
+        run: cargo install tauri-driver --locked
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build script-shell sidecar
+        run: cargo build -p ripley-guard --bin ripley-script-shell --release
+
+      - name: Stage sidecar for Tauri bundler
+        shell: bash
+        run: |
+          mkdir -p apps/desktop/src-tauri/binaries
+          TRIPLE=$(rustc -vV | sed -n 's/^host: //p')
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "target/release/ripley-script-shell.exe" \
+               "apps/desktop/src-tauri/binaries/ripley-script-shell-$TRIPLE.exe"
+          else
+            cp "target/release/ripley-script-shell" \
+               "apps/desktop/src-tauri/binaries/ripley-script-shell-$TRIPLE"
+          fi
+
+      - name: Build desktop app + guard-bench
+        run: cargo build -p ripley-desktop --release
+
+      - name: Run WebdriverIO e2e (Linux, under xvfb)
+        if: matrix.os == 'ubuntu-22.04'
+        env:
+          RIPLEY_SKIP_BUILD: "1"
+        run: xvfb-run -a pnpm -F desktop test:e2e
+
+      - name: Run WebdriverIO e2e (Windows)
+        if: matrix.os == 'windows-latest'
+        env:
+          RIPLEY_SKIP_BUILD: "1"
+        run: pnpm -F desktop test:e2e
+
   release:
     name: release-${{ matrix.target }}
     if: github.ref == 'refs/heads/main'

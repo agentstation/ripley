@@ -18,7 +18,10 @@ export default function App() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-background text-foreground font-sans flex items-center justify-center p-6">
+    <main
+      data-testid="app-root"
+      className="min-h-screen bg-background text-foreground font-sans flex items-center justify-center p-6"
+    >
       {currentEvent ? <GuardDialog event={currentEvent} /> : <HomeView />}
     </main>
   );
