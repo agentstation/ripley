@@ -160,6 +160,20 @@ jobs:
       - name: Install tauri-driver
         run: cargo install tauri-driver --locked
 
+      - name: Align msedgedriver to installed WebView2 (Windows)
+        # Tauri 2 e2e on Windows fails with `DevToolsActivePort file doesn't exist`
+        # when the runner's msedgedriver drifts from the installed WebView2 build.
+        # msedgedriver-tool downloads a matching driver and puts it on PATH.
+        # https://v2.tauri.app/develop/tests/webdriver/ci/
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          cargo install --git https://github.com/chippers/msedgedriver-tool --locked
+          msedgedriver-tool
+          # msedgedriver-tool writes the matched driver into the current dir;
+          # prepend it to PATH so tauri-driver picks it up over the bundled one.
+          "$pwd" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+
       - name: Install frontend deps
         run: pnpm install --frozen-lockfile
 
@@ -198,7 +212,17 @@ jobs:
         env:
           RIPLEY_SKIP_BUILD: "1"
           RIPLEY_E2E: "1"
-        run: xvfb-run -a pnpm -F desktop test:e2e
+        # Give xvfb a real-ish screen — Tauri's monitor APIs crash on the
+        # default 1280x1024x8 (tauri-apps/tauri#7376).
+        run: xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm -F desktop test:e2e
+
+      - name: Kill stale drivers (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        # Prevents tauri-apps/tauri#8610-class userdata-lock crashes between runs.
+        run: |
+          Get-Process msedgedriver -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Get-Process tauri-driver -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
       - name: Run WebdriverIO e2e (Windows)
         if: matrix.os == 'windows-latest'

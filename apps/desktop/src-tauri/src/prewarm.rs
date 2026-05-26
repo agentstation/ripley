@@ -37,8 +37,14 @@ pub fn show_on_event<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         return Ok(());
     };
 
-    if let Err(e) = center_on_cursor_monitor(&window) {
-        tracing::warn!("guard dialog could not center on cursor monitor: {e}");
+    // Skip monitor/cursor positioning under xvfb (E2E): wry's available_monitors /
+    // set_position have known crash paths on virtual displays
+    // (tauri-apps/tauri#7376, #14630). The window is already centered by the
+    // RIPLEY_E2E=1 prewarm::show() at startup.
+    if std::env::var_os("RIPLEY_E2E").is_none() {
+        if let Err(e) = center_on_cursor_monitor(&window) {
+            tracing::warn!("guard dialog could not center on cursor monitor: {e}");
+        }
     }
 
     window.show()?;
