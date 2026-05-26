@@ -183,7 +183,7 @@ jobs:
         run: pnpm -F desktop build:vite
 
       - name: Build desktop app + guard-bench
-        run: cargo build -p ripley-desktop --release
+        run: cargo build -p ripley-desktop --release --features custom-protocol
 
       - name: Probe native WebDriver (Linux)
         if: matrix.os == 'ubuntu-22.04'
