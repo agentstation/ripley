@@ -64,7 +64,14 @@ export const config: Options.Testrunner = {
   },
 
   beforeSession() {
-    tauriDriver = spawn(tauriDriverBin, [], {
+    const args: string[] = [];
+    if (process.env.RIPLEY_TAURI_DRIVER_DEBUG) {
+      args.push("--debug");
+    }
+    if (process.env.RIPLEY_NATIVE_DRIVER) {
+      args.push("--native-driver", process.env.RIPLEY_NATIVE_DRIVER);
+    }
+    tauriDriver = spawn(tauriDriverBin, args, {
       stdio: ["ignore", process.stdout, process.stderr],
     });
   },
