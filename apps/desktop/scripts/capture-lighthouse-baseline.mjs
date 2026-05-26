@@ -74,12 +74,19 @@ const lh = spawn(
 const lhExit = await new Promise((resolve) => lh.on("exit", resolve));
 shutdown();
 
-if (lhExit !== 0) {
-  console.error(`lighthouse exited with ${lhExit}`);
-  process.exit(lhExit ?? 1);
+let lhr;
+try {
+  lhr = JSON.parse(await readFile(tmpReport, "utf8"));
+} catch (err) {
+  console.error(`lighthouse exited with ${lhExit}; no usable report at ${tmpReport}: ${err.message}`);
+  process.exit(lhExit || 1);
 }
 
-const lhr = JSON.parse(await readFile(tmpReport, "utf8"));
+if (lhExit !== 0) {
+  console.warn(
+    `lighthouse exited with ${lhExit} but produced a valid report (likely chrome-launcher tmp-cleanup race on Windows); continuing.`,
+  );
+}
 const entry = {
   capturedAt: lhr.fetchTime,
   lighthouseVersion: lhr.lighthouseVersion,
