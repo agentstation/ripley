@@ -1,5 +1,9 @@
 pub mod alerts;
+pub mod audit;
+pub mod deep_scan;
 pub mod diag;
 pub mod guard;
 pub mod guard_log;
+pub mod monitor;
 pub mod ping;
+pub mod posture;

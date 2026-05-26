@@ -4010,7 +4010,7 @@ Phase 4 Gate.
 
   Verify: `pnpm vitest run src/routes/GuardLog`
 
-- [ ] **M27.4** — Deep scan / Monitor / Audit / Posture views
+- [x] **M27.4** — Deep scan / Monitor / Audit / Posture views
 
   Files:
   - `apps/desktop/src/routes/DeepScan.tsx` — `KeyValueGrid` over forensic report
