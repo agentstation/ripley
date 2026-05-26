@@ -105,8 +105,8 @@ contrast checks per the algorithm in WCAG 2.1 SC 1.4.3.
 
 ## M26 Gate — Lighthouse baseline capture model
 
-PLAN.md M26 Gate requires `lighthouse-baseline.json` scores recorded *for
-each OS* meeting `a11y ≥0.95`, `perf ≥0.90`, `best-practices ≥0.95`. The
+PLAN.md M26 Gate requires `lighthouse-baseline.json` scores recorded _for
+each OS_ meeting `a11y ≥0.95`, `perf ≥0.90`, `best-practices ≥0.95`. The
 existing `tests/browser/lighthouse/baseline.spec.ts` is skipped unless
 `LIGHTHOUSE=1` is set and a Chrome on `--remote-debugging-port=9222` is
 already attached — that wiring is deferred to M27 where per-view gates
@@ -137,6 +137,56 @@ the first green CI run on this branch and committed in a follow-up
 
 Source: PLAN.md M26 Gate items 7–8; comment in
 `baseline.spec.ts:14` deferring CI gates to M27.
+
+## M27.7 — DESIGN_ISSUES.md items intentionally deferred
+
+The Phase 6 disposition table in `DESIGN_ISSUES.md` routes most findings to
+"Resolved (Tauri)" — they shipped as part of M27.2–M27.6. The items below
+are explicitly **deferred** out of M27 with rationale captured here so the
+disposition is auditable.
+
+- **CC-3 / CC-4 / CC-5 (sidebar + top bar chrome).** The Tauri shell in
+  M27 is route-only — there is no sidebar in the current layout because
+  navigation is driven by the tray menu plus the Cmd+K command palette
+  (M27.5). Adding a sidebar/top-bar shell with logo, badge counts, version
+  footer, and last-poll status is a follow-on once a multi-pane layout
+  becomes necessary (a `routes/Shell.tsx` patch, not a token change).
+  Tracked, not blocking.
+
+- **V1.6 / V2.4 (empty-state CTAs on Alerts / Guard log).** The shared
+  `EmptyState` component supports a CTA slot, but the M27 routes ship
+  without per-view CTA wiring because the canonical "next action" for both
+  routes is "trigger a scan from the tray menu" — exposing the same action
+  twice (tray + in-route button) would conflict with the tray-driven UX.
+  Revisit once an in-app scan trigger exists.
+
+- **V3.3 (chevron section toggles in Deep scan).** The Tauri `DeepScan`
+  view renders summary rows via `KeyValueGrid` instead of collapsible
+  sections. The DOM already exposes the same information without
+  show/hide affordances, and the iced-era 16 px chevron requirement was
+  driven by limited vertical space. Re-introduce only if a future view
+  has enough findings to warrant collapse.
+
+- **V5.3 (category score cards above Audit).** Audit currently renders a
+  list of category articles with `TrafficLightDot` per category. A top-row
+  of score cards (label + traffic-light bar + finding count) is a
+  meaningful improvement when there are many categories, but adds visual
+  weight at small counts. Deferred until the Audit category set grows.
+
+- **Missing components #5 (category score card), #6 (traffic-light bar),
+  #9 (top bar), #10 (sidebar footer), #12 (notification overlay).** Tied
+  to the same chrome / category-aggregation deferrals above. Each will
+  land as the requesting view arrives.
+
+- **Missing component #3 (shared Card primitive).** The Tauri routes use
+  the Tailwind utility class string `rounded-lg border border-border-subtle
+bg-surface p-4` as the de-facto card convention. Extracting this into a
+  `<Card>` component would be cleaner once a second variant (e.g.
+  severity-tinted backgrounds) is needed; until then a CSS class
+  beats a one-prop wrapper.
+
+Source: M27.7 — disposition table in `DESIGN_ISSUES.md` flags each item
+above as "Deferred (notes)" and points here.
 
 ## M26 — Windows guard-dialog e2e skipped pending named-pipe IPC
 

@@ -4044,7 +4044,7 @@ Phase 4 Gate.
 
   Verify: `pnpm vitest run src/routes/Settings && cargo test -p ripley-desktop -- commands::settings`
 
-- [ ] **M27.7** — DESIGN_ISSUES.md follow-through
+- [x] **M27.7** — DESIGN_ISSUES.md follow-through
 
   Walk every numbered DESIGN_ISSUES item (4+) and either close it with a referenced PR/commit or move it to `apps/desktop/DESIGN_NOTES.md` with rationale. Items 1-3 dissolved by stack switch — mark as resolved.
 

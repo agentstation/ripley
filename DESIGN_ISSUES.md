@@ -4,15 +4,81 @@
 > `crates/ripley-app` (Phase 1-5) on 2026-05-22. It is the **priority-ordered
 > input list for Phase 6 M27 (view migration)** — the issues drove the stack
 > re-evaluation that produced [STACK_DECISION.md](STACK_DECISION.md), and the
-> *priority order* survives the iced→Tauri rewrite even though the underlying
+> _priority order_ survives the iced→Tauri rewrite even though the underlying
 > tech changes. Resolution path: addressed in the Tauri + React + shadcn/Base UI
-> + Tailwind v4 rewrite, not by patching iced.
+> \+ Tailwind v4 rewrite, not by patching iced.
 >
 > Items (1)-(3) (no tray, no native menu bar, no AX tree) are dissolved by the
 > stack switch itself — they were structural ceilings in iced that Tauri does
 > not share. Items (4)+ (design drift, theming, severity badges, etc.) become
 > concrete M27 tasks: implement once in shadcn/Tailwind tokens, ship across all
 > three OSes simultaneously.
+
+## Phase 6 disposition (M27.7)
+
+Every numbered finding below has been routed to one of three outcomes:
+
+| Outcome              | Meaning                                                                                                                                                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Resolved (Tauri)** | The Tauri/React migration shipped the fix as a side effect of building the corresponding component. The iced call-sites identified in the finding are retired with `crates/ripley-app` in M28. |
+| **Deferred (notes)** | Specific judgment moved to `apps/desktop/DESIGN_NOTES.md` because the Tauri implementation diverges from the iced-era recommendation.                                                          |
+| **Obsolete (stack)** | Finding was specific to iced widgets / theme.rs and disappears entirely with the stack switch — nothing to port.                                                                               |
+
+### Cross-cutting
+
+| ID                                         | Outcome          | Where it lives now                                                                                                                                                                |
+| ------------------------------------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CC-1 sidebar purple buttons                | Obsolete (stack) | iced `button::Style` ceiling; Tauri uses `components/ui/button.tsx` over Tailwind tokens. Sidebar nav lands with the shell in M27.8 follow-up; no equivalent regression possible. |
+| CC-2 empty-state CTA purple                | Resolved (Tauri) | `Button` variants in `apps/desktop/src/components/ui/button.tsx` consume `bg-primary`/`bg-accent-hover` from `styles/theme.css`.                                                  |
+| CC-3 sidebar header                        | Deferred (notes) | M27 routes ship without a sidebar shell; tray-driven navigation is the M28 model. Logo + version footer captured for the eventual shell pass.                                     |
+| CC-4 sidebar badges + footer               | Deferred (notes) | Same as CC-3; not blocking M27 close-out.                                                                                                                                         |
+| CC-5 top bar / view title                  | Resolved (Tauri) | Per-view `<section aria-label>` and route titles live inside each route component; no shared chrome is owed.                                                                      |
+| CC-6 severity badges                       | Resolved (Tauri) | `components/ripley/SeverityBadge.tsx` is the single primitive used by Alerts, Guard log, Monitor, Deep scan.                                                                      |
+| CC-7 severity background tokens            | Resolved (Tauri) | `--color-severity-*-bg` in `apps/desktop/src/styles/theme.css`.                                                                                                                   |
+| CC-8 inconsistent empty-state              | Resolved (Tauri) | `components/ripley/EmptyState.tsx` is the only empty-state pattern in the Tauri routes.                                                                                           |
+| CC-9 surface-hover / surface-active        | Resolved (Tauri) | `bg-surface-hover` Tailwind utility powered by `--color-surface-hover`; no `#[allow(dead_code)]` equivalent survives in CSS.                                                      |
+| CC-10 monospace font                       | Resolved (Tauri) | Tailwind `font-mono` applied at every pkg@version / path / fix-command site in M27.2–M27.6 routes.                                                                                |
+| CC-11 numeric counts size                  | Resolved (Tauri) | `KeyValueGrid` formats counts with DESIGN.md typography tokens.                                                                                                                   |
+| CC-12 settings form                        | Resolved (Tauri) | M27.6 — full editable form over `read_settings`/`write_settings` with atomic config writes.                                                                                       |
+| CC-13 sidebar background `bg` vs `SURFACE` | Obsolete (stack) | iced `theme.rs` palette mismatch dissolves with the rewrite.                                                                                                                      |
+
+### Per-view
+
+| ID                        | Outcome          | Notes                                                                                                                                                                                                                                          |
+| ------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| V1.1–V1.5 alerts row      | Resolved (Tauri) | M27.2 — `routes/Alerts.tsx` ships severity badge + monospace pkg@version + advisory id + project_path.                                                                                                                                         |
+| V1.6 alerts empty CTA     | Deferred (notes) | Empty state is shared (CC-8); per-view CTA copy/CTA wiring tracked in DESIGN_NOTES.md M27.7 entry.                                                                                                                                             |
+| V2.1–V2.3 guard log table | Resolved (Tauri) | M27.3 — `routes/GuardLog.tsx` is a columnar `DataTable` with severity badge + monospace script.                                                                                                                                                |
+| V2.4 guard log empty CTA  | Deferred (notes) | Same shared-empty-state caveat as V1.6.                                                                                                                                                                                                        |
+| V3.1–V3.8 deep scan       | Resolved (Tauri) | M27.4 — `routes/DeepScan.tsx` uses `KeyValueGrid` + `SeverityBadge`; dead-man-switch warning surfaces via a labeled row. Section chevrons (V3.3) intentionally not implemented — the Tauri DOM does not need them; tracked in DESIGN_NOTES.md. |
+| V4.1–V4.4 monitor         | Resolved (Tauri) | M27.4 — `routes/Monitor.tsx` splits severity badge + monospace process + secondary timestamp via `TimestampCell`.                                                                                                                              |
+| V5.1–V5.5 audit           | Resolved (Tauri) | M27.4 — `routes/Audit.tsx` standardised empty state, `TrafficLightDot` for category status, monospace fix-command blocks. Category score cards (V5.3) consciously omitted; tracked in DESIGN_NOTES.md.                                         |
+| V6.1–V6.5 posture         | Resolved (Tauri) | M27.4 — `routes/Posture.tsx` mirrors Audit pattern; detected PMs render as monospace pill row.                                                                                                                                                 |
+| V7.1–V7.4 settings        | Resolved (Tauri) | M27.6 — `routes/Settings.tsx` ships section-grouped form (General / Monitor / Guard / Posture) with radio group + checkboxes + numeric inputs.                                                                                                 |
+
+### Missing-component checklist
+
+| #   | Component                 | Outcome                                                                                                                                             |
+| --- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Severity badge            | Resolved — `SeverityBadge`.                                                                                                                         |
+| 2   | Severity dot              | Resolved — `TrafficLightDot`.                                                                                                                       |
+| 3   | Card                      | Resolved — Tailwind `rounded-lg border border-border-subtle bg-surface p-4` is the convention; not abstracted further on purpose (DESIGN_NOTES.md). |
+| 4   | Summary card              | Resolved — `KeyValueGrid` covers the numeric-summary case in Deep scan; severity-tinted variants are deferred.                                      |
+| 5   | Category score card       | Deferred (notes) — Audit/Posture render category headers with `TrafficLightDot` instead.                                                            |
+| 6   | Traffic-light bar         | Deferred (notes) — `TrafficLightDot` is the only traffic-light primitive shipped; bar variant tracked.                                              |
+| 7   | Code / command block      | Resolved — `<code>` with `bg-bg px-2 py-0.5 font-mono` is the convention across routes.                                                             |
+| 8   | Input / dropdown / toggle | Resolved (Tauri) — M27.6 settings form uses native form elements styled via DESIGN tokens; Base UI dropdown lands when a route needs it.            |
+| 9   | Top bar                   | Deferred (notes) — see CC-5.                                                                                                                        |
+| 10  | Sidebar footer            | Deferred (notes) — see CC-3/CC-4.                                                                                                                   |
+| 11  | Alert row                 | Resolved — `routes/Alerts.tsx`.                                                                                                                     |
+| 12  | Notification overlay      | Deferred (notes) — tray + OS notifications are the M28 path; in-app overlay is not on the Phase 6 critical path.                                    |
+
+The deferred items above are individually captured in
+`apps/desktop/DESIGN_NOTES.md` (M27.7 entry) with the rationale for why the
+Tauri shell intentionally diverges or postpones each one. The iced
+findings below are retained verbatim as the source-of-truth record of
+what drove the stack switch and the M27 component set; they are not
+re-validated against the Tauri code.
 
 Audit of the Ripley dashboard (`crates/ripley-app`) against [DESIGN.md](DESIGN.md)
 and [UI.md](UI.md), captured 2026-05-22 by driving the running app with Peekaboo
@@ -25,7 +91,6 @@ switches views 1–7; `peekaboo image --window-id <wid>` snapshots. The Cmd+1..7
 shortcuts were added in `crates/ripley-app/src/app.rs` for design iteration. In
 the Tauri rewrite the Peekaboo loop continues to work against the DOM
 accessibility tree exposed by WKWebView — same workflow, richer signal.
-
 
 ## Executive summary
 
@@ -49,7 +114,6 @@ Severity legend used below:
 - **P2** — Polish, empty-state coherence, hierarchy.
 - **P3** — Cleanup / nice-to-have.
 
-
 ## Root cause
 
 `theme.rs` is a flat list of color constants. It does **not** export:
@@ -72,7 +136,6 @@ real palette are those built from `container(...)` with an explicit
 This is fixable with one PR that introduces `theme/components.rs`
 (or `theme/buttons.rs` + `theme/cards.rs` + `theme/badges.rs`) and migrates
 the existing call sites.
-
 
 ## Cross-cutting issues
 
@@ -109,6 +172,7 @@ Requires `ACCENT_MUTED` to be added to `theme.rs` first (see RC).
 ### CC-2 (P0) — Empty-state CTAs render in iced default purple
 
 **Where:**
+
 - `crates/ripley-app/src/views/deep_scan.rs:74` (“Run Deep Scan”)
 - `crates/ripley-app/src/views/monitor.rs:17` (“Enable Monitor”)
 - `crates/ripley-app/src/views/deep_scan.rs:330,335` (“Export Report”, “Copy Rotation Checklist”)
@@ -140,6 +204,7 @@ bottom-border-only styling so the separator color matches `BORDER`.
 **Where:** `crates/ripley-app/src/app.rs:235-265`.
 
 **DESIGN.md / UI.md spec:**
+
 - Each nav item can show a right-aligned `badge` count (e.g. `Alerts (8)`
   in `severity-critical`).
 - Bottom of sidebar: version (`v0.1.0`), connection dot (green when
@@ -196,15 +261,15 @@ row highlights. None exist in `theme.rs`.
 
 ### CC-8 (P2) — Inconsistent empty-state pattern
 
-| View | Empty state |
-|------|-------------|
-| Alerts | centered "No findings / Your dependencies look clean." (no CTA) |
-| Guard log | centered "No guard log entries yet." (no CTA) |
-| Deep Scan | centered title + body + **CTA button** (Run Deep Scan) |
-| Monitor | centered title + body + **CTA button** (Enable Monitor) |
-| Audit | top-left aligned title + "Run `ripley audit` to generate…" (no centering, no CTA) |
-| Posture | top-left aligned title + "Run `ripley harden` to generate…" (no centering, no CTA) |
-| Settings | no empty state — it always shows |
+| View      | Empty state                                                                        |
+| --------- | ---------------------------------------------------------------------------------- |
+| Alerts    | centered "No findings / Your dependencies look clean." (no CTA)                    |
+| Guard log | centered "No guard log entries yet." (no CTA)                                      |
+| Deep Scan | centered title + body + **CTA button** (Run Deep Scan)                             |
+| Monitor   | centered title + body + **CTA button** (Enable Monitor)                            |
+| Audit     | top-left aligned title + "Run `ripley audit` to generate…" (no centering, no CTA)  |
+| Posture   | top-left aligned title + "Run `ripley harden` to generate…" (no centering, no CTA) |
+| Settings  | no empty state — it always shows                                                   |
 
 **DESIGN.md (Do's):** "Every view has a next action. No dead-end screens."
 
@@ -229,6 +294,7 @@ states via `button::Status::Hovered` / `Pressed` branches.
 must be `code` (system monospace).
 
 **Where this is violated:**
+
 - `views/alerts.rs:30-31` — package@version rendered with default sans
 - `views/guard_log.rs:25` — package + action rendered as sans
 - `views/deep_scan.rs:208,268` — `finding.path.display()` rendered as sans
@@ -271,80 +337,78 @@ recessed.
 
 **Fix:** Swap to `BG` and rely on the right border for separation.
 
-
 ## Per-view findings
 
 ### V1 — Alerts (default view) `views/alerts.rs`
 
-| ID | P | Finding |
-|----|---|---------|
-| V1.1 | P0 | List rows lack severity dot, severity badge, and `[Fix]` action — the row is a single `text(format!("[{}] {}@{}", sev, pkg, ver))`. Compare UI.md wireframe (line 138). |
-| V1.2 | P1 | Package@version is rendered in default sans, must be monospace (CC-10). |
-| V1.3 | P1 | No advisory ID line (UI.md spec line 152). |
-| V1.4 | P1 | No project path / timestamp / action button on each row. |
-| V1.5 | P2 | Row containers have `padding(12)` but no border-bottom and no hover state (CC-9). |
-| V1.6 | P2 | Empty state has no CTA (CC-8). |
+| ID   | P   | Finding                                                                                                                                                                 |
+| ---- | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| V1.1 | P0  | List rows lack severity dot, severity badge, and `[Fix]` action — the row is a single `text(format!("[{}] {}@{}", sev, pkg, ver))`. Compare UI.md wireframe (line 138). |
+| V1.2 | P1  | Package@version is rendered in default sans, must be monospace (CC-10).                                                                                                 |
+| V1.3 | P1  | No advisory ID line (UI.md spec line 152).                                                                                                                              |
+| V1.4 | P1  | No project path / timestamp / action button on each row.                                                                                                                |
+| V1.5 | P2  | Row containers have `padding(12)` but no border-bottom and no hover state (CC-9).                                                                                       |
+| V1.6 | P2  | Empty state has no CTA (CC-8).                                                                                                                                          |
 
 ### V2 — Guard log `views/guard_log.rs`
 
-| ID | P | Finding |
-|----|---|---------|
-| V2.1 | P1 | Renders as freeform text instead of the columnar table in UI.md lines 192-200. No TIME / PACKAGE / SCRIPT / RISK / ACTION columns. |
-| V2.2 | P1 | Risk level is rendered as `format!("Risk: {} · Script: {}", …)` — should be a severity badge + monospace script name. |
-| V2.3 | P2 | No expandable row interaction to show matched rules / script excerpt (DESIGN.md Tables, "Expandable rows"). |
-| V2.4 | P2 | Empty state has no CTA (CC-8). |
+| ID   | P   | Finding                                                                                                                            |
+| ---- | --- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| V2.1 | P1  | Renders as freeform text instead of the columnar table in UI.md lines 192-200. No TIME / PACKAGE / SCRIPT / RISK / ACTION columns. |
+| V2.2 | P1  | Risk level is rendered as `format!("Risk: {} · Script: {}", …)` — should be a severity badge + monospace script name.              |
+| V2.3 | P2  | No expandable row interaction to show matched rules / script excerpt (DESIGN.md Tables, "Expandable rows").                        |
+| V2.4 | P2  | Empty state has no CTA (CC-8).                                                                                                     |
 
 ### V3 — Deep Scan `views/deep_scan.rs`
 
-| ID | P | Finding |
-|----|---|---------|
-| V3.1 | P1 | Summary cards render the count with `size(18)` not the spec's `28` (CC-11). |
-| V3.2 | P1 | Summary card backgrounds are all `Colors::SURFACE` — DESIGN.md says the bg should be the severity background color matching the metric (clean green or critical red, never neutral). |
-| V3.3 | P1 | Section header arrows are `">"` / `"v"` text — should be 16 px chevron glyphs (DESIGN.md iconography). |
-| V3.4 | P1 | "Run Deep Scan" button is iced purple (CC-2). |
-| V3.5 | P1 | Dead-man-switch panel uses `SURFACE` background but DESIGN.md treatment for critical containers would call for `severity-critical-bg` (the translucent red) so it visually screams. |
-| V3.6 | P2 | Severity label rendered via `format!("{}", finding.severity)` instead of badge component (CC-6). |
-| V3.7 | P2 | Action buttons row at the bottom (`Export Report`, `Copy Rotation Checklist`) is left-aligned but has no `[secondary]` styling; both should be `button-secondary` not `button-primary` per UI.md conventions. |
-| V3.8 | P3 | "DEAD MAN SWITCH DETECTED" is `text(...)` in `SEVERITY_CRITICAL`; should also be a badge/banner with `severity-critical-bg` fill. |
+| ID   | P   | Finding                                                                                                                                                                                                       |
+| ---- | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| V3.1 | P1  | Summary cards render the count with `size(18)` not the spec's `28` (CC-11).                                                                                                                                   |
+| V3.2 | P1  | Summary card backgrounds are all `Colors::SURFACE` — DESIGN.md says the bg should be the severity background color matching the metric (clean green or critical red, never neutral).                          |
+| V3.3 | P1  | Section header arrows are `">"` / `"v"` text — should be 16 px chevron glyphs (DESIGN.md iconography).                                                                                                        |
+| V3.4 | P1  | "Run Deep Scan" button is iced purple (CC-2).                                                                                                                                                                 |
+| V3.5 | P1  | Dead-man-switch panel uses `SURFACE` background but DESIGN.md treatment for critical containers would call for `severity-critical-bg` (the translucent red) so it visually screams.                           |
+| V3.6 | P2  | Severity label rendered via `format!("{}", finding.severity)` instead of badge component (CC-6).                                                                                                              |
+| V3.7 | P2  | Action buttons row at the bottom (`Export Report`, `Copy Rotation Checklist`) is left-aligned but has no `[secondary]` styling; both should be `button-secondary` not `button-primary` per UI.md conventions. |
+| V3.8 | P3  | "DEAD MAN SWITCH DETECTED" is `text(...)` in `SEVERITY_CRITICAL`; should also be a badge/banner with `severity-critical-bg` fill.                                                                             |
 
 ### V4 — Monitor `views/monitor.rs`
 
-| ID | P | Finding |
-|----|---|---------|
-| V4.1 | P1 | "Enable Monitor" CTA in iced purple (CC-2). |
-| V4.2 | P1 | Alert rows show `[12:04:05Z] [HIGH] process (PID 123)` as a single text run. Should split into severity badge + monospace process name + secondary timestamp. |
-| V4.3 | P2 | `format_timestamp` strips date — fine for live view, but it should reuse a shared `format_short_time(u64)` so the same format appears in Alerts/Guard/Monitor. |
-| V4.4 | P2 | Empty state lacks an icon glyph. |
+| ID   | P   | Finding                                                                                                                                                        |
+| ---- | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| V4.1 | P1  | "Enable Monitor" CTA in iced purple (CC-2).                                                                                                                    |
+| V4.2 | P1  | Alert rows show `[12:04:05Z] [HIGH] process (PID 123)` as a single text run. Should split into severity badge + monospace process name + secondary timestamp.  |
+| V4.3 | P2  | `format_timestamp` strips date — fine for live view, but it should reuse a shared `format_short_time(u64)` so the same format appears in Alerts/Guard/Monitor. |
+| V4.4 | P2  | Empty state lacks an icon glyph.                                                                                                                               |
 
 ### V5 — Audit `views/audit.rs`
 
-| ID | P | Finding |
-|----|---|---------|
-| V5.1 | P1 | Empty state is top-left aligned plain text — break from the centered pattern of Deep Scan/Monitor (CC-8). |
-| V5.2 | P1 | Category traffic-light indicator is the unicode glyph `●◐○` followed by text — DESIGN.md (Traffic-Light Bars) specifies an 8 px filled bar with track. |
-| V5.3 | P1 | No category score cards on top — UI/DESIGN spec calls for a row of `category-score-card`s before the per-category list. |
-| V5.4 | P2 | Fix command line uses arrow `→` then plain sans — should use the `command-block` component (monospace + subtle bg + copy icon). |
-| V5.5 | P2 | Summary line at bottom (`"3 green, 1 yellow, 0 red"`) renders without color — should use `severity-*` colors inline. |
+| ID   | P   | Finding                                                                                                                                                |
+| ---- | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| V5.1 | P1  | Empty state is top-left aligned plain text — break from the centered pattern of Deep Scan/Monitor (CC-8).                                              |
+| V5.2 | P1  | Category traffic-light indicator is the unicode glyph `●◐○` followed by text — DESIGN.md (Traffic-Light Bars) specifies an 8 px filled bar with track. |
+| V5.3 | P1  | No category score cards on top — UI/DESIGN spec calls for a row of `category-score-card`s before the per-category list.                                |
+| V5.4 | P2  | Fix command line uses arrow `→` then plain sans — should use the `command-block` component (monospace + subtle bg + copy icon).                        |
+| V5.5 | P2  | Summary line at bottom (`"3 green, 1 yellow, 0 red"`) renders without color — should use `severity-*` colors inline.                                   |
 
 ### V6 — Posture `views/posture.rs`
 
-| ID | P | Finding |
-|----|---|---------|
-| V6.1 | P1 | Same empty-state inconsistency as V5.1. |
-| V6.2 | P1 | Same traffic-light glyph treatment as V5.2. |
-| V6.3 | P2 | "Detected: {pms_text}" line shows package managers as comma-joined plain text — should be a row of monospace pills (e.g. `npm v10.2.1` · `brew v4.2`). |
-| V6.4 | P2 | Same fix-command treatment as V5.4. |
-| V6.5 | P2 | The traffic-light dot color in the category header (line 60) is a bare `text("●")` not a real dot graphic — fine for now, but DESIGN.md calls for the 8 px filled circle as a primitive. |
+| ID   | P   | Finding                                                                                                                                                                                  |
+| ---- | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| V6.1 | P1  | Same empty-state inconsistency as V5.1.                                                                                                                                                  |
+| V6.2 | P1  | Same traffic-light glyph treatment as V5.2.                                                                                                                                              |
+| V6.3 | P2  | "Detected: {pms_text}" line shows package managers as comma-joined plain text — should be a row of monospace pills (e.g. `npm v10.2.1` · `brew v4.2`).                                   |
+| V6.4 | P2  | Same fix-command treatment as V5.4.                                                                                                                                                      |
+| V6.5 | P2  | The traffic-light dot color in the category header (line 60) is a bare `text("●")` not a real dot graphic — fine for now, but DESIGN.md calls for the 8 px filled circle as a primitive. |
 
 ### V7 — Settings `views/settings.rs`
 
-| ID | P | Finding |
-|----|---|---------|
-| V7.1 | P0 | The entire view is read-only `text(format!(...))` output. UI.md specifies a full editable form with dropdowns, toggles, list editors. (See CC-12.) |
-| V7.2 | P1 | "Monitor" subheading shares the same 14 px sans as the rest — DESIGN.md headings are 15 px **semibold** with bottom-rule. |
-| V7.3 | P1 | No section grouping or visual separation between General / Monitoring / Guard / Monitor sections. |
-| V7.4 | P2 | Boolean values printed as `yes` / `no` — should be toggle widgets per DESIGN.md (Toggles). |
-
+| ID   | P   | Finding                                                                                                                                            |
+| ---- | --- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| V7.1 | P0  | The entire view is read-only `text(format!(...))` output. UI.md specifies a full editable form with dropdowns, toggles, list editors. (See CC-12.) |
+| V7.2 | P1  | "Monitor" subheading shares the same 14 px sans as the rest — DESIGN.md headings are 15 px **semibold** with bottom-rule.                          |
+| V7.3 | P1  | No section grouping or visual separation between General / Monitoring / Guard / Monitor sections.                                                  |
+| V7.4 | P2  | Boolean values printed as `yes` / `no` — should be toggle widgets per DESIGN.md (Toggles).                                                         |
 
 ## Missing components (not yet implemented at all)
 
@@ -365,12 +429,12 @@ have no implementation:
 11. **Alert row** (severity dot + badge + pkg@ver mono + advisory + path + time + action).
 12. **Notification overlay** (in-app variant of the OS notification).
 
-
 ## Recommended remediation order
 
 Each block is roughly one PR. Bullets in priority order.
 
 ### Block A — Theme foundation (unblocks everything else)
+
 1. Add missing color tokens to `theme.rs`: `ACCENT_MUTED`, `ACCENT_ACTIVE`,
    `TEXT_ON_ACCENT`, `SEVERITY_*_BG` (5 entries), `SURFACE_ELEVATED`.
    Remove the `#[allow(dead_code)]` markers from `SURFACE_HOVER` and
@@ -381,27 +445,31 @@ Each block is roughly one PR. Bullets in priority order.
 4. Add `theme::buttons::{primary, secondary, danger, nav}` style closures.
 
 ### Block B — Shell shape (CC-3, CC-4, CC-5)
+
 1. Add top bar with current view title + monitoring status + last poll.
 2. Rebuild sidebar with logo header, badge support, footer (version + status dot).
 3. Move view titles out of view bodies.
 
 ### Block C — Severity primitives (CC-6, CC-7, V1.1, V3.6, V5.2)
+
 1. Implement `severity_badge`, `severity_dot`, `traffic_light_bar` as
    reusable elements.
 2. Replace every inline `format!("[{}]", sev)` with the badge.
 3. Replace every `text("●")` / `text("◐")` with the dot primitive.
 
 ### Block D — Empty-state unification (CC-8)
+
 1. Single `empty_state(title, body, cta)` helper.
 2. Convert Alerts, Guard, Audit, Posture to use it with appropriate CTAs.
 
 ### Block E — Alerts + Guard row layouts (V1.1–1.5, V2.1–2.3)
+
 Significant work — closest to the UI.md wireframes; should be its own PR.
 
 ### Block F — Settings form (V7.x, CC-12)
+
 Largest single piece of work; depends on `iced` toggle + radio implementations.
 Tracking-only for now.
-
 
 ## Verification workflow
 
