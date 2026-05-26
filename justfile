@@ -58,5 +58,5 @@ test-browser-ui:
 test-browser-prod:
     pnpm -F desktop test:browser:prod
 
-guard-bench:
-    cargo bench -p ripley-core --bench guard_latency
+guard-bench iterations="10":
+    cargo run -p ripley-desktop --bin guard-bench --release -- {{iterations}}

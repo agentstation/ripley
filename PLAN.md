@@ -3816,7 +3816,7 @@ Phase 4 Gate.
 - [x] **`just test:browser` passes** — Playwright smoke + a11y baseline + Lighthouse baseline recorded
 - [x] **Chrome DevTools MCP can drive `http://localhost:5173`** — agent verified by `navigate_page` + `take_screenshot` + `lighthouse_audit`
 - [x] **ESLint rule `ripley/no-raw-hex` fires on a deliberate test violation**
-- [ ] Commit: `M24: Tauri scaffold and shell`
+- [x] Commit: `M24: Tauri scaffold and shell` *(merged in PR #1, squash commit e935145)*
 
 
 ### M25: Guard-dialog critical path
@@ -3847,7 +3847,7 @@ Phase 4 Gate.
 
   Verify: `pnpm vitest run src/routes/GuardDialog`
 
-- [ ] **M25.3** — Pre-warm strategy + show-on-event
+- [x] **M25.3** — Pre-warm strategy + show-on-event
 
   Files:
   - `apps/desktop/src-tauri/src/prewarm.rs` — hidden window pre-rendered on startup; `show_on_event(event)`: populate state via channel, `set_focus`, center on cursor display
@@ -3857,7 +3857,7 @@ Phase 4 Gate.
 
   Verify: manual smoke on dev box.
 
-- [ ] **M25.4** — Latency instrumentation
+- [x] **M25.4** — Latency instrumentation
 
   Files:
   - `apps/desktop/src-tauri/src/ipc_bridge.rs` — `tracing::info!` spans: `event_received`, `event_emitted`, `dialog_visible`
@@ -3869,7 +3869,7 @@ Phase 4 Gate.
 
   Verify: `just guard-bench` reports p95 cold <500ms, p95 warm <50ms on Apple Silicon dev box.
 
-- [ ] **M25.5** — Sidecar wire-up to `ripley-script-shell`
+- [x] **M25.5** — Sidecar wire-up to `ripley-script-shell`
 
   Files:
   - `apps/desktop/src-tauri/tauri.conf.json` — `bundle.externalBin: ["binaries/ripley-script-shell"]` per-platform suffixes
@@ -3890,13 +3890,13 @@ Phase 4 Gate.
 
 #### M25 Gate
 - [ ] Simulated `npm install` interception triggers guard dialog end-to-end
-- [ ] User Allow → script-shell exits 0; Block → script-shell exits non-zero (Phase 1 contract preserved)
+- [x] User Allow → script-shell exits 0; Block → script-shell exits non-zero (Phase 1 contract preserved)
 - [ ] p95 cold latency <500ms on Apple Silicon
 - [ ] p95 warm latency <50ms on Apple Silicon
-- [ ] `tauri-specta` types compile without `any` in IPC layer
-- [ ] No protocol change to `ripley_ipc::protocol` (Phase 1 wire format preserved)
-- [ ] **Playwright perf spec** (`tests/browser/perf/guard-dialog.spec.ts`) mounts the dialog component in Vite-served React, uses `performance.mark` between route enter and first interactive paint, and asserts warm budget <50ms in headless Chromium (proxy for the Tauri shell — does not replace the native cold-path measurement above)
-- [ ] **Playwright a11y spec** for guard dialog passes axe with zero violations of `serious` or `critical` severity
+- [x] `tauri-specta` types compile without `any` in IPC layer
+- [x] No protocol change to `ripley_ipc::protocol` (Phase 1 wire format preserved)
+- [x] **Playwright perf spec** (`tests/browser/perf/guard-dialog.spec.ts`) mounts the dialog component in Vite-served React, uses `performance.mark` between route enter and first interactive paint, and asserts warm budget <50ms in headless Chromium (proxy for the Tauri shell — does not replace the native cold-path measurement above)
+- [x] **Playwright a11y spec** for guard dialog passes axe with zero violations of `serious` or `critical` severity
 - [ ] Commit: `M25: Guard-dialog critical path`
 
 

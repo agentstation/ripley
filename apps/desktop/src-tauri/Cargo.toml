@@ -18,6 +18,11 @@ path = "src/main.rs"
 name = "gen-bindings"
 path = "src/bin/gen-bindings.rs"
 
+[[bin]]
+name = "guard-bench"
+path = "src/bin/guard_bench.rs"
+required-features = []
+
 [build-dependencies]
 tauri-build = { version = "2.1", features = [] }
 tauri = "2.1"
@@ -38,6 +43,11 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 ripley-core = { workspace = true }
 ripley-ipc = { workspace = true }
+thiserror = { workspace = true }
+tokio-util = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]

@@ -34,12 +34,14 @@ colors:
   accent: "#58a6ff"
   accent-hover: "#79c0ff"
   accent-active: "#388bfd"
+  accent-strong: "#1f6feb"
   accent-muted: "#58a6ff30"
 
   # Severity
   severity-critical: "#f85149"
   severity-critical-bg: "#f8514920"
-  severity-high: "#db6d28"
+  severity-critical-strong: "#cf222e"
+  severity-high: "#f0883e"
   severity-high-bg: "#db6d2820"
   severity-medium: "#d29922"
   severity-medium-bg: "#d2992220"
@@ -334,9 +336,10 @@ Blue for interactive elements. Never used for status or severity.
 
 | Token             | Hex       | Usage                                     |
 |-------------------|-----------|-------------------------------------------|
-| `accent`          | `#58a6ff` | Links, primary buttons, active nav item   |
+| `accent`          | `#58a6ff` | Links, active nav item, accent highlights |
 | `accent-hover`    | `#79c0ff` | Accent on hover                           |
 | `accent-active`   | `#388bfd` | Accent on press                           |
+| `accent-strong`   | `#1f6feb` | Primary button background (AA with white) |
 | `accent-muted`    | `#58a6ff30`| Active sidebar item background           |
 
 ### Severity
@@ -349,7 +352,7 @@ background (badge fill, row highlight).
 | Level    | Foreground | Background   | When to use                         |
 |----------|------------|--------------|-------------------------------------|
 | Critical | `#f85149`  | `#f8514920`  | Active exploits, known malware, dead man switches |
-| High     | `#db6d28`  | `#db6d2820`  | Network calls, eval, binary download, credential theft |
+| High     | `#f0883e`  | `#db6d2820`  | Network calls, eval, binary download, credential theft |
 | Medium   | `#d29922`  | `#d2992220`  | Env harvesting, scope escape, posture warnings |
 | Low      | `#58a6ff`  | `#58a6ff20`  | Informational signals, minor findings |
 | Clean    | `#3fb950`  | `#3fb95020`  | No findings, healthy status, passed checks |
@@ -495,9 +498,9 @@ Danger for destructive/containment actions.
 
 | Variant   | Background     | Text Color        | Border               | Radius   |
 |-----------|----------------|-------------------|-----------------------|----------|
-| Primary   | `accent`       | `text-on-accent`  | none                  | `md`     |
+| Primary   | `accent-strong`| `text-on-accent`  | none                  | `md`     |
 | Secondary | transparent    | `text-primary`    | 1px solid `border`    | `md`     |
-| Danger    | `severity-critical` | `text-on-severity` | none            | `md`     |
+| Danger    | `severity-critical-strong` | `text-on-severity` | none     | `md`     |
 
 Padding: `sm` vertical, `lg` horizontal. Font: `body` at weight 600.
 

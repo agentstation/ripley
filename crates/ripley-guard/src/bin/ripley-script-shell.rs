@@ -8,6 +8,8 @@ use ripley_core::config::{self, GuardConfig};
 use ripley_core::rules::RuleSet;
 use ripley_core::sandbox::{self, SandboxProfile, SandboxResult};
 use ripley_core::types::{Ecosystem, Severity};
+#[cfg(unix)]
+use ripley_ipc::protocol::{GuardDecision, GuardPromptData, Request, Response};
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -41,6 +43,21 @@ fn main() -> ExitCode {
     }
 
     print_analysis(&result);
+
+    #[cfg(unix)]
+    if let Some(decision) = try_desktop_decision(&script, &result) {
+        match decision {
+            GuardDecision::Allow | GuardDecision::Trust => {
+                log_decision(&script, "allowed", &result, true);
+                return execute_script(&args, &script, &config);
+            }
+            GuardDecision::Block => {
+                eprintln!("ripley: blocked by desktop dialog");
+                log_decision(&script, "blocked", &result, true);
+                return ExitCode::from(1);
+            }
+        }
+    }
 
     if std::env::var("RIPLEY_NON_INTERACTIVE").is_ok() || !io::stdin().is_terminal() {
         if result.risk_level >= Severity::High {
@@ -166,6 +183,47 @@ fn detect_ecosystem() -> Ecosystem {
         Ecosystem::PyPI
     } else {
         Ecosystem::Npm
+    }
+}
+
+/// Synchronously consult the desktop guard dialog (if running) over the UDS.
+///
+/// Returns `Some(decision)` only when a desktop app is listening and replies
+/// in time. Any failure (no socket, IO error, timeout, malformed response)
+/// returns `None` so the caller falls back to the terminal prompt — this
+/// preserves Phase 1 behavior on systems without the desktop app installed.
+#[cfg(unix)]
+fn try_desktop_decision(script: &str, result: &analyzer::AnalysisResult) -> Option<GuardDecision> {
+    if std::env::var("RIPLEY_FORCE_CLI").is_ok() {
+        return None;
+    }
+    if !ripley_ipc::client::is_daemon_running() {
+        return None;
+    }
+
+    let prompt = GuardPromptData {
+        package: std::env::var("npm_package_name").unwrap_or_default(),
+        version: std::env::var("npm_package_version").unwrap_or_default(),
+        script: script.chars().take(4096).collect(),
+        risk_level: result.risk_level.to_string(),
+        matched_rules: result
+            .matched_rules
+            .iter()
+            .map(|r| r.rule_id.clone())
+            .collect(),
+    };
+
+    let req = Request::GuardPrompt(prompt);
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .ok()?;
+    let response = runtime
+        .block_on(ripley_ipc::client::send_request(&req))
+        .ok()?;
+    match response {
+        Response::GuardDecision(d) => Some(d),
+        _ => None,
     }
 }
 

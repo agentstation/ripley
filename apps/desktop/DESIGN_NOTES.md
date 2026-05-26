@@ -59,3 +59,46 @@ entries (also unmaintained-only, also transitive). Added to `deny.toml`
 ignore list with a re-evaluation note for Tauri 2.12.
 
 Source: deny.toml comment; precedent set by existing gtk-rs entries.
+
+## M25.6 — guard dialog WCAG AA contrast adjustments
+
+Two token-level adjustments to land the guard-dialog axe pass (no
+serious/critical violations under wcag2a / wcag2aa / wcag21a / wcag21aa):
+
+1. `severity-high` foreground brightened from `#db6d28` to `#f0883e`.
+   The old hue measured 4.09:1 against `#1c2128` (dialog surface), under
+   the 4.5:1 AA threshold for normal text. `#f0883e` lifts it to ~4.93:1
+   while staying inside the warm-orange band. `severity-high-bg` is
+   unchanged (`#db6d2820`) because backgrounds aren't constrained by the
+   text-contrast rule. Updated in `apps/desktop/src/styles/theme.css` and
+   in DESIGN.md (severity table + token list).
+
+2. Guard-dialog section headers ("Matched rules", "Script") switched from
+   `text-text-muted` to `text-text-secondary`. DESIGN.md scopes
+   `text-muted` to "Disabled text, placeholders" only — section labels
+   are not disabled UI. `text-text-muted` (`#484f58`) measures 1.95:1 on
+   the dialog surface, far below AA; `text-text-secondary` (`#8b949e`)
+   measures ~6.4:1 and matches the intended semantic role.
+
+3. Primary button background moved from `accent` (`#58a6ff`) to a new
+   `accent-strong` token (`#1f6feb`). White on `#58a6ff` only reaches
+   2.52:1; white on `#1f6feb` lifts to ~4.57:1 (just above the AA
+   normal-text bar). `--color-primary` in theme.css points at the new
+   shade; `--color-accent` is untouched so the brand blue still drives
+   links, sidebar active item, and accent-muted highlights. DESIGN.md
+   token list and Button spec updated to reference `accent-strong`. The
+   shared `text-on-accent` token stays at `#ffffff` because it is also
+   used as the toggle-knob color, which is a visual control rather than
+   text.
+
+4. Destructive button background moved from `severity-critical`
+   (`#f85149`) to a new `severity-critical-strong` token (`#cf222e`).
+   White on `#f85149` only reaches 3.35:1; white on `#cf222e` lifts to
+   ~5.5:1. `--color-destructive` in theme.css points at the new shade;
+   `--color-severity-critical` is untouched so the badge foreground and
+   "critical" severity affordances still render in the brighter red on
+   dark tinted backgrounds where contrast is already adequate.
+
+Source: axe-core/playwright report against
+`apps/desktop/tests/browser/a11y/guard-dialog.spec.ts`; manual WCAG
+contrast checks per the algorithm in WCAG 2.1 SC 1.4.3.
