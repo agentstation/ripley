@@ -80,6 +80,12 @@ pub fn run() {
 
             tray::build(app.handle())?;
 
+            if std::env::var_os("RIPLEY_E2E").is_some() {
+                if let Err(e) = prewarm::show(app.handle()) {
+                    tracing::warn!("RIPLEY_E2E show failed: {e}");
+                }
+            }
+
             #[cfg(unix)]
             {
                 use tauri_specta::Event as _;

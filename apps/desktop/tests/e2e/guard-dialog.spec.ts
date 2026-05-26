@@ -9,11 +9,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isWindows = os.platform() === "win32";
+const workspaceRoot = path.resolve(__dirname, "..", "..", "..", "..");
 const guardBenchBin = path.resolve(
-  __dirname,
-  "..",
-  "..",
-  "src-tauri",
+  workspaceRoot,
   "target",
   "release",
   isWindows ? "guard-bench.exe" : "guard-bench",
