@@ -36,7 +36,13 @@ async function waitForGuardListener() {
   await browser.pause(500);
 }
 
-describe("guard dialog (e2e)", () => {
+// Windows skip: guard-bench + the desktop UDS bridge are #[cfg(unix)] —
+// no Windows transport (named pipes) exists yet. The Windows guard-dialog
+// path lands with M27 when ripley-ipc grows a named-pipe transport. The
+// smoke spec still covers the Tauri shell + WebView2 on Windows.
+const describeGuardDialog = isWindows ? describe.skip : describe;
+
+describeGuardDialog("guard dialog (e2e)", () => {
   it("renders the dialog and the Allow path closes it", async () => {
     await waitForGuardListener();
     const inFlight = fireGuardPrompt();

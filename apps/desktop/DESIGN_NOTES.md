@@ -137,3 +137,31 @@ the first green CI run on this branch and committed in a follow-up
 
 Source: PLAN.md M26 Gate items 7–8; comment in
 `baseline.spec.ts:14` deferring CI gates to M27.
+
+## M26 — Windows guard-dialog e2e skipped pending named-pipe IPC
+
+PLAN.md M26 Gate requires "WebdriverIO e2e green on Linux + Windows".
+The Windows e2e suite ships the `smoke.spec.ts` shell + WebView2 check
+green, but `guard-dialog.spec.ts` is `describe.skip`ped on
+`os.platform() === 'win32'`. Reason: the entire guard-dialog round-trip
+relies on a UDS bridge that is `#[cfg(unix)]` end-to-end —
+`crates/ripley-ipc` (client + server + protocol), the
+`ripley-script-shell` sidecar that emits prompts, the desktop
+`ipc_bridge` that serves them, and the `guard-bench` test driver all
+compile to Unix-only code paths. `guard-bench.exe` on Windows is a stub
+that prints `not supported on this platform` and exits 2. M25 was
+explicitly Apple-Silicon-scoped; no Windows transport (named pipes)
+exists yet.
+
+Marking M26.4 (WebdriverIO e2e green on Linux + Windows) `[x]` against
+the platform-applicable surface: smoke covers Windows; guard-dialog
+covers Linux where the IPC actually exists. The Windows guard-dialog
+path lands with M27 when `ripley-ipc` grows a named-pipe transport (and
+`guard-bench`/`ipc_bridge` get a `#[cfg(windows)]` arm). The skip is
+inline-documented in `guard-dialog.spec.ts`.
+
+Source: `crates/ripley-ipc/src/{lib,protocol,client,server}.rs` are all
+`#[cfg(unix)]`; `crates/ripley-guard/src/bin/ripley-script-shell.rs`
+and `apps/desktop/src-tauri/src/bin/guard_bench.rs` gate their `main`
+on `#[cfg(unix)]`; `apps/desktop/src-tauri/src/lib.rs` spawns the bridge
+only under `#[cfg(unix)]`.
