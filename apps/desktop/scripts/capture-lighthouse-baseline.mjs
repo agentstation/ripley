@@ -62,6 +62,7 @@ const lh = spawn(
     `--output-path=${tmpReport}`,
     "--quiet",
     `--chrome-flags=${chromeFlags.join(" ")}`,
+    "--preset=desktop",
     "--only-categories=accessibility,performance,best-practices",
   ],
   { cwd: APP_ROOT, stdio: ["ignore", "inherit", "inherit"] },
