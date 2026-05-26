@@ -23,6 +23,7 @@ apps/desktop/src-tauri/icons/StoreLogo.png
 apps/desktop/test-results/
 apps/desktop/playwright-report/
 apps/desktop/playwright/.cache/
+apps/desktop/tests/peekaboo/snapshots/
 
 # /goal turn counter (per-run state, not per-repo)
 apps/desktop/.ripley-agent/turns

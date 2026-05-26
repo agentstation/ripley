@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "thresholds": {
+    "accessibility": 0.95,
+    "performance": 0.9,
+    "bestPractices": 0.95
+  },
+  "byOs": {
+    "darwin": {
+      "capturedAt": "2026-05-26T16:57:20.111Z",
+      "lighthouseVersion": "13.3.0",
+      "accessibility": 1,
+      "performance": 1,
+      "bestPractices": 0.96
+    },
+    "linux": {
+      "capturedAt": "2026-05-26T16:56:27.896Z",
+      "lighthouseVersion": "13.3.0",
+      "accessibility": 1,
+      "performance": 1,
+      "bestPractices": 0.96
+    },
+    "win32": {
+      "capturedAt": "2026-05-26T17:00:13.259Z",
+      "lighthouseVersion": "13.3.0",
+      "accessibility": 1,
+      "performance": 1,
+      "bestPractices": 0.96
+    }
+  }
+}

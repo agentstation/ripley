@@ -45,8 +45,11 @@ pub fn run() {
 
     let mut app = tauri::Builder::default();
 
+    // Skip the global shortcut under RIPLEY_E2E=1: Windows 11 reserves
+    // Win+Shift+R, so registration panics on the GH runner; the e2e smoke
+    // test only inspects the DOM and doesn't depend on the toggle firing.
     #[cfg(desktop)]
-    {
+    if std::env::var_os("RIPLEY_E2E").is_none() {
         use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
 
         let toggle_shortcut = Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::KeyR);
@@ -79,6 +82,12 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             tray::build(app.handle())?;
+
+            if std::env::var_os("RIPLEY_E2E").is_some() {
+                if let Err(e) = prewarm::show(app.handle()) {
+                    tracing::warn!("RIPLEY_E2E show failed: {e}");
+                }
+            }
 
             #[cfg(unix)]
             {

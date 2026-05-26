@@ -3904,7 +3904,7 @@ Phase 4 Gate.
 
 **Goal:** Reproducible builds on Linux + Windows. Tray works on macOS, Windows 11, KDE, and (documented) GNOME + Hyprland. Tauri bundler outputs `.dmg`/`.app`, `.msi`/`.exe`, AppImage/`.deb`/`.rpm`. WebdriverIO e2e runs on Linux + Windows CI. macOS e2e gap explicitly documented and compensated.
 
-- [ ] **M26.1** — Linux build + tray verification
+- [x] **M26.1** — Linux build + tray verification
 
   Files:
   - `.github/workflows/ci.yml` — `ubuntu-22.04` matrix entry with `webkit2gtk-4.1-dev`, `libayatana-appindicator3-dev` apt deps
@@ -3915,7 +3915,7 @@ Phase 4 Gate.
 
   Verify: `cargo build --target x86_64-unknown-linux-gnu && pnpm tauri build --target x86_64-unknown-linux-gnu`
 
-- [ ] **M26.2** — Windows build + tray verification
+- [x] **M26.2** — Windows build + tray verification
 
   Files:
   - `.github/workflows/ci.yml` — `windows-latest` matrix entry
@@ -3926,7 +3926,7 @@ Phase 4 Gate.
 
   Verify: `cargo build --target x86_64-pc-windows-msvc` produces a working `.msi`.
 
-- [ ] **M26.3** — Tauri bundler outputs per OS
+- [x] **M26.3** — Tauri bundler outputs per OS
 
   Files:
   - `apps/desktop/src-tauri/tauri.conf.json` — `bundle.targets: ["dmg", "app", "msi", "appimage", "deb", "rpm"]`
@@ -3937,7 +3937,7 @@ Phase 4 Gate.
 
   Verify: `pnpm tauri build --debug` on each matrix entry produces expected files.
 
-- [ ] **M26.4** — WebdriverIO e2e setup (Linux + Windows)
+- [x] **M26.4** — WebdriverIO e2e setup (Linux + Windows)
 
   Files:
   - `apps/desktop/wdio.conf.ts` — `tauri-driver` binary path, capabilities `tauri:options`
@@ -3949,7 +3949,7 @@ Phase 4 Gate.
 
   Verify: `pnpm -C apps/desktop e2e` on Linux + Windows CI.
 
-- [ ] **M26.5** — macOS coverage compensation
+- [x] **M26.5** — macOS coverage compensation
 
   Files:
   - `apps/desktop/tests/peekaboo/` — screenshot scripts driven by the existing Peekaboo loop for tray/dialog visuals
@@ -3961,14 +3961,14 @@ Phase 4 Gate.
   Verify: `cargo test -p ripley-desktop`
 
 #### M26 Gate
-- [ ] CI green on `ubuntu-22.04`, `windows-latest`, and `macos-14`
-- [ ] Tauri bundler emits `.dmg`, `.app`, `.msi`, `.AppImage`, `.deb`, `.rpm`
-- [ ] Tray visible + functional on macOS, Windows 11, KDE Plasma 6; documented setup for stock GNOME (AppIndicator) + Hyprland
-- [ ] WebdriverIO e2e green on Linux + Windows
-- [ ] macOS WebDriver gap documented + compensated (Rust integ + Vitest + Peekaboo)
-- [ ] **Playwright browser suite runs on all three OS runners** in CI alongside WebdriverIO — Playwright covers Vite-served React (no Tauri shell), WebdriverIO covers the Tauri shell on Linux + Windows. On macOS, Playwright is the only browser-level signal (compensates for the WebDriver gap)
-- [ ] **Lighthouse baseline scores recorded** in `tests/browser/__snapshots__/lighthouse-baseline.json` for each OS — accessibility ≥95, best-practices ≥95, performance ≥90 on the empty shell
-- [ ] Commit: `M26: Cross-platform parity`
+- [x] CI green on `ubuntu-22.04`, `windows-latest`, and `macos-14`
+- [x] Tauri bundler emits `.dmg`, `.app`, `.msi`, `.AppImage`, `.deb`, `.rpm`
+- [x] Tray visible + functional on macOS, Windows 11, KDE Plasma 6; documented setup for stock GNOME (AppIndicator) + Hyprland
+- [x] WebdriverIO e2e green on Linux + Windows
+- [x] macOS WebDriver gap documented + compensated (Rust integ + Vitest + Peekaboo)
+- [x] **Playwright browser suite runs on all three OS runners** in CI alongside WebdriverIO — Playwright covers Vite-served React (no Tauri shell), WebdriverIO covers the Tauri shell on Linux + Windows. On macOS, Playwright is the only browser-level signal (compensates for the WebDriver gap)
+- [x] **Lighthouse baseline scores recorded** in `tests/browser/__snapshots__/lighthouse-baseline.json` for each OS — accessibility ≥95, best-practices ≥95, performance ≥90 on the empty shell
+- [x] Commit: `M26: Cross-platform parity`
 
 
 ### M27: View migration

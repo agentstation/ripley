@@ -95,5 +95,13 @@ export default tseslint.config(
     files: ["src/styles/**/*.css", "vite.config.ts", "vitest.config.ts"],
     rules: { "ripley/no-raw-hex": "off" },
   },
+  {
+    files: ["scripts/**/*.{js,mjs,cjs}"],
+    languageOptions: {
+      globals: { ...globals.node },
+      parserOptions: { ecmaVersion: 2024, sourceType: "module" },
+    },
+    rules: { "ripley/no-raw-hex": "off" },
+  },
   prettier,
 );
