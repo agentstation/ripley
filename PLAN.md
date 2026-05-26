@@ -4023,7 +4023,7 @@ Phase 4 Gate.
 
   Verify: `pnpm vitest run`
 
-- [ ] **M27.5** — Command palette (Cmd+K)
+- [x] **M27.5** — Command palette (Cmd+K)
 
   Files:
   - `apps/desktop/src/components/ripley/CommandPalette.tsx` — Base UI `Combobox` + `match-sorter`
