@@ -5,6 +5,7 @@ pub mod ipc_bridge;
 pub mod prewarm;
 pub mod tray;
 
+use commands::alerts::list_alerts;
 use commands::diag::report_visible;
 use commands::guard::submit_guard_decision;
 use commands::ping::ping;
@@ -18,7 +19,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .commands(collect_commands![
             ping,
             submit_guard_decision,
-            report_visible
+            report_visible,
+            list_alerts
         ])
         .events(collect_events![GuardEvent])
 }

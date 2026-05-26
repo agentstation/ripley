@@ -22,6 +22,14 @@ export const commands = {
       else return { status: "error", error: e as any };
     }
   },
+  async listAlerts(projectPath: string): Promise<Result<AlertSummary[], string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("list_alerts", { projectPath }) };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
 };
 
 /** user-defined events **/
@@ -36,6 +44,17 @@ export const events = __makeEvents__<{
 
 /** user-defined types **/
 
+export type AlertSummary = {
+  id: string;
+  advisory_id: string;
+  ecosystem: string;
+  package: string;
+  version: string;
+  severity: string;
+  summary: string;
+  references: string[];
+  project_path: string;
+};
 export type Decision = "Allow" | "Block" | "Trust";
 export type GuardEvent = GuardEventPayload;
 export type GuardEventPayload = {

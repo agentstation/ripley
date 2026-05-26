@@ -3977,7 +3977,7 @@ Phase 4 Gate.
 
 **Component picks, keyboard model, and DX patterns** are locked in [UX_DESIGN.md](UX_DESIGN.md). Install primitives via `pnpm dlx shadcn@latest add <slug> --base base-ui` in the order that doc lists (Button, Dialog, Sheet, Combobox first). Do not install components outside UX_DESIGN.md's "Used" table without a PR-time justification.
 
-- [ ] **M27.1** — Shared component library (`components/ripley/`)
+- [x] **M27.1** — Shared component library (`components/ripley/`)
 
   Files (each with co-located `*.test.tsx`):
   - `AlertCard.tsx`, `SeverityBadge.tsx`, `EcosystemIcon.tsx`, `WeightBar.tsx`, `RuleMatchList.tsx`, `TimestampCell.tsx`, `EmptyState.tsx`, `LoadingSkeleton.tsx`, `ErrorPane.tsx`
@@ -3988,7 +3988,7 @@ Phase 4 Gate.
 
   Verify: `pnpm -C apps/desktop test`
 
-- [ ] **M27.2** — Alerts view (M3 parity)
+- [x] **M27.2** — Alerts view (M3 parity)
 
   Files:
   - `apps/desktop/src/routes/Alerts.tsx`
