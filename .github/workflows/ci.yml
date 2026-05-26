@@ -224,6 +224,29 @@ jobs:
           Get-Process msedgedriver -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
           Get-Process tauri-driver -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
+      - name: Probe ripley-desktop standalone start (Windows)
+        # Distinguishes "binary itself crashes" from "msedgedriver protocol gap".
+        # Launches the binary, waits 5s, then kills it. Non-zero exit captured.
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        env:
+          RIPLEY_E2E: "1"
+        run: |
+          $bin = "target/release/ripley-desktop.exe"
+          if (-not (Test-Path $bin)) { Write-Error "missing $bin"; exit 1 }
+          $p = Start-Process -FilePath $bin -PassThru -RedirectStandardOutput desktop-probe.out -RedirectStandardError desktop-probe.err
+          Start-Sleep -Seconds 5
+          if ($p.HasExited) {
+            Write-Host "ripley-desktop.exe exited unexpectedly with code $($p.ExitCode)"
+            Get-Content desktop-probe.out -ErrorAction SilentlyContinue
+            Get-Content desktop-probe.err -ErrorAction SilentlyContinue
+            exit 1
+          }
+          Write-Host "ripley-desktop.exe still running after 5s — standalone start OK"
+          Stop-Process -Id $p.Id -Force
+          Get-Content desktop-probe.out -ErrorAction SilentlyContinue
+          Get-Content desktop-probe.err -ErrorAction SilentlyContinue
+
       - name: Run WebdriverIO e2e (Windows)
         if: matrix.os == 'windows-latest'
         env:

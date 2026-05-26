@@ -27,12 +27,22 @@ function fireGuardPrompt(): Promise<number> {
   });
 }
 
+async function waitForGuardListener() {
+  const root = await browser.$('[data-testid="app-root"]');
+  await root.waitForExist({ timeout: 30_000 });
+  // Tauri event subscriptions register asynchronously inside useEffect; if
+  // guard-bench fires before the listener attaches, the event is dropped.
+  // Give the microtask + WebView IPC plumbing a beat to settle.
+  await browser.pause(500);
+}
+
 describe("guard dialog (e2e)", () => {
   it("renders the dialog and the Allow path closes it", async () => {
+    await waitForGuardListener();
     const inFlight = fireGuardPrompt();
 
     const trust = await browser.$('[data-testid="trust"]');
-    await trust.waitForDisplayed({ timeout: 10_000 });
+    await trust.waitForDisplayed({ timeout: 30_000 });
     await trust.click();
 
     const exitCode = await inFlight;
@@ -40,10 +50,11 @@ describe("guard dialog (e2e)", () => {
   });
 
   it("renders the dialog and the Block path closes it", async () => {
+    await waitForGuardListener();
     const inFlight = fireGuardPrompt();
 
     const block = await browser.$('[data-testid="block"]');
-    await block.waitForDisplayed({ timeout: 10_000 });
+    await block.waitForDisplayed({ timeout: 30_000 });
     await block.click();
 
     const exitCode = await inFlight;
