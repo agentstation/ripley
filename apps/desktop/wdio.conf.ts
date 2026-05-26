@@ -35,9 +35,9 @@ export const config: Options.Testrunner = {
   maxInstances: 1,
   capabilities: [
     {
-      maxInstances: 1,
-      "tauri:options": { application },
       browserName: "wry",
+      "tauri:options": { application },
+      "wdio:enforceWebDriverClassic": true,
     } as WebdriverIO.Capabilities,
   ],
   logLevel: "info",
@@ -64,14 +64,7 @@ export const config: Options.Testrunner = {
   },
 
   beforeSession() {
-    const args: string[] = [];
-    if (process.env.RIPLEY_TAURI_DRIVER_DEBUG) {
-      args.push("--debug");
-    }
-    if (process.env.RIPLEY_NATIVE_DRIVER) {
-      args.push("--native-driver", process.env.RIPLEY_NATIVE_DRIVER);
-    }
-    tauriDriver = spawn(tauriDriverBin, args, {
+    tauriDriver = spawn(tauriDriverBin, [], {
       stdio: ["ignore", process.stdout, process.stderr],
     });
   },

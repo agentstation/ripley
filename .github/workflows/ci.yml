@@ -181,14 +181,12 @@ jobs:
         if: matrix.os == 'ubuntu-22.04'
         env:
           RIPLEY_SKIP_BUILD: "1"
-          RIPLEY_TAURI_DRIVER_DEBUG: "1"
         run: xvfb-run -a pnpm -F desktop test:e2e
 
       - name: Run WebdriverIO e2e (Windows)
         if: matrix.os == 'windows-latest'
         env:
           RIPLEY_SKIP_BUILD: "1"
-          RIPLEY_TAURI_DRIVER_DEBUG: "1"
         run: pnpm -F desktop test:e2e
 
   release:
