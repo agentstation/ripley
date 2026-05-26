@@ -26,7 +26,7 @@ colors:
   # Text
   text-primary: "#e6edf3"
   text-secondary: "#8b949e"
-  text-muted: "#484f58"
+  text-muted: "#8b949e"
   text-on-accent: "#ffffff"
   text-on-severity: "#ffffff"
 
@@ -38,7 +38,7 @@ colors:
   accent-muted: "#58a6ff30"
 
   # Severity
-  severity-critical: "#f85149"
+  severity-critical: "#ff7b72"
   severity-critical-bg: "#f8514920"
   severity-critical-strong: "#cf222e"
   severity-high: "#f0883e"
@@ -53,7 +53,7 @@ colors:
   # Semantic
   success: "#3fb950"
   warning: "#d29922"
-  error: "#f85149"
+  error: "#ff7b72"
   info: "#58a6ff"
 
 typography:
@@ -326,7 +326,7 @@ labels and metadata. Muted for disabled states and placeholders.
 |-------------------|-----------|-------------------------------------------|
 | `text-primary`    | `#e6edf3` | Body text, headings, interactive labels   |
 | `text-secondary`  | `#8b949e` | Timestamps, descriptions, secondary info  |
-| `text-muted`      | `#484f58` | Disabled text, placeholders               |
+| `text-muted`      | `#8b949e` | Disabled text, placeholders, supplementary 12px labels |
 | `text-on-accent`  | `#ffffff` | Text on accent-colored backgrounds        |
 | `text-on-severity`| `#ffffff` | Text on severity-colored backgrounds      |
 
@@ -351,7 +351,7 @@ background (badge fill, row highlight).
 
 | Level    | Foreground | Background   | When to use                         |
 |----------|------------|--------------|-------------------------------------|
-| Critical | `#f85149`  | `#f8514920`  | Active exploits, known malware, dead man switches |
+| Critical | `#ff7b72`  | `#f8514920`  | Active exploits, known malware, dead man switches |
 | High     | `#f0883e`  | `#db6d2820`  | Network calls, eval, binary download, credential theft |
 | Medium   | `#d29922`  | `#d2992220`  | Env harvesting, scope escape, posture warnings |
 | Low      | `#58a6ff`  | `#58a6ff20`  | Informational signals, minor findings |
@@ -365,7 +365,7 @@ Convenience aliases that map to severity where appropriate.
 |-----------|-----------|-------------------|
 | `success` | `#3fb950` | `severity-clean`  |
 | `warning` | `#d29922` | `severity-medium` |
-| `error`   | `#f85149` | `severity-critical` |
+| `error`   | `#ff7b72` | `severity-critical` |
 | `info`    | `#58a6ff` | `severity-low` / `accent` |
 
 

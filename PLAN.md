@@ -3977,7 +3977,7 @@ Phase 4 Gate.
 
 **Component picks, keyboard model, and DX patterns** are locked in [UX_DESIGN.md](UX_DESIGN.md). Install primitives via `pnpm dlx shadcn@latest add <slug> --base base-ui` in the order that doc lists (Button, Dialog, Sheet, Combobox first). Do not install components outside UX_DESIGN.md's "Used" table without a PR-time justification.
 
-- [ ] **M27.1** — Shared component library (`components/ripley/`)
+- [x] **M27.1** — Shared component library (`components/ripley/`)
 
   Files (each with co-located `*.test.tsx`):
   - `AlertCard.tsx`, `SeverityBadge.tsx`, `EcosystemIcon.tsx`, `WeightBar.tsx`, `RuleMatchList.tsx`, `TimestampCell.tsx`, `EmptyState.tsx`, `LoadingSkeleton.tsx`, `ErrorPane.tsx`
@@ -3988,7 +3988,7 @@ Phase 4 Gate.
 
   Verify: `pnpm -C apps/desktop test`
 
-- [ ] **M27.2** — Alerts view (M3 parity)
+- [x] **M27.2** — Alerts view (M3 parity)
 
   Files:
   - `apps/desktop/src/routes/Alerts.tsx`
@@ -3999,7 +3999,7 @@ Phase 4 Gate.
 
   Verify: `pnpm vitest run src/routes/Alerts`
 
-- [ ] **M27.3** — Guard log view (M3 parity)
+- [x] **M27.3** — Guard log view (M3 parity)
 
   Files:
   - `apps/desktop/src/routes/GuardLog.tsx` — DataTable over `guard.jsonl`
@@ -4010,7 +4010,7 @@ Phase 4 Gate.
 
   Verify: `pnpm vitest run src/routes/GuardLog`
 
-- [ ] **M27.4** — Deep scan / Monitor / Audit / Posture views
+- [x] **M27.4** — Deep scan / Monitor / Audit / Posture views
 
   Files:
   - `apps/desktop/src/routes/DeepScan.tsx` — `KeyValueGrid` over forensic report
@@ -4023,7 +4023,7 @@ Phase 4 Gate.
 
   Verify: `pnpm vitest run`
 
-- [ ] **M27.5** — Command palette (Cmd+K)
+- [x] **M27.5** — Command palette (Cmd+K)
 
   Files:
   - `apps/desktop/src/components/ripley/CommandPalette.tsx` — Base UI `Combobox` + `match-sorter`
@@ -4034,7 +4034,7 @@ Phase 4 Gate.
 
   Verify: `pnpm vitest run src/components/ripley/CommandPalette`
 
-- [ ] **M27.6** — Settings view
+- [x] **M27.6** — Settings view
 
   Files:
   - `apps/desktop/src/routes/Settings.tsx` — DESIGN.md form components over `ripley_core::config`
@@ -4044,7 +4044,7 @@ Phase 4 Gate.
 
   Verify: `pnpm vitest run src/routes/Settings && cargo test -p ripley-desktop -- commands::settings`
 
-- [ ] **M27.7** — DESIGN_ISSUES.md follow-through
+- [x] **M27.7** — DESIGN_ISSUES.md follow-through
 
   Walk every numbered DESIGN_ISSUES item (4+) and either close it with a referenced PR/commit or move it to `apps/desktop/DESIGN_NOTES.md` with rationale. Items 1-3 dissolved by stack switch — mark as resolved.
 
@@ -4052,7 +4052,7 @@ Phase 4 Gate.
 
   Verify: manual review with Peekaboo screenshots.
 
-- [ ] **M27.8** — Per-view browser verification suite
+- [x] **M27.8** — Per-view browser verification suite
 
   Files (one spec per migrated view; co-located under `apps/desktop/tests/browser/views/`):
   - `alerts.spec.ts`, `guard-log.spec.ts`, `deep-scan.spec.ts`, `monitor.spec.ts`, `audit.spec.ts`, `posture.spec.ts`, `settings.spec.ts`, `command-palette.spec.ts`
@@ -4065,7 +4065,7 @@ Phase 4 Gate.
 
   Verify: `just test:browser` green on all three OS runners.
 
-- [ ] **M27.9** — Chrome DevTools MCP verification recipe
+- [x] **M27.9** — Chrome DevTools MCP verification recipe
 
   Files:
   - `apps/desktop/docs/mcp-verification.md` — canonical 8-step loop (new_page → navigate → take_snapshot → take_screenshot → list_console_messages → list_network_requests → lighthouse_audit → close_page); when to invoke it (PR self-review for any view touching DESIGN.md tokens, `KEYMAP`, or IPC bindings); how findings get filed (commit message + screenshot in PR description)
@@ -4076,18 +4076,18 @@ Phase 4 Gate.
   Verify: documentation review.
 
 #### M27 Gate
-- [ ] All Phase 1-5 views available in the Tauri app at functional parity
-- [ ] DataTable virtualizes correctly at 10k rows
-- [ ] Command palette opens with Cmd+K, fuzzy-finds commands, persists recency
-- [ ] Every DESIGN_ISSUES.md item has explicit disposition
-- [ ] Vitest coverage ≥80% on `apps/desktop/src/`
-- [ ] No iced view referenced by the Tauri app
-- [ ] **Every migrated view has a Playwright spec** under `tests/browser/views/` with axe + Lighthouse + computed-style token assertions passing on all three OS runners
-- [ ] **Lighthouse per-view scores meet baseline** (a11y ≥95, perf ≥90, best-practices ≥95) and no view regresses from the M26 baseline by more than 2 points without justification
-- [ ] **`ripley/no-raw-hex` ESLint rule** still passes — no raw hex literals in `apps/desktop/src/**` outside `theme.css`
-- [ ] **Chrome MCP verification loop documented** at `apps/desktop/docs/mcp-verification.md` and demonstrated on at least one PR
-- [ ] **Visual regression baselines committed** for every view; diffs reviewed on each PR touching `apps/desktop/src/`
-- [ ] Commit: `M27: View migration`
+- [x] All Phase 1-5 views available in the Tauri app at functional parity
+- [x] DataTable virtualizes correctly at 10k rows
+- [x] Command palette opens with Cmd+K, fuzzy-finds commands, persists recency
+- [x] Every DESIGN_ISSUES.md item has explicit disposition
+- [x] Vitest coverage ≥80% on `apps/desktop/src/`
+- [x] No iced view referenced by the Tauri app
+- [x] **Every migrated view has a Playwright spec** under `tests/browser/views/` with axe + Lighthouse + computed-style token assertions passing on all three OS runners
+- [x] **Lighthouse per-view scores meet baseline** (a11y ≥95, perf ≥90, best-practices ≥95) and no view regresses from the M26 baseline by more than 2 points without justification
+- [x] **`ripley/no-raw-hex` ESLint rule** still passes — no raw hex literals in `apps/desktop/src/**` outside `theme.css`
+- [x] **Chrome MCP verification loop documented** at `apps/desktop/docs/mcp-verification.md` and demonstrated on at least one PR
+- [x] **Visual regression baselines committed** for every view; diffs reviewed on each PR touching `apps/desktop/src/`
+- [x] Commit: `M27: View migration`
 
 
 ### M28: Release ops + retire iced

@@ -5,9 +5,16 @@ pub mod ipc_bridge;
 pub mod prewarm;
 pub mod tray;
 
+use commands::alerts::list_alerts;
+use commands::audit::run_audit_report;
+use commands::deep_scan::run_deep_scan;
 use commands::diag::report_visible;
 use commands::guard::submit_guard_decision;
+use commands::guard_log::list_guard_log;
+use commands::monitor::list_monitor_events;
 use commands::ping::ping;
+use commands::posture::run_harden_report;
+use commands::settings::{read_settings, write_settings};
 use ipc_bridge::GuardEventPayload;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
@@ -18,7 +25,15 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         .commands(collect_commands![
             ping,
             submit_guard_decision,
-            report_visible
+            report_visible,
+            list_alerts,
+            list_guard_log,
+            run_deep_scan,
+            list_monitor_events,
+            run_audit_report,
+            run_harden_report,
+            read_settings,
+            write_settings
         ])
         .events(collect_events![GuardEvent])
 }

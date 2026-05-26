@@ -22,6 +22,70 @@ export const commands = {
       else return { status: "error", error: e as any };
     }
   },
+  async listAlerts(projectPath: string): Promise<Result<AlertSummary[], string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("list_alerts", { projectPath }) };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
+  async listGuardLog(offset: number, limit: number): Promise<Result<GuardLogPage, string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("list_guard_log", { offset, limit }) };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
+  async runDeepScan(projectPath: string): Promise<Result<DeepScanReportDto, string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("run_deep_scan", { projectPath }) };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
+  async listMonitorEvents(limit: number): Promise<Result<MonitorEntryDto[], string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("list_monitor_events", { limit }) };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
+  async runAuditReport(): Promise<Result<AuditReportDto, string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("run_audit_report") };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
+  async runHardenReport(projectPath: string): Promise<Result<HardenReportDto, string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("run_harden_report", { projectPath }) };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
+  async readSettings(): Promise<Result<SettingsDto, string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("read_settings") };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
+  async writeSettings(settings: SettingsDto): Promise<Result<SettingsDto, string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("write_settings", { settings }) };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
 };
 
 /** user-defined events **/
@@ -36,7 +100,48 @@ export const events = __makeEvents__<{
 
 /** user-defined types **/
 
+export type AlertSummary = {
+  id: string;
+  advisory_id: string;
+  ecosystem: string;
+  package: string;
+  version: string;
+  severity: string;
+  summary: string;
+  references: string[];
+  project_path: string;
+};
+export type AuditFindingDto = {
+  name: string;
+  status: string;
+  detail: string;
+  fix_command: string | null;
+};
+export type AuditReportDto = { categories: CategoryReportDto[]; timestamp: string };
+export type CategoryReportDto = { category: string; findings: AuditFindingDto[]; overall: string };
 export type Decision = "Allow" | "Block" | "Trust";
+export type DeepScanReportDto = {
+  project_path: string;
+  ioc_count: number;
+  persistence_count: number;
+  credential_count: number;
+  findings: ForensicFindingDto[];
+  dead_man_switch_warning: string | null;
+};
+export type DetectedPmDto = {
+  name: string;
+  version: string | null;
+  lockfile_path: string;
+  binary: boolean;
+};
+export type ForensicFindingDto = {
+  kind: string;
+  path: string;
+  description: string;
+  severity: string;
+  profile_id: string | null;
+  rotation_command: string | null;
+};
 export type GuardEvent = GuardEventPayload;
 export type GuardEventPayload = {
   id: string;
@@ -45,6 +150,58 @@ export type GuardEventPayload = {
   script: string;
   risk_level: string;
   matched_rules: string[];
+};
+export type GuardLogEntry = {
+  timestamp: string;
+  package: string;
+  version: string;
+  script: string;
+  action: string;
+  risk_level: string;
+  matched_rules: string[];
+  source: string;
+  user_decision: boolean | null;
+};
+export type GuardLogPage = { entries: GuardLogEntry[]; total: number };
+export type HardenCategoryReportDto = {
+  category: string;
+  findings: HardenFindingDto[];
+  overall: string;
+};
+export type HardenFindingDto = {
+  name: string;
+  status: string;
+  detail: string;
+  fix_command: string | null;
+  pm: string;
+};
+export type HardenReportDto = {
+  detected_pms: DetectedPmDto[];
+  categories: HardenCategoryReportDto[];
+  timestamp: string;
+};
+export type MonitorEntryDto = {
+  timestamp: string;
+  event_type: string;
+  severity: string;
+  process: string;
+  pid: number | null;
+  reason: string;
+  detail: string;
+  action: string;
+};
+export type SettingsDto = {
+  poll_interval_secs: number;
+  launch_at_login: boolean;
+  monitor_enabled: boolean;
+  monitor_watch_processes: boolean;
+  monitor_watch_persistence: boolean;
+  monitor_watch_lockfiles: boolean;
+  guard_mode: string;
+  guard_timeout_secs: number;
+  guard_sandbox: boolean;
+  posture_strict: boolean;
+  posture_require_lockfile: boolean;
 };
 
 /** tauri-specta globals **/

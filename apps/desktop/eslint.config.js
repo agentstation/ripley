@@ -103,5 +103,12 @@ export default tseslint.config(
     },
     rules: { "ripley/no-raw-hex": "off" },
   },
+  {
+    files: ["tests/browser/**/*.{ts,tsx}"],
+    rules: {
+      "react-hooks/rules-of-hooks": "off",
+      "ripley/no-raw-hex": "off",
+    },
+  },
   prettier,
 );

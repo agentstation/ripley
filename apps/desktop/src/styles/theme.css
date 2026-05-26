@@ -13,7 +13,7 @@
   /* Text */
   --color-text-primary: #e6edf3;
   --color-text-secondary: #8b949e;
-  --color-text-muted: #484f58;
+  --color-text-muted: #8b949e;
   --color-text-on-accent: #ffffff;
   --color-text-on-severity: #ffffff;
 
@@ -24,7 +24,7 @@
   --color-accent-muted: #58a6ff30;
 
   /* Severity */
-  --color-severity-critical: #f85149;
+  --color-severity-critical: #ff7b72;
   --color-severity-critical-bg: #f8514920;
   --color-severity-high: #f0883e;
   --color-severity-high-bg: #db6d2820;
@@ -85,7 +85,7 @@
   --color-border-subtle: #eaeef2;
   --color-text-primary: #1f2328;
   --color-text-secondary: #59636e;
-  --color-text-muted: #818b98;
+  --color-text-muted: #59636e;
   --color-background: #ffffff;
   --color-foreground: #1f2328;
   --color-card: #f6f8fa;
