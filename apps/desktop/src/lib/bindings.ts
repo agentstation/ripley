@@ -30,6 +30,14 @@ export const commands = {
       else return { status: "error", error: e as any };
     }
   },
+  async listGuardLog(offset: number, limit: number): Promise<Result<GuardLogPage, string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("list_guard_log", { offset, limit }) };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
 };
 
 /** user-defined events **/
@@ -65,6 +73,18 @@ export type GuardEventPayload = {
   risk_level: string;
   matched_rules: string[];
 };
+export type GuardLogEntry = {
+  timestamp: string;
+  package: string;
+  version: string;
+  script: string;
+  action: string;
+  risk_level: string;
+  matched_rules: string[];
+  source: string;
+  user_decision: boolean | null;
+};
+export type GuardLogPage = { entries: GuardLogEntry[]; total: number };
 
 /** tauri-specta globals **/
 

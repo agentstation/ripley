@@ -8,6 +8,7 @@ pub mod tray;
 use commands::alerts::list_alerts;
 use commands::diag::report_visible;
 use commands::guard::submit_guard_decision;
+use commands::guard_log::list_guard_log;
 use commands::ping::ping;
 use ipc_bridge::GuardEventPayload;
 
@@ -20,7 +21,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             ping,
             submit_guard_decision,
             report_visible,
-            list_alerts
+            list_alerts,
+            list_guard_log
         ])
         .events(collect_events![GuardEvent])
 }

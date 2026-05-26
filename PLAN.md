@@ -3999,7 +3999,7 @@ Phase 4 Gate.
 
   Verify: `pnpm vitest run src/routes/Alerts`
 
-- [ ] **M27.3** — Guard log view (M3 parity)
+- [x] **M27.3** — Guard log view (M3 parity)
 
   Files:
   - `apps/desktop/src/routes/GuardLog.tsx` — DataTable over `guard.jsonl`
