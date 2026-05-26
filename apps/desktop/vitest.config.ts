@@ -10,5 +10,22 @@ export default defineConfig({
     globals: false,
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     exclude: ["node_modules", "dist", "tests/browser/**"],
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/lib/bindings.ts",
+        "src/main.tsx",
+        "src/test/**",
+        "src/**/*.{test,spec}.{ts,tsx}",
+        "src/**/*.d.ts",
+      ],
+      thresholds: {
+        statements: 80,
+        branches: 75,
+        functions: 80,
+        lines: 80,
+      },
+    },
   },
 });

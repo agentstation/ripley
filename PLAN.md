@@ -4076,18 +4076,18 @@ Phase 4 Gate.
   Verify: documentation review.
 
 #### M27 Gate
-- [ ] All Phase 1-5 views available in the Tauri app at functional parity
-- [ ] DataTable virtualizes correctly at 10k rows
-- [ ] Command palette opens with Cmd+K, fuzzy-finds commands, persists recency
-- [ ] Every DESIGN_ISSUES.md item has explicit disposition
-- [ ] Vitest coverage ≥80% on `apps/desktop/src/`
-- [ ] No iced view referenced by the Tauri app
-- [ ] **Every migrated view has a Playwright spec** under `tests/browser/views/` with axe + Lighthouse + computed-style token assertions passing on all three OS runners
-- [ ] **Lighthouse per-view scores meet baseline** (a11y ≥95, perf ≥90, best-practices ≥95) and no view regresses from the M26 baseline by more than 2 points without justification
-- [ ] **`ripley/no-raw-hex` ESLint rule** still passes — no raw hex literals in `apps/desktop/src/**` outside `theme.css`
-- [ ] **Chrome MCP verification loop documented** at `apps/desktop/docs/mcp-verification.md` and demonstrated on at least one PR
-- [ ] **Visual regression baselines committed** for every view; diffs reviewed on each PR touching `apps/desktop/src/`
-- [ ] Commit: `M27: View migration`
+- [x] All Phase 1-5 views available in the Tauri app at functional parity
+- [x] DataTable virtualizes correctly at 10k rows
+- [x] Command palette opens with Cmd+K, fuzzy-finds commands, persists recency
+- [x] Every DESIGN_ISSUES.md item has explicit disposition
+- [x] Vitest coverage ≥80% on `apps/desktop/src/`
+- [x] No iced view referenced by the Tauri app
+- [x] **Every migrated view has a Playwright spec** under `tests/browser/views/` with axe + Lighthouse + computed-style token assertions passing on all three OS runners
+- [x] **Lighthouse per-view scores meet baseline** (a11y ≥95, perf ≥90, best-practices ≥95) and no view regresses from the M26 baseline by more than 2 points without justification
+- [x] **`ripley/no-raw-hex` ESLint rule** still passes — no raw hex literals in `apps/desktop/src/**` outside `theme.css`
+- [x] **Chrome MCP verification loop documented** at `apps/desktop/docs/mcp-verification.md` and demonstrated on at least one PR
+- [x] **Visual regression baselines committed** for every view; diffs reviewed on each PR touching `apps/desktop/src/`
+- [x] Commit: `M27: View migration`
 
 
 ### M28: Release ops + retire iced
