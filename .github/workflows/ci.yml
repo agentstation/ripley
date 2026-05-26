@@ -166,6 +166,9 @@ jobs:
                "apps/desktop/src-tauri/binaries/ripley-script-shell-$TRIPLE"
           fi
 
+      - name: Build frontend (vite)
+        run: pnpm -F desktop build:vite
+
       - name: Build desktop app + guard-bench
         run: cargo build -p ripley-desktop --release
 
