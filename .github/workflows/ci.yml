@@ -25,6 +25,8 @@ jobs:
           components: clippy, rustfmt
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.os }}
 
       - name: Install Tauri Linux deps
         if: matrix.os == 'ubuntu-22.04'
@@ -117,6 +119,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: e2e-${{ matrix.os }}
 
       - uses: pnpm/action-setup@v4
 
@@ -202,6 +206,8 @@ jobs:
           targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
 
       - name: Install Tauri Linux deps
         if: matrix.os == 'ubuntu-22.04'
