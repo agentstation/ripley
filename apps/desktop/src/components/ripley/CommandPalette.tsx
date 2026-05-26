@@ -22,6 +22,7 @@ export function CommandPalette({ commands }: Props) {
   const [rawActiveIndex, setRawActiveIndex] = useState(0);
   const [prevOpen, setPrevOpen] = useState(open);
   const listId = useId();
+  const optionIdPrefix = useId();
   const inputRef = useRef<HTMLInputElement>(null);
 
   if (open !== prevOpen) {
@@ -82,7 +83,12 @@ export function CommandPalette({ commands }: Props) {
           <input
             ref={inputRef}
             data-testid="command-palette-input"
+            role="combobox"
+            aria-expanded="true"
             aria-controls={listId}
+            aria-activedescendant={
+              ordered.length > 0 ? `${optionIdPrefix}-${activeIndex}` : undefined
+            }
             aria-label="Search commands"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -105,35 +111,33 @@ export function CommandPalette({ commands }: Props) {
               </li>
             ) : (
               ordered.map((command, idx) => (
+                // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- combobox-with-listbox: keyboard owned by the input via aria-activedescendant
                 <li
                   key={command.id}
+                  id={`${optionIdPrefix}-${idx}`}
                   data-testid="command-palette-item"
                   data-command-id={command.id}
                   data-active={idx === activeIndex ? "true" : undefined}
                   role="option"
                   aria-selected={idx === activeIndex}
+                  onClick={() => execute(command)}
+                  onMouseEnter={() => setRawActiveIndex(idx)}
+                  className={cn(
+                    "flex cursor-pointer items-center justify-between gap-3 px-4 py-2 text-left text-sm",
+                    idx === activeIndex
+                      ? "bg-surface-hover text-text-primary"
+                      : "text-text-secondary hover:bg-surface-hover",
+                  )}
                 >
-                  <button
-                    type="button"
-                    onClick={() => execute(command)}
-                    onMouseEnter={() => setRawActiveIndex(idx)}
-                    className={cn(
-                      "flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm",
-                      idx === activeIndex
-                        ? "bg-surface-hover text-text-primary"
-                        : "text-text-secondary hover:bg-surface-hover",
-                    )}
-                  >
-                    <span className="flex flex-col">
-                      <span className="font-medium text-text-primary">{command.label}</span>
-                      {command.hint ? (
-                        <span className="text-xs text-text-muted">{command.hint}</span>
-                      ) : null}
-                    </span>
-                    <span className="text-xs uppercase tracking-wide text-text-muted">
-                      {command.group}
-                    </span>
-                  </button>
+                  <span className="flex flex-col">
+                    <span className="font-medium text-text-primary">{command.label}</span>
+                    {command.hint ? (
+                      <span className="text-xs text-text-muted">{command.hint}</span>
+                    ) : null}
+                  </span>
+                  <span className="text-xs uppercase tracking-wide text-text-muted">
+                    {command.group}
+                  </span>
                 </li>
               ))
             )}

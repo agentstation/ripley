@@ -44,7 +44,13 @@ export function Settings() {
   }
 
   return (
-    <SettingsForm initial={settings} onSave={(next) => save.mutate(next)} saving={save.isPending} />
+    <section data-testid="settings-view">
+      <SettingsForm
+        initial={settings}
+        onSave={(next) => save.mutate(next)}
+        saving={save.isPending}
+      />
+    </section>
   );
 }
 

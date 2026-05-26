@@ -4052,7 +4052,7 @@ Phase 4 Gate.
 
   Verify: manual review with Peekaboo screenshots.
 
-- [ ] **M27.8** — Per-view browser verification suite
+- [x] **M27.8** — Per-view browser verification suite
 
   Files (one spec per migrated view; co-located under `apps/desktop/tests/browser/views/`):
   - `alerts.spec.ts`, `guard-log.spec.ts`, `deep-scan.spec.ts`, `monitor.spec.ts`, `audit.spec.ts`, `posture.spec.ts`, `settings.spec.ts`, `command-palette.spec.ts`

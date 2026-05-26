@@ -215,3 +215,52 @@ Source: `crates/ripley-ipc/src/{lib,protocol,client,server}.rs` are all
 and `apps/desktop/src-tauri/src/bin/guard_bench.rs` gate their `main`
 on `#[cfg(unix)]`; `apps/desktop/src-tauri/src/lib.rs` spawns the bridge
 only under `#[cfg(unix)]`.
+
+## M27.8 — Per-view a11y contrast bumps + command palette role nesting
+
+Three changes to land all per-view axe scans clean (no serious/critical
+violations under wcag2a / wcag2aa).
+
+1. `severity-critical` foreground brightened from `#f85149` to `#ff7b72`.
+   The old hue measured 4.49:1 against the flattened
+   `severity-critical-bg` overlay (`#f8514920` on `#0d1117` → `#322227`)
+   used by `EcosystemIcon` and severity badges — under the 4.5:1 AA bar
+   for normal text. `#ff7b72` lifts it to ~5.92:1 while staying inside
+   the warm-red band. `severity-critical-bg` is unchanged. The earlier
+   `severity-critical-strong` token (`#cf222e`, M25.6) that backs
+   destructive button surfaces is untouched.
+
+2. `text-muted` brightened from `#484f58` to `#8b949e` (dark) and from
+   `#818b98` to `#59636e` (light). `#484f58` on `#0d1117` (bg) measured
+   2.28:1; on `#1c2128` (surface-hover, used by the active CommandPalette
+   item) measured 1.95:1 — both far under AA. `#8b949e` on `#0d1117`
+   measures ~6.7:1, on `#1c2128` measures ~5.4:1. The old value matched
+   GitHub Primer's `fgColor.muted` on darker hover surfaces (~#262c36)
+   but Ripley's `surface-hover` is darker (#1c2128), pushing it under.
+   Visual hierarchy with `text-secondary` is now identical in color
+   (`#8b949e`) — distinction is carried by `text-xs` and `uppercase` in
+   labels and `text-sm` in body. The DESIGN.md token spec was tightening
+   `text-muted` to "Disabled text, placeholders" (M25.6); that scope is
+   widened here to include 12px supplementary labels so an additional
+   AA-passing dim shade is not required.
+
+3. CommandPalette options no longer wrap a `<button>` inside the
+   `<li role="option">`. The combobox-with-listbox WAI-ARIA pattern says
+   options must not have focusable descendants and keyboard handling
+   stays on the combobox input via `aria-activedescendant`. The previous
+   `<li role="option"><button>...</button></li>` shape tripped axe's
+   `nested-interactive` rule. The new shape: input gains
+   `role="combobox" aria-expanded aria-controls aria-activedescendant`,
+   each option owns an `id`, and onClick lives directly on the `<li>` (a
+   line-scoped `eslint-disable jsx-a11y/click-events-have-key-events`
+   documents why the keyboard handler is on the input instead).
+
+A separate behavior fix is bundled into the same milestone: `Settings`
+now wraps its rendered `<SettingsForm>` in `<section data-testid="settings-view">`
+so the route-stable `settings-view` testid holds across all four render
+states (loading / error / empty / loaded). Previously the testid only
+appeared in the non-success branches.
+
+Source: axe-core/playwright reports against
+`apps/desktop/tests/browser/views/*.spec.ts`; manual WCAG contrast
+checks per the algorithm in WCAG 2.1 SC 1.4.3.
