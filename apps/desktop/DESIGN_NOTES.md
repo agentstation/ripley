@@ -264,3 +264,23 @@ appeared in the non-success branches.
 Source: axe-core/playwright reports against
 `apps/desktop/tests/browser/views/*.spec.ts`; manual WCAG contrast
 checks per the algorithm in WCAG 2.1 SC 1.4.3.
+
+### Visual diff baselines are darwin-only (M27.8 follow-up)
+
+`tests/browser/visual/views.spec.ts` skips on non-darwin runners. The
+baselines committed in `views.spec.ts-snapshots/*.png` are produced on
+macOS Chromium; Linux and Windows runners render fonts and antialiasing
+differently enough that pixel-level baselines would either need per-OS
+sets (3× the maintenance cost on every UI change) or generous
+`maxDiffPixelRatio` thresholds that make the assertion meaningless.
+
+The darwin baseline gives the regression-detection signal we wanted
+without the cross-OS noise. The platform-agnostic coverage that _does_
+run on every PR on all three OSes — axe a11y, Lighthouse scores,
+DESIGN.md token checks, and per-view interaction specs — is what
+catches real semantic regressions; visual diff is the long stop on
+macOS where the developer machine lives.
+
+If a future change demands per-OS visual coverage, the path is to add
+Playwright projects scoped per OS with matching baseline directories,
+not to drop the assertion.
