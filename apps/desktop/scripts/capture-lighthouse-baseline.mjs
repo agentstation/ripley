@@ -18,8 +18,10 @@ if (!existsSync(path.join(APP_ROOT, "dist", "index.html"))) {
   process.exit(1);
 }
 
+const pnpmCmd = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+
 const preview = spawn(
-  "pnpm",
+  pnpmCmd,
   ["exec", "vite", "preview", "--port", String(PORT), "--strictPort"],
   { cwd: APP_ROOT, stdio: ["ignore", "inherit", "inherit"] },
 );
@@ -53,7 +55,7 @@ const tmpReport = path.join(os.tmpdir(), `lighthouse-${process.platform}-${Date.
 const chromeFlags = ["--headless=new", "--no-sandbox", "--disable-dev-shm-usage"];
 
 const lh = spawn(
-  "pnpm",
+  pnpmCmd,
   [
     "exec",
     "lighthouse",
