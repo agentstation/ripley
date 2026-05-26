@@ -4065,7 +4065,7 @@ Phase 4 Gate.
 
   Verify: `just test:browser` green on all three OS runners.
 
-- [ ] **M27.9** — Chrome DevTools MCP verification recipe
+- [x] **M27.9** — Chrome DevTools MCP verification recipe
 
   Files:
   - `apps/desktop/docs/mcp-verification.md` — canonical 8-step loop (new_page → navigate → take_snapshot → take_screenshot → list_console_messages → list_network_requests → lighthouse_audit → close_page); when to invoke it (PR self-review for any view touching DESIGN.md tokens, `KEYMAP`, or IPC bindings); how findings get filed (commit message + screenshot in PR description)
