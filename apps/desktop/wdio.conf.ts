@@ -9,9 +9,10 @@ const __dirname = path.dirname(__filename);
 
 const isWindows = os.platform() === "win32";
 
+const workspaceRoot = path.resolve(__dirname, "..", "..");
+
 const application = path.resolve(
-  __dirname,
-  "src-tauri",
+  workspaceRoot,
   "target",
   "release",
   isWindows ? "ripley-desktop.exe" : "ripley-desktop",
