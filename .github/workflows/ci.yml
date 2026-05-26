@@ -99,6 +99,19 @@ jobs:
           path: apps/desktop/playwright-report
           if-no-files-found: ignore
 
+      - name: Build frontend (vite)
+        run: pnpm -F desktop build:vite
+
+      - name: Capture Lighthouse baseline
+        run: node apps/desktop/scripts/capture-lighthouse-baseline.mjs
+
+      - name: Upload Lighthouse baseline
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-baseline-${{ matrix.os }}
+          path: apps/desktop/tests/browser/__snapshots__/lighthouse-baseline.json
+          if-no-files-found: error
+
   deny:
     name: cargo-deny
     runs-on: ubuntu-latest

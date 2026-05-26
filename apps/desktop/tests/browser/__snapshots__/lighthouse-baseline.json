@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "thresholds": {
+    "accessibility": 0.95,
+    "performance": 0.9,
+    "bestPractices": 0.95
+  },
+  "byOs": {
+    "darwin": {
+      "capturedAt": "2026-05-26T14:56:37.908Z",
+      "lighthouseVersion": "13.3.0",
+      "accessibility": 1,
+      "performance": 1,
+      "bestPractices": 0.96
+    }
+  }
+}
