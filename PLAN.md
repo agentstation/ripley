@@ -4034,7 +4034,7 @@ Phase 4 Gate.
 
   Verify: `pnpm vitest run src/components/ripley/CommandPalette`
 
-- [ ] **M27.6** — Settings view
+- [x] **M27.6** — Settings view
 
   Files:
   - `apps/desktop/src/routes/Settings.tsx` — DESIGN.md form components over `ripley_core::config`

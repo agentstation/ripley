@@ -504,7 +504,11 @@ pub fn config_file_path() -> Result<PathBuf, ConfigError> {
 
 pub fn write_default_config(path: &Path) -> Result<(), ConfigError> {
     let config = Config::default();
-    let toml_str = toml::to_string_pretty(&config)?;
+    save_config(&config, path)
+}
+
+pub fn save_config(config: &Config, path: &Path) -> Result<(), ConfigError> {
+    let toml_str = toml::to_string_pretty(config)?;
 
     let parent = path.parent().ok_or_else(|| ConfigError::WriteFile {
         path: path.to_path_buf(),

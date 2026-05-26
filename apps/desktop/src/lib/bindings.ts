@@ -70,6 +70,22 @@ export const commands = {
       else return { status: "error", error: e as any };
     }
   },
+  async readSettings(): Promise<Result<SettingsDto, string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("read_settings") };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
+  async writeSettings(settings: SettingsDto): Promise<Result<SettingsDto, string>> {
+    try {
+      return { status: "ok", data: await TAURI_INVOKE("write_settings", { settings }) };
+    } catch (e) {
+      if (e instanceof Error) throw e;
+      else return { status: "error", error: e as any };
+    }
+  },
 };
 
 /** user-defined events **/
@@ -173,6 +189,19 @@ export type MonitorEntryDto = {
   reason: string;
   detail: string;
   action: string;
+};
+export type SettingsDto = {
+  poll_interval_secs: number;
+  launch_at_login: boolean;
+  monitor_enabled: boolean;
+  monitor_watch_processes: boolean;
+  monitor_watch_persistence: boolean;
+  monitor_watch_lockfiles: boolean;
+  guard_mode: string;
+  guard_timeout_secs: number;
+  guard_sandbox: boolean;
+  posture_strict: boolean;
+  posture_require_lockfile: boolean;
 };
 
 /** tauri-specta globals **/

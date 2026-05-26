@@ -14,6 +14,7 @@ use commands::guard_log::list_guard_log;
 use commands::monitor::list_monitor_events;
 use commands::ping::ping;
 use commands::posture::run_harden_report;
+use commands::settings::{read_settings, write_settings};
 use ipc_bridge::GuardEventPayload;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type, tauri_specta::Event)]
@@ -30,7 +31,9 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             run_deep_scan,
             list_monitor_events,
             run_audit_report,
-            run_harden_report
+            run_harden_report,
+            read_settings,
+            write_settings
         ])
         .events(collect_events![GuardEvent])
 }

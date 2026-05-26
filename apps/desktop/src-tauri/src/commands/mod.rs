@@ -7,3 +7,4 @@ pub mod guard_log;
 pub mod monitor;
 pub mod ping;
 pub mod posture;
+pub mod settings;
