@@ -143,12 +143,56 @@ jobs:
             libjavascriptcoregtk-4.1-dev \
             libxdo-dev
 
-      - name: Build release
-        run: cargo build --workspace --release --target ${{ matrix.target }}
+      - uses: pnpm/action-setup@v4
 
-      - name: Upload artifacts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install frontend deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build script-shell sidecar
+        run: cargo build -p ripley-guard --bin ripley-script-shell --release --target ${{ matrix.target }}
+
+      - name: Stage sidecar for Tauri bundler
+        shell: bash
+        run: |
+          mkdir -p apps/desktop/src-tauri/binaries
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "target/${{ matrix.target }}/release/ripley-script-shell.exe" \
+               "apps/desktop/src-tauri/binaries/ripley-script-shell-${{ matrix.target }}.exe"
+          else
+            cp "target/${{ matrix.target }}/release/ripley-script-shell" \
+               "apps/desktop/src-tauri/binaries/ripley-script-shell-${{ matrix.target }}"
+          fi
+
+      - name: Build CLI release
+        run: cargo build -p ripley-guard --release --target ${{ matrix.target }}
+
+      - name: Bundle desktop app (Tauri)
+        run: pnpm -F desktop tauri build --target ${{ matrix.target }}
+
+      - name: Upload CLI artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ripley-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/ripley*
+          name: ripley-cli-${{ matrix.target }}
+          path: |
+            target/${{ matrix.target }}/release/ripley
+            target/${{ matrix.target }}/release/ripley.exe
+          if-no-files-found: ignore
+
+      - name: Upload desktop bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: ripley-desktop-${{ matrix.target }}
+          path: |
+            target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            target/${{ matrix.target }}/release/bundle/macos/*.app
+            target/${{ matrix.target }}/release/bundle/msi/*.msi
+            target/${{ matrix.target }}/release/bundle/nsis/*.exe
+            target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+            target/${{ matrix.target }}/release/bundle/deb/*.deb
+            target/${{ matrix.target }}/release/bundle/rpm/*.rpm
           if-no-files-found: ignore
